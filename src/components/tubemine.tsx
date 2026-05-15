@@ -117,6 +117,12 @@ export function TubeMine() {
       const data = (await res.json()) as ExtractResponse & { error?: string }
       if (!res.ok) {
         toast.error(data.error ?? "Extraction failed")
+        track("extract_failed", {
+          videoId: preview.videoId,
+          status: res.status,
+          reason: data.error ?? "unknown",
+          remaining: data.remaining ?? -1,
+        })
         if (typeof data.remaining === "number") {
           setBudget({
             used: data.used ?? 0,
@@ -212,6 +218,14 @@ export function TubeMine() {
               <Play className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 fill-current text-muted-foreground/60" />
               <Input
                 {...form.register("url")}
+                onPaste={(e) => {
+                  const pasted = e.clipboardData.getData("text").trim()
+                  const isYouTube = extractVideoId(pasted) !== null
+                  track("paste_attempted", {
+                    isValidYouTube: isYouTube ? "true" : "false",
+                    length: pasted.length,
+                  })
+                }}
                 type="url"
                 inputMode="url"
                 placeholder="https://www.youtube.com/watch?v=..."
