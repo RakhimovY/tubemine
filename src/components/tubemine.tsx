@@ -6,6 +6,7 @@ import { standardSchemaResolver } from "@hookform/resolvers/standard-schema"
 import { z } from "zod"
 import Papa from "papaparse"
 import { toast } from "sonner"
+import { track } from "@vercel/analytics"
 import {
   ArrowRight,
   Download,
@@ -85,6 +86,11 @@ export function TubeMine() {
         return
       }
       setPreview(data as VideoMeta)
+      track("preview_loaded", {
+        videoId: data.videoId,
+        commentCount: data.commentCount,
+        disabled: data.commentsDisabled ? "true" : "false",
+      })
       if (data.commentsDisabled || data.commentCount === 0) {
         toast.warning("Comments are disabled or empty for this video")
       }
@@ -128,6 +134,12 @@ export function TubeMine() {
         budget: data.budget,
         resetAt: data.resetAt,
       })
+      track("extract_completed", {
+        videoId: preview.videoId,
+        extracted: data.extracted,
+        used: data.used,
+        remaining: data.remaining,
+      })
       toast.success(`Extracted ${data.extracted} comments`)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Network error")
@@ -144,6 +156,10 @@ export function TubeMine() {
 
   function downloadCsv() {
     if (comments.length === 0) return
+    track("csv_downloaded", {
+      videoId: preview?.videoId ?? "unknown",
+      count: comments.length,
+    })
     const csv = Papa.unparse(comments, {
       columns: ["author", "text", "likes", "replies", "publishedAt"],
     })
