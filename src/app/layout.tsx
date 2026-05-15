@@ -25,20 +25,11 @@ export const metadata: Metadata = {
     type: "website",
     url: "https://tubemine.vercel.app",
     siteName: "TubeMine",
-    images: [
-      {
-        url: "/og-image.png",
-        width: 1200,
-        height: 630,
-        alt: "TubeMine - Extract YouTube Comments. Free. No Setup.",
-      },
-    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "TubeMine - Extract YouTube Comments",
     description: "Paste a URL. Get a CSV. Done.",
-    images: ["/og-image.png"],
   },
   alternates: {
     canonical: "https://tubemine.vercel.app",
