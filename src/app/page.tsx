@@ -1,65 +1,85 @@
-import Image from "next/image";
+import { Badge } from "@/components/ui/badge"
+import { TubeMine } from "@/components/tubemine"
 
-export default function Home() {
+const REPO_URL = "https://github.com/RakhimovY/tubemine"
+
+export default function HomePage() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+    <div className="flex flex-1 flex-col">
+      <Hero />
+      <main className="relative z-10 -mt-20 flex flex-1 flex-col items-center sm:-mt-28">
+        <TubeMine />
       </main>
+      <Footer />
     </div>
-  );
+  )
+}
+
+function Hero() {
+  return (
+    <header className="relative isolate overflow-hidden">
+      <div aria-hidden="true" className="mesh-bg absolute inset-0" />
+      <div
+        aria-hidden="true"
+        className="absolute inset-0 bg-background/10 backdrop-blur-3xl"
+      />
+      <div className="relative mx-auto flex max-w-3xl flex-col items-center px-6 pt-20 pb-32 text-center sm:pt-28 sm:pb-40">
+        <Badge
+          variant="secondary"
+          className="mb-6 rounded-full border border-border/60 bg-card/70 backdrop-blur"
+        >
+          Public OSS, MIT licensed
+        </Badge>
+        <h1 className="text-balance text-4xl font-semibold tracking-tight text-foreground sm:text-5xl md:text-6xl">
+          Extract YouTube comments.
+          <br />
+          <span className="text-foreground/70">Free. No setup.</span>
+        </h1>
+        <p className="mt-5 max-w-xl text-pretty text-base leading-relaxed text-foreground/70 sm:text-lg">
+          Paste any YouTube URL, get a CSV of every comment. No signup. No API
+          key. Free up to 1,000 comments per month.
+        </p>
+        <p className="mt-3 text-xs text-foreground/50">
+          For researchers, marketers, indie devs, and anyone who wants the data,
+          not the scrape.
+        </p>
+      </div>
+    </header>
+  )
+}
+
+function Footer() {
+  return (
+    <footer className="border-t border-border/60 px-6 py-8 text-xs text-muted-foreground">
+      <div className="mx-auto flex max-w-3xl flex-col items-center justify-between gap-3 sm:flex-row">
+        <p>
+          TubeMine. Built with the YouTube Data API v3. Comments are public
+          data; respect uploaders.
+        </p>
+        <a
+          href={REPO_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 hover:bg-muted hover:text-foreground"
+        >
+          <GithubIcon />
+          Source on GitHub
+        </a>
+      </div>
+    </footer>
+  )
+}
+
+function GithubIcon() {
+  return (
+    <svg
+      role="img"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      className="size-3.5"
+      fill="currentColor"
+    >
+      <path d="M12 .5a11.5 11.5 0 0 0-3.63 22.42c.57.1.78-.25.78-.55v-2c-3.18.69-3.85-1.34-3.85-1.34-.52-1.32-1.27-1.67-1.27-1.67-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.02 1.75 2.68 1.24 3.34.95.1-.74.4-1.24.73-1.53-2.54-.29-5.21-1.27-5.21-5.65 0-1.25.45-2.27 1.18-3.07-.12-.29-.51-1.46.11-3.04 0 0 .96-.31 3.15 1.17a10.95 10.95 0 0 1 5.74 0c2.19-1.48 3.15-1.17 3.15-1.17.62 1.58.23 2.75.11 3.04.74.8 1.18 1.82 1.18 3.07 0 4.39-2.68 5.36-5.23 5.64.41.36.78 1.07.78 2.16v3.2c0 .31.21.66.79.55A11.5 11.5 0 0 0 12 .5Z" />
+    </svg>
+  )
 }
