@@ -7,6 +7,12 @@ import {
   nextMonthFirstIso,
   recordUsage,
 } from "@/lib/budget"
+import { createClient } from "@/lib/supabase/server"
+import {
+  PRO_MONTHLY_CAP,
+  bumpUserUsage,
+  getUserQuota,
+} from "@/lib/quota"
 import type { Comment } from "@/lib/types"
 import { ytClient } from "@/lib/youtube"
 
@@ -15,10 +21,31 @@ export const maxDuration = 60
 
 const ExtractSchema = z.object({
   videoId: z.string().regex(/^[\w-]{11}$/, "Invalid videoId"),
-  maxComments: z.number().int().min(1).max(MONTHLY_BUDGET).optional(),
+  maxComments: z.number().int().min(1).max(PRO_MONTHLY_CAP).optional(),
 })
 
 const PAGE_SIZE = 100
+
+async function authUserId(): Promise<{
+  userId: string | null
+  userEmail: string | null
+}> {
+  if (
+    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  ) {
+    return { userId: null, userEmail: null }
+  }
+  try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    return { userId: user?.id ?? null, userEmail: user?.email ?? null }
+  } catch {
+    return { userId: null, userEmail: null }
+  }
+}
 
 export async function POST(req: NextRequest) {
   let body: unknown
@@ -36,24 +63,57 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const { videoId, maxComments = MONTHLY_BUDGET } = parsed.data
-  const ip = getClientIp(req)
-  const status = await getBudgetStatus(ip)
+  const { userId } = await authUserId()
+  const { videoId, maxComments } = parsed.data
 
-  if (status.remaining <= 0) {
-    return NextResponse.json(
-      {
-        error: "Monthly budget exhausted",
-        used: status.used,
-        budget: status.budget,
-        remaining: 0,
-        resetAt: status.resetAt,
-      },
-      { status: 429 },
-    )
+  // Determine remaining budget from whichever source applies.
+  let limit: number
+  let mode: "user" | "ip"
+  let userQuota: Awaited<ReturnType<typeof getUserQuota>> | null = null
+  let ip: string | null = null
+  let ipStatus: Awaited<ReturnType<typeof getBudgetStatus>> | null = null
+
+  if (userId) {
+    mode = "user"
+    userQuota = await getUserQuota(userId)
+    if (userQuota.remaining <= 0) {
+      return NextResponse.json(
+        {
+          error:
+            userQuota.tier === "pro"
+              ? "Monthly Pro cap reached. Resets on the 1st."
+              : "Free tier cap reached. Upgrade for 100,000 comments/month.",
+          code: "quota_exceeded",
+          tier: userQuota.tier,
+          used: userQuota.used,
+          cap: userQuota.cap,
+          budget: userQuota.cap,
+          remaining: 0,
+          resetAt: userQuota.resetAt,
+        },
+        { status: 402 },
+      )
+    }
+    limit = Math.min(maxComments ?? userQuota.remaining, userQuota.remaining)
+  } else {
+    mode = "ip"
+    ip = getClientIp(req)
+    ipStatus = await getBudgetStatus(ip)
+    if (ipStatus.remaining <= 0) {
+      return NextResponse.json(
+        {
+          error: "Monthly budget exhausted",
+          used: ipStatus.used,
+          budget: ipStatus.budget,
+          remaining: 0,
+          resetAt: ipStatus.resetAt,
+        },
+        { status: 429 },
+      )
+    }
+    limit = Math.min(maxComments ?? MONTHLY_BUDGET, ipStatus.remaining)
   }
 
-  const limit = Math.min(maxComments, status.remaining)
   const yt = ytClient()
   const comments: Comment[] = []
   let pageToken: string | undefined
@@ -86,10 +146,17 @@ export async function POST(req: NextRequest) {
       if (!pageToken) break
     }
   } catch (err) {
-    const e = err as { code?: number; message?: string; errors?: Array<{ reason?: string }> }
+    const e = err as {
+      code?: number
+      message?: string
+      errors?: Array<{ reason?: string }>
+    }
     const reason = e?.errors?.[0]?.reason
 
-    if (e?.code === 403 && (reason === "commentsDisabled" || /disabled/i.test(e?.message ?? ""))) {
+    if (
+      e?.code === 403 &&
+      (reason === "commentsDisabled" || /disabled/i.test(e?.message ?? ""))
+    ) {
       return NextResponse.json(
         { error: "Comments are disabled for this video by the uploader" },
         { status: 400 },
@@ -97,7 +164,10 @@ export async function POST(req: NextRequest) {
     }
     if (e?.code === 403 && reason === "quotaExceeded") {
       return NextResponse.json(
-        { error: "TubeMine has hit its YouTube API daily quota. Please try again tomorrow." },
+        {
+          error:
+            "TubeMine has hit its YouTube API daily quota. Please try again tomorrow.",
+        },
         { status: 503 },
       )
     }
@@ -113,20 +183,51 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  await recordUsage(ip, comments.length)
+  // Record actual usage (atomic). Surface fresh totals to the client.
+  if (mode === "user" && userId && userQuota) {
+    const newUsed = await bumpUserUsage(userId, comments.length)
+    return NextResponse.json({
+      comments,
+      extracted: comments.length,
+      tier: userQuota.tier,
+      used: newUsed || userQuota.used + comments.length,
+      remaining: Math.max(0, userQuota.cap - (newUsed || userQuota.used + comments.length)),
+      cap: userQuota.cap,
+      // Legacy field name kept for the existing client UI.
+      budget: userQuota.cap,
+      resetAt: userQuota.resetAt,
+    })
+  }
 
-  return NextResponse.json({
-    comments,
-    extracted: comments.length,
-    used: status.used + comments.length,
-    remaining: Math.max(0, status.remaining - comments.length),
-    budget: MONTHLY_BUDGET,
-    resetAt: nextMonthFirstIso(),
-  })
+  if (ip && ipStatus) {
+    await recordUsage(ip, comments.length)
+    return NextResponse.json({
+      comments,
+      extracted: comments.length,
+      used: ipStatus.used + comments.length,
+      remaining: Math.max(0, ipStatus.remaining - comments.length),
+      budget: ipStatus.budget,
+      resetAt: ipStatus.resetAt,
+    })
+  }
+
+  return NextResponse.json({ comments, extracted: comments.length })
 }
 
 export async function GET(req: NextRequest) {
+  const { userId } = await authUserId()
+  if (userId) {
+    const quota = await getUserQuota(userId)
+    return NextResponse.json({
+      tier: quota.tier,
+      used: quota.used,
+      remaining: quota.remaining,
+      cap: quota.cap,
+      budget: quota.cap,
+      resetAt: quota.resetAt,
+    })
+  }
   const ip = getClientIp(req)
   const status = await getBudgetStatus(ip)
-  return NextResponse.json(status)
+  return NextResponse.json({ ...status, resetAt: nextMonthFirstIso() })
 }
