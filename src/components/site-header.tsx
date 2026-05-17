@@ -19,7 +19,10 @@ export async function SiteHeader() {
   const linkClass = buttonVariants({ variant: "ghost", size: "sm" })
 
   return (
-    <header className="absolute inset-x-0 top-0 z-30 flex items-center justify-end px-6 py-4">
+    <header className="absolute inset-x-0 top-0 z-30 flex items-center justify-end gap-1 px-6 py-4">
+      <Link href="/pricing" className={linkClass}>
+        Pricing
+      </Link>
       {user ? (
         <Link href="/dashboard" className={linkClass}>
           Dashboard

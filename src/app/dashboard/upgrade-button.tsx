@@ -5,7 +5,7 @@ import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 
-export function UpgradeButton() {
+export function UpgradeButton({ fullWidth = false }: { fullWidth?: boolean }) {
   const [loading, setLoading] = useState(false)
 
   async function onUpgrade() {
@@ -26,7 +26,12 @@ export function UpgradeButton() {
   }
 
   return (
-    <Button onClick={onUpgrade} disabled={loading} size="sm">
+    <Button
+      onClick={onUpgrade}
+      disabled={loading}
+      size={fullWidth ? "default" : "sm"}
+      className={fullWidth ? "w-full" : undefined}
+    >
       {loading ? (
         <Loader2 className="size-4 animate-spin" />
       ) : (

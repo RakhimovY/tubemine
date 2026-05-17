@@ -31,17 +31,18 @@ function Hero() {
           Public OSS, MIT licensed
         </Badge>
         <h1 className="text-balance text-4xl font-semibold tracking-tight text-foreground sm:text-5xl md:text-6xl">
-          Extract YouTube comments.
+          Understand any YouTube
           <br />
-          <span className="text-foreground/70">Free. No setup.</span>
+          video&rsquo;s audience.
         </h1>
         <p className="mt-5 max-w-xl text-pretty text-base leading-relaxed text-foreground/70 sm:text-lg">
-          Paste any YouTube URL, get a CSV of every comment. No signup. No API
-          key. Free up to 1,000 comments per month.
+          Paste a URL. See the top words across every comment, spot recurring
+          themes, and export the full dataset as CSV. No signup. No API key.
+          Free up to 1,000 comments per month.
         </p>
         <p className="mt-3 text-xs text-foreground/50">
-          For researchers, marketers, indie devs, and anyone who wants the data,
-          not the scrape.
+          For researchers, marketers, creators, and indie devs who want the
+          signal, not a scrape.
         </p>
       </div>
     </header>

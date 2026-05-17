@@ -5,10 +5,9 @@ import { createProCheckout } from "@/lib/polar"
 export const runtime = "nodejs"
 
 function originFromRequest(req: NextRequest): string {
-  return (
-    process.env.NEXT_PUBLIC_ORIGIN ??
-    req.nextUrl.origin
-  )
+  const fromEnv = process.env.NEXT_PUBLIC_ORIGIN?.trim()
+  if (fromEnv && fromEnv.startsWith("http")) return fromEnv
+  return req.nextUrl.origin
 }
 
 export async function POST(req: NextRequest) {

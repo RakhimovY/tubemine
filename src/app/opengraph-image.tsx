@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og"
 
 export const runtime = "edge"
-export const alt = "TubeMine - Extract YouTube Comments. Free. No Setup."
+export const alt = "TubeMine - YouTube Comment Analytics. Free. No Setup."
 export const size = { width: 1200, height: 630 }
 export const contentType = "image/png"
 
@@ -80,18 +80,18 @@ export default async function OpenGraphImage() {
         >
           <div
             style={{
-              fontSize: "92px",
+              fontSize: "84px",
               fontWeight: 700,
               color: "#ffffff",
               lineHeight: 1.0,
               letterSpacing: "-0.04em",
             }}
           >
-            Extract YouTube
+            Understand any
           </div>
           <div
             style={{
-              fontSize: "92px",
+              fontSize: "84px",
               fontWeight: 700,
               color: "#ffffff",
               lineHeight: 1.0,
@@ -99,16 +99,16 @@ export default async function OpenGraphImage() {
               marginTop: "4px",
             }}
           >
-            comments.
+            YouTube audience.
           </div>
           <div
             style={{
-              fontSize: "92px",
+              fontSize: "44px",
               fontWeight: 700,
               color: "rgba(255,255,255,0.55)",
               lineHeight: 1.0,
               letterSpacing: "-0.04em",
-              marginTop: "12px",
+              marginTop: "20px",
             }}
           >
             Free. No setup.
@@ -118,11 +118,11 @@ export default async function OpenGraphImage() {
               fontSize: "26px",
               fontWeight: 500,
               color: "rgba(255,255,255,0.6)",
-              marginTop: "32px",
+              marginTop: "28px",
               letterSpacing: "-0.01em",
             }}
           >
-            Paste a URL. Get a CSV. Done.
+            Paste a URL. Get instant comment analytics.
           </div>
         </div>
 

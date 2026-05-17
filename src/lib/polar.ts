@@ -11,9 +11,11 @@ export function getPolarClient(): Polar {
     throw new Error("POLAR_ACCESS_TOKEN must be set")
   }
 
-  const server =
-    (process.env.NEXT_PUBLIC_POLAR_SERVER as "sandbox" | "production") ??
-    "sandbox"
+  // Empty string is a real outcome of `vercel env pull` when the value
+  // was set to "" in the UI. Treat anything other than "production" as sandbox.
+  const rawServer = process.env.NEXT_PUBLIC_POLAR_SERVER?.trim()
+  const server: "sandbox" | "production" =
+    rawServer === "production" ? "production" : "sandbox"
 
   clientInstance = new Polar({ accessToken, server })
   return clientInstance

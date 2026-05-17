@@ -31,6 +31,7 @@ import {
 import { extractVideoId, type Comment, type VideoMeta } from "@/lib/types"
 import type { BudgetStatus } from "@/lib/budget"
 import { formatDateRelative, formatNumber } from "@/lib/format"
+import { TopWordsPanel } from "@/components/top-words"
 
 const FormSchema = z.object({
   url: z
@@ -326,11 +327,14 @@ export function TubeMine() {
       </Card>
 
       {comments.length > 0 && (
-        <ResultsPanel
-          comments={comments}
-          videoTitle={preview?.title ?? ""}
-          onDownload={downloadCsv}
-        />
+        <>
+          <TopWordsPanel comments={comments} />
+          <ResultsPanel
+            comments={comments}
+            videoTitle={preview?.title ?? ""}
+            onDownload={downloadCsv}
+          />
+        </>
       )}
     </section>
   )

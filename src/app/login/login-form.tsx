@@ -3,50 +3,33 @@
 import { useState } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
-import { useForm } from "react-hook-form"
-import { standardSchemaResolver } from "@hookform/resolvers/standard-schema"
-import { z } from "zod"
-import { Loader2, Mail } from "lucide-react"
+import { Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Card, CardContent } from "@/components/ui/card"
 import { createClient } from "@/lib/supabase/client"
-
-const FormSchema = z.object({
-  email: z.string().email("Enter a valid email"),
-})
-type FormValues = z.infer<typeof FormSchema>
 
 export function LoginForm() {
   const search = useSearchParams()
   const redirect = search.get("redirect") ?? "/dashboard"
-  const [sent, setSent] = useState(false)
+  const errorParam = search.get("error")
   const [loading, setLoading] = useState(false)
 
-  const form = useForm<FormValues>({
-    resolver: standardSchemaResolver(FormSchema),
-    defaultValues: { email: "" },
-  })
-
-  async function onSubmit(values: FormValues) {
+  async function signInWithGoogle() {
     setLoading(true)
     try {
       const supabase = createClient()
-      const callback = `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirect)}`
-      const { error } = await supabase.auth.signInWithOtp({
-        email: values.email,
-        options: { emailRedirectTo: callback },
+      const redirectTo = `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirect)}`
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo },
       })
       if (error) {
         toast.error(error.message)
-        return
+        setLoading(false)
       }
-      setSent(true)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Network error")
-    } finally {
       setLoading(false)
     }
   }
@@ -57,60 +40,74 @@ export function LoginForm() {
         <div className="mb-6 text-center">
           <h1 className="text-2xl font-semibold tracking-tight">Sign in</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Get a magic link in your inbox. No password.
+            Continue with Google to start analyzing comments.
           </p>
         </div>
 
-        {sent ? (
-          <div className="rounded-lg border border-border/60 bg-muted/30 p-4 text-center">
-            <Mail className="mx-auto size-5 text-foreground/70" />
-            <p className="mt-2 text-sm font-medium">Check your email</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              We sent a sign-in link to{" "}
-              <span className="text-foreground">{form.getValues("email")}</span>
-              . Click it to continue.
-            </p>
+        {errorParam ? (
+          <div className="mb-4 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-center text-xs text-destructive">
+            {errorParam === "missing_code"
+              ? "Sign-in was interrupted. Try again."
+              : errorParam}
           </div>
-        ) : (
-          <form
-            onSubmit={form.handleSubmit(onSubmit)}
-            className="flex flex-col gap-4"
-          >
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="email" className="text-xs font-medium">
-                Email
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                inputMode="email"
-                autoComplete="email"
-                placeholder="you@example.com"
-                disabled={loading}
-                {...form.register("email")}
-              />
-              {form.formState.errors.email && (
-                <p className="text-xs text-destructive">
-                  {form.formState.errors.email.message}
-                </p>
-              )}
-            </div>
-            <Button type="submit" disabled={loading} className="w-full">
-              {loading ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                "Send magic link"
-              )}
-            </Button>
-          </form>
-        )}
+        ) : null}
+
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full"
+          onClick={signInWithGoogle}
+          disabled={loading}
+        >
+          {loading ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <>
+              <GoogleIcon />
+              Sign in with Google
+            </>
+          )}
+        </Button>
 
         <p className="mt-6 text-center text-xs text-muted-foreground">
+          By signing in you agree to use TubeMine for analyzing public YouTube
+          comments responsibly.
+        </p>
+
+        <p className="mt-4 text-center text-xs text-muted-foreground">
           <Link href="/" className="hover:text-foreground">
             Back to home
           </Link>
         </p>
       </CardContent>
     </Card>
+  )
+}
+
+function GoogleIcon() {
+  return (
+    <svg
+      role="img"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      className="size-4"
+    >
+      <path
+        fill="#4285F4"
+        d="M23.49 12.27c0-.79-.07-1.54-.19-2.27H12v4.51h6.44c-.28 1.48-1.12 2.73-2.39 3.57v2.96h3.86c2.26-2.08 3.58-5.15 3.58-8.77z"
+      />
+      <path
+        fill="#34A853"
+        d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.86-2.96c-1.07.72-2.45 1.16-4.07 1.16-3.13 0-5.78-2.11-6.73-4.96H1.29v3.05C3.25 21.3 7.31 24 12 24z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M5.27 14.33c-.24-.72-.38-1.49-.38-2.33s.14-1.61.38-2.33V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.98-3.05z"
+      />
+      <path
+        fill="#EA4335"
+        d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.25 2.7 1.29 6.62l3.98 3.05C6.22 6.86 8.87 4.75 12 4.75z"
+      />
+    </svg>
   )
 }
