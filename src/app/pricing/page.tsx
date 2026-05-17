@@ -9,9 +9,9 @@ import { formatNumber } from "@/lib/format"
 import { UpgradeButton } from "@/app/dashboard/upgrade-button"
 
 export const metadata = {
-  title: "Pricing - TubeMine",
+  title: "Pricing, TubeMine",
   description:
-    "Free up to 1,000 comments per month. Pro unlocks 100,000 comments per month for $19.",
+    "Free up to 1,000 comments per month. Pro unlocks 100,000 comments per month for $19. Sentiment, top words, and emoji analytics on every plan.",
 }
 
 export const dynamic = "force-dynamic"
@@ -65,9 +65,9 @@ export default async function PricingPage() {
           summary={`${formatNumber(FREE_MONTHLY_CAP)} comments per month`}
           features={[
             "Sign in with Google",
-            "Full comment extraction",
-            "Top-words analytics",
-            "Research-ready CSV export",
+            "Sentiment, top words, emoji insights",
+            "Full audience analytics on every video",
+            "CSV export",
             "No credit card",
           ]}
           cta={
@@ -103,7 +103,7 @@ export default async function PricingPage() {
           summary={`${formatNumber(PRO_MONTHLY_CAP)} comments per month`}
           features={[
             `${formatNumber(PRO_MONTHLY_CAP)} comments per month`,
-            "Everything in Free",
+            "Sentiment, top words, emoji insights",
             "Higher monthly cap, no overage charge",
             "Cancel anytime via customer portal",
             "Priority bug fixes",

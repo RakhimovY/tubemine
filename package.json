@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "license": "MIT",
-  "description": "Extract YouTube comments as research-ready datasets. Free. No setup.",
+  "description": "YouTube audience analytics: sentiment, top words, and emoji insights via the YouTube Data API. Free. No setup.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

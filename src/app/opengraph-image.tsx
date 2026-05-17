@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og"
 
 export const runtime = "edge"
-export const alt = "TubeMine - YouTube Comment Analytics. Free. No Setup."
+export const alt = "TubeMine, YouTube Audience Analytics. Free. No Setup."
 export const size = { width: 1200, height: 630 }
 export const contentType = "image/png"
 
@@ -122,7 +122,7 @@ export default async function OpenGraphImage() {
               letterSpacing: "-0.01em",
             }}
           >
-            Paste a URL. Get instant comment analytics.
+            Sentiment, top words, and emoji insights in seconds.
           </div>
         </div>
 

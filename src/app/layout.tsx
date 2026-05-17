@@ -16,21 +16,23 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "TubeMine - YouTube Comment Analytics. Free. No Setup.",
+  title: "TubeMine, YouTube Audience Analytics. Free. No Setup.",
   description:
-    "Paste a YouTube URL, see top words and themes across every comment, export the dataset as CSV. No signup. No API key. Free up to 1,000 comments per month.",
+    "Paste a YouTube URL. Get sentiment, top words, and audience themes in seconds. Free up to 1,000 comments per month.",
   metadataBase: new URL("https://tubemine.vercel.app"),
   openGraph: {
-    title: "TubeMine - YouTube Comment Analytics",
-    description: "Paste a URL. Get instant comment analytics and CSV.",
+    title: "TubeMine, YouTube Audience Analytics",
+    description:
+      "Paste a URL. Get instant audience analytics: sentiment, top words, emojis.",
     type: "website",
     url: "https://tubemine.vercel.app",
     siteName: "TubeMine",
   },
   twitter: {
     card: "summary_large_image",
-    title: "TubeMine - YouTube Comment Analytics",
-    description: "Paste a URL. Get instant comment analytics and CSV.",
+    title: "TubeMine, YouTube Audience Analytics",
+    description:
+      "Paste a URL. Get instant audience analytics: sentiment, top words, emojis.",
   },
   alternates: {
     canonical: "https://tubemine.vercel.app",
@@ -56,7 +58,7 @@ export default function RootLayout({
               "@type": "WebApplication",
               name: "TubeMine",
               description:
-                "YouTube comment analytics: top words, themes, and research-ready CSV export. Free up to 1,000 comments per month, no signup, no API key required.",
+                "YouTube audience analytics: sentiment, top words, and emoji insights from public comment data via the YouTube Data API. Free up to 1,000 comments per month.",
               url: "https://tubemine.vercel.app",
               applicationCategory: "DeveloperApplication",
               operatingSystem: "Web",

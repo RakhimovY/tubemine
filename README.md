@@ -1,6 +1,6 @@
 # TubeMine
 
-> Extract YouTube comments as research-ready datasets. Free. No setup.
+> YouTube audience analytics: sentiment, top words, and emoji insights via the YouTube Data API. Free. No setup.
 
 [**tubemine.vercel.app**](https://tubemine.vercel.app)
 
@@ -8,9 +8,9 @@
 
 ## What it does
 
-Paste a YouTube URL, get a CSV of every top-level comment. No signup required for the free tier.
+Paste a YouTube URL, get instant audience analytics across every comment: sentiment skew (positive / neutral / negative), top words, and the emojis the audience leans on. Signed-in users can also export the comment dataset as CSV.
 
-For ML researchers, marketing analysts, indie devs, and anyone who wants the data, not the scrape.
+For creators, marketing analysts, ML researchers, indie devs, and anyone who wants the signal, not a scrape.
 
 ## Plans
 

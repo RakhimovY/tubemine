@@ -1,14 +1,36 @@
 import { Badge } from "@/components/ui/badge"
 import { TubeMine } from "@/components/tubemine"
+import { createClient } from "@/lib/supabase/server"
 
 const REPO_URL = "https://github.com/RakhimovY/tubemine"
 
-export default function HomePage() {
+export const dynamic = "force-dynamic"
+
+async function isUserSignedIn(): Promise<boolean> {
+  if (
+    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  ) {
+    return false
+  }
+  try {
+    const supabase = await createClient()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    return !!user
+  } catch {
+    return false
+  }
+}
+
+export default async function HomePage() {
+  const isSignedIn = await isUserSignedIn()
   return (
     <div className="flex flex-1 flex-col">
       <Hero />
       <main className="relative z-10 -mt-20 flex flex-1 flex-col items-center sm:-mt-28">
-        <TubeMine />
+        <TubeMine isSignedIn={isSignedIn} />
       </main>
       <Footer />
     </div>
@@ -36,9 +58,8 @@ function Hero() {
           video&rsquo;s audience.
         </h1>
         <p className="mt-5 max-w-xl text-pretty text-base leading-relaxed text-foreground/70 sm:text-lg">
-          Paste a URL. See the top words across every comment, spot recurring
-          themes, and export the full dataset as CSV. No signup. No API key.
-          Free up to 1,000 comments per month.
+          Paste a URL. Get sentiment, top words, and the emojis your audience
+          leans on, in seconds. Free up to 1,000 comments per month.
         </p>
         <p className="mt-3 text-xs text-foreground/50">
           For researchers, marketers, creators, and indie devs who want the

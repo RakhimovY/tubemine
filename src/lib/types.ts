@@ -24,4 +24,5 @@ export type Comment = {
   likes: number
   publishedAt: string
   replies: number
+  sentiment?: "positive" | "negative" | "neutral" | "unknown"
 }

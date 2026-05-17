@@ -13,6 +13,7 @@ import {
   bumpUserUsage,
   getUserQuota,
 } from "@/lib/quota"
+import { scoreCommentsSentiment, type SentimentAggregate } from "@/lib/sentiment"
 import type { Comment } from "@/lib/types"
 import { ytClient } from "@/lib/youtube"
 
@@ -183,6 +184,18 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Score sentiment in-process. Never let it block the extract response.
+  let sentimentAggregate: SentimentAggregate | null = null
+  try {
+    const result = scoreCommentsSentiment(comments.map((c) => c.text))
+    sentimentAggregate = result.aggregate
+    for (let i = 0; i < comments.length; i++) {
+      comments[i].sentiment = result.perComment[i]?.label ?? "unknown"
+    }
+  } catch (err) {
+    console.error("[sentiment] scoring failed:", err)
+  }
+
   // Record actual usage (atomic). Surface fresh totals to the client.
   if (mode === "user" && userId && userQuota) {
     const newUsed = await bumpUserUsage(userId, comments.length)
@@ -196,6 +209,7 @@ export async function POST(req: NextRequest) {
       // Legacy field name kept for the existing client UI.
       budget: userQuota.cap,
       resetAt: userQuota.resetAt,
+      sentiment: sentimentAggregate,
     })
   }
 
@@ -208,10 +222,15 @@ export async function POST(req: NextRequest) {
       remaining: Math.max(0, ipStatus.remaining - comments.length),
       budget: ipStatus.budget,
       resetAt: ipStatus.resetAt,
+      sentiment: sentimentAggregate,
     })
   }
 
-  return NextResponse.json({ comments, extracted: comments.length })
+  return NextResponse.json({
+    comments,
+    extracted: comments.length,
+    sentiment: sentimentAggregate,
+  })
 }
 
 export async function GET(req: NextRequest) {

@@ -9,7 +9,6 @@ import { toast } from "sonner"
 import { track } from "@vercel/analytics"
 import {
   ArrowRight,
-  Download,
   Loader2,
   Play,
   RotateCcw,
@@ -32,6 +31,9 @@ import { extractVideoId, type Comment, type VideoMeta } from "@/lib/types"
 import type { BudgetStatus } from "@/lib/budget"
 import { formatDateRelative, formatNumber } from "@/lib/format"
 import { TopWordsPanel } from "@/components/top-words"
+import { SentimentPanel, type SentimentAggregateProp } from "@/components/sentiment"
+import { EmojiPanel } from "@/components/emoji-frequency"
+import { CsvGate } from "@/components/csv-gate"
 
 const FormSchema = z.object({
   url: z
@@ -51,13 +53,15 @@ type ExtractResponse = {
   remaining: number
   budget: number
   resetAt: string
+  sentiment: SentimentAggregateProp | null
 }
 
-export function TubeMine() {
+export function TubeMine({ isSignedIn = false }: { isSignedIn?: boolean }) {
   const [preview, setPreview] = useState<VideoMeta | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [extractLoading, setExtractLoading] = useState(false)
   const [comments, setComments] = useState<Comment[]>([])
+  const [sentiment, setSentiment] = useState<SentimentAggregateProp | null>(null)
   const [budget, setBudget] = useState<BudgetStatus | null>(null)
 
   const form = useForm<FormValues>({
@@ -75,6 +79,7 @@ export function TubeMine() {
   async function onPreview(values: FormValues) {
     setPreviewLoading(true)
     setComments([])
+    setSentiment(null)
     try {
       const res = await fetch("/api/preview", {
         method: "POST",
@@ -106,6 +111,7 @@ export function TubeMine() {
     if (!preview) return
     setExtractLoading(true)
     setComments([])
+    setSentiment(null)
     try {
       const res = await fetch("/api/extract", {
         method: "POST",
@@ -117,7 +123,7 @@ export function TubeMine() {
       })
       const data = (await res.json()) as ExtractResponse & { error?: string }
       if (!res.ok) {
-        toast.error(data.error ?? "Extraction failed")
+        toast.error(data.error ?? "Analysis failed")
         track("extract_failed", {
           videoId: preview.videoId,
           status: res.status,
@@ -135,6 +141,7 @@ export function TubeMine() {
         return
       }
       setComments(data.comments)
+      setSentiment(data.sentiment ?? null)
       setBudget({
         used: data.used,
         remaining: data.remaining,
@@ -147,7 +154,7 @@ export function TubeMine() {
         used: data.used,
         remaining: data.remaining,
       })
-      toast.success(`Extracted ${data.extracted} comments`)
+      toast.success(`Analyzed ${data.extracted} comments`)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Network error")
     } finally {
@@ -158,6 +165,7 @@ export function TubeMine() {
   function reset() {
     setPreview(null)
     setComments([])
+    setSentiment(null)
     form.reset({ url: "" })
   }
 
@@ -168,7 +176,7 @@ export function TubeMine() {
       count: comments.length,
     })
     const csv = Papa.unparse(comments, {
-      columns: ["author", "text", "likes", "replies", "publishedAt"],
+      columns: ["author", "text", "sentiment", "likes", "replies", "publishedAt"],
     })
     const slug = (preview?.title ?? "comments")
       .toLowerCase()
@@ -202,7 +210,7 @@ export function TubeMine() {
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-sm font-medium">
               <Sparkles className="size-4 text-foreground/70" />
-              <span>Try it</span>
+              <span>Analyze a video</span>
             </div>
             {remainingLabel && (
               <Badge variant="secondary" className="font-normal">
@@ -246,7 +254,7 @@ export function TubeMine() {
                 <Loader2 className="size-4 animate-spin" />
               ) : (
                 <>
-                  Preview <ArrowRight className="size-4" />
+                  Analyze <ArrowRight className="size-4" />
                 </>
               )}
             </Button>
@@ -302,11 +310,11 @@ export function TubeMine() {
                   {extractLoading ? (
                     <>
                       <Loader2 className="size-4 animate-spin" />
-                      Extracting...
+                      Analyzing...
                     </>
                   ) : (
                     <>
-                      Extract {formatNumber(extractCount)} comments
+                      Analyze {formatNumber(extractCount)} comments
                     </>
                   )}
                 </Button>
@@ -329,9 +337,13 @@ export function TubeMine() {
       {comments.length > 0 && (
         <>
           <TopWordsPanel comments={comments} />
+          <SentimentPanel aggregate={sentiment} />
+          <EmojiPanel comments={comments} />
           <ResultsPanel
             comments={comments}
             videoTitle={preview?.title ?? ""}
+            videoId={preview?.videoId}
+            isSignedIn={isSignedIn}
             onDownload={downloadCsv}
           />
         </>
@@ -358,10 +370,14 @@ function PreviewSkeleton() {
 function ResultsPanel({
   comments,
   videoTitle,
+  videoId,
+  isSignedIn,
   onDownload,
 }: {
   comments: Comment[]
   videoTitle: string
+  videoId?: string
+  isSignedIn: boolean
   onDownload: () => void
 }) {
   return (
@@ -370,7 +386,7 @@ function ResultsPanel({
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 px-6 py-4">
           <div>
             <p className="text-sm font-medium">
-              {comments.length.toLocaleString("en-US")} comments
+              {comments.length.toLocaleString("en-US")} comments analyzed
             </p>
             {videoTitle && (
               <p className="line-clamp-1 text-xs text-muted-foreground">
@@ -378,10 +394,11 @@ function ResultsPanel({
               </p>
             )}
           </div>
-          <Button onClick={onDownload} size="sm">
-            <Download className="size-4" />
-            Download CSV
-          </Button>
+          <CsvGate
+            isSignedIn={isSignedIn}
+            onDownload={onDownload}
+            videoId={videoId}
+          />
         </div>
         <div className="max-h-[60vh] overflow-auto">
           <Table>
