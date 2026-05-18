@@ -1,5 +1,6 @@
-import Link from "next/link"
+import { Link } from "@/i18n/navigation"
 import { buttonVariants } from "@/components/ui/button"
+import { LocaleSwitcher } from "@/components/locale-switcher"
 import { createClient } from "@/lib/supabase/server"
 
 export async function SiteHeader() {
@@ -19,7 +20,7 @@ export async function SiteHeader() {
   const linkClass = buttonVariants({ variant: "ghost", size: "sm" })
 
   return (
-    <header className="absolute inset-x-0 top-0 z-30 flex items-center justify-end gap-1 px-6 py-4">
+    <header className="absolute inset-x-0 top-0 z-30 flex items-center justify-end gap-2 px-6 py-4">
       <Link href="/pricing" className={linkClass}>
         Pricing
       </Link>
@@ -32,6 +33,7 @@ export async function SiteHeader() {
           Sign in
         </Link>
       )}
+      <LocaleSwitcher />
     </header>
   )
 }

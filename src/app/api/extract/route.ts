@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
+import { saveAnalysis } from "@/lib/analyses"
 import {
   MONTHLY_BUDGET,
   getBudgetStatus,
@@ -7,6 +8,7 @@ import {
   nextMonthFirstIso,
   recordUsage,
 } from "@/lib/budget"
+import { topEmojisFromComments } from "@/lib/emoji-frequency"
 import { createClient } from "@/lib/supabase/server"
 import {
   PRO_MONTHLY_CAP,
@@ -14,6 +16,7 @@ import {
   getUserQuota,
 } from "@/lib/quota"
 import { scoreCommentsSentiment, type SentimentAggregate } from "@/lib/sentiment"
+import { topWordsFromComments } from "@/lib/top-words"
 import type { Comment } from "@/lib/types"
 import { ytClient } from "@/lib/youtube"
 
@@ -199,6 +202,38 @@ export async function POST(req: NextRequest) {
   // Record actual usage (atomic). Surface fresh totals to the client.
   if (mode === "user" && userId && userQuota) {
     const newUsed = await bumpUserUsage(userId, comments.length)
+
+    // Best-effort persistence: never blocks the response.
+    // Top-50 words and top-20 emoji aggregates per SPEC §3.1 storage cap.
+    try {
+      const topWords = topWordsFromComments(
+        comments.map((c) => c.text),
+        50,
+      ).map((w) => ({ token: w.word, count: w.count }))
+      const emojiFrequency = topEmojisFromComments(
+        comments.map((c) => c.text),
+        20,
+      ).map((e) => ({ emoji: e.emoji, count: e.count, percent: e.share * 100 }))
+
+      await saveAnalysis({
+        userId,
+        videoId,
+        videoTitle: null,
+        channelName: null,
+        thumbnailUrl: null,
+        commentCount: comments.length,
+        sentiment: sentimentAggregate,
+        topWords,
+        emojiFrequency,
+      })
+    } catch (e) {
+      console.warn("[analyses] save threw (extract continues)", {
+        error: String(e),
+        userId,
+        videoId,
+      })
+    }
+
     return NextResponse.json({
       comments,
       extracted: comments.length,

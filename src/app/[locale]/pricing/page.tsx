@@ -1,12 +1,14 @@
-import Link from "next/link"
+import NextLink from "next/link"
+import { setRequestLocale } from "next-intl/server"
 import { ArrowUpRight, Check } from "lucide-react"
+import { Link } from "@/i18n/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { buttonVariants } from "@/components/ui/button"
 import { createClient } from "@/lib/supabase/server"
 import { getUserQuota, FREE_MONTHLY_CAP, PRO_MONTHLY_CAP } from "@/lib/quota"
 import { formatNumber } from "@/lib/format"
-import { UpgradeButton } from "@/app/dashboard/upgrade-button"
+import { UpgradeButton } from "../dashboard/upgrade-button"
 
 export const metadata = {
   title: "Pricing, TubeMine",
@@ -36,7 +38,13 @@ async function loadAuthState(): Promise<AuthState> {
   return { signedIn: true, tier: quota.tier }
 }
 
-export default async function PricingPage() {
+export default async function PricingPage({
+  params,
+}: {
+  params: Promise<{ locale: string }>
+}) {
+  const { locale } = await params
+  setRequestLocale(locale)
   const state = await loadAuthState()
 
   return (
@@ -117,7 +125,7 @@ export default async function PricingPage() {
                 Sign in to upgrade
               </Link>
             ) : state.tier === "pro" ? (
-              <Link
+              <NextLink
                 href="/api/portal"
                 className={buttonVariants({
                   variant: "outline",
@@ -126,7 +134,7 @@ export default async function PricingPage() {
               >
                 Manage subscription
                 <ArrowUpRight className="size-3.5" />
-              </Link>
+              </NextLink>
             ) : (
               <UpgradeButton fullWidth />
             )
