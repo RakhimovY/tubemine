@@ -40,6 +40,9 @@ yarn-error.log*
 # local tmp / verification screenshots
 .tmp/
 
+# local Claude Code workspace (skills, sessions, etc - not part of OSS repo)
+.claude/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
