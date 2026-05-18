@@ -1,4 +1,5 @@
 import "server-only"
+import { createServiceClient } from "@/lib/supabase/server"
 import type { SentimentAggregate } from "@/lib/sentiment"
 
 export type TopWord = { token: string; count: number }
@@ -35,4 +36,35 @@ export type Cursor = { processed_at: string; id: string }
 export type ListResult = {
   items: AnalysisRow[]
   nextCursor: string | null
+}
+
+export async function saveAnalysis(input: AnalysisInsert): Promise<void> {
+  const sb = createServiceClient()
+  const now = new Date()
+  const expires = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
+
+  const { error } = await sb.from("analyses").upsert(
+    {
+      user_id: input.userId,
+      video_id: input.videoId,
+      video_title: input.videoTitle,
+      channel_name: input.channelName,
+      thumbnail_url: input.thumbnailUrl,
+      comment_count: input.commentCount,
+      sentiment: input.sentiment,
+      top_words: input.topWords,
+      emoji_frequency: input.emojiFrequency,
+      processed_at: now.toISOString(),
+      expires_at: expires.toISOString(),
+    },
+    { onConflict: "user_id,video_id" },
+  )
+
+  if (error) {
+    console.warn("[analyses] save failed", {
+      error: error.message,
+      userId: input.userId,
+      videoId: input.videoId,
+    })
+  }
 }
