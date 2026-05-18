@@ -66,3 +66,34 @@ describe("listAnalyses", () => {
     "queries with cursor filter when cursor provided (verified via Phase 12 smoke against preview DB)",
   )
 })
+
+describe("deleteAnalysis", () => {
+  let table: ReturnType<typeof createMockTable>
+
+  beforeEach(() => {
+    table = createMockTable()
+    ;(createServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(
+      createMockServiceClient(table),
+    )
+  })
+
+  it("returns deleted count from RLS-scoped delete", async () => {
+    const eqMock = vi.fn().mockResolvedValue({ data: [{ id: "row1" }], error: null, count: 1 })
+    table.delete.mockReturnValue({ select: vi.fn(() => ({ eq: eqMock })) } as never)
+    const { deleteAnalysis } = await import("@/lib/analyses")
+
+    const mockClient = createMockServiceClient(table)
+    const result = await deleteAnalysis(mockClient as never, "row1")
+    expect(result).toBe(1)
+  })
+
+  it("returns 0 when no row matches (idempotent)", async () => {
+    const eqMock = vi.fn().mockResolvedValue({ data: [], error: null, count: 0 })
+    table.delete.mockReturnValue({ select: vi.fn(() => ({ eq: eqMock })) } as never)
+    const { deleteAnalysis } = await import("@/lib/analyses")
+
+    const mockClient = createMockServiceClient(table)
+    const result = await deleteAnalysis(mockClient as never, "ghost-id")
+    expect(result).toBe(0)
+  })
+})

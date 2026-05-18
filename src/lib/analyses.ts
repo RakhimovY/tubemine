@@ -137,3 +137,24 @@ export async function listAnalyses(
 
   return { items, nextCursor }
 }
+
+export async function deleteAnalysis(
+  sb: SupabaseClient,
+  id: string,
+): Promise<number> {
+  // sb is the USER-SCOPED Supabase server client. RLS policy
+  // "users delete own analyses" enforces auth.uid() = user_id. A DELETE on a
+  // row owned by another user removes 0 rows; we collapse that to
+  // { deleted: 0 } per SPEC idempotent contract (no enumeration leak).
+  const { data, error } = await sb
+    .from("analyses")
+    .delete()
+    .select("id")
+    .eq("id", id)
+
+  if (error) {
+    console.warn("[analyses] delete failed", { error: error.message, id })
+    return 0
+  }
+  return data?.length ?? 0
+}
