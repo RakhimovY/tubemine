@@ -19,10 +19,14 @@ function toIso(value: string | Date | null | undefined): string | null {
   return new Date(value).toISOString()
 }
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 function userIdFromPayload(data: PolarSubscriptionData): string | null {
   const meta = data.metadata ?? {}
   const candidate = meta.userId ?? meta.user_id
-  if (typeof candidate !== "string" || candidate.length === 0) return null
+  if (typeof candidate !== "string") return null
+  if (!UUID_RE.test(candidate)) return null
   return candidate
 }
 
