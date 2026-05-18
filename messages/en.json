@@ -1,0 +1,59 @@
+{
+  "common": {
+    "app_name": "TubeMine",
+    "sign_in": "Sign in",
+    "sign_out": "Sign out",
+    "get_started": "Get started",
+    "loading": "Loading",
+    "error_generic": "Something went wrong. Please try again.",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "confirm": "Confirm",
+    "load_more": "Load more"
+  },
+  "landing": {
+    "hero_title_a": "Understand any",
+    "hero_title_b": "YouTube video's audience.",
+    "hero_subtitle": "Sentiment, top words, and the emojis your audience leans on, in seconds. Free up to 1,000 comments per month, no signup required.",
+    "cta_analyze": "Analyze a video",
+    "cta_pricing": "See pricing"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "recent_analyses_heading": "Recent analyses",
+    "view_all": "View all",
+    "empty": "No saved analyses yet. Analyze a video to see it here."
+  },
+  "history": {
+    "title": "History",
+    "delete_dialog_title": "Delete this analysis?",
+    "delete_dialog_body": "This can't be undone.",
+    "empty": "No saved analyses yet. Analyze a video to see it here.",
+    "error": "Could not load your history. Try again.",
+    "retry": "Retry"
+  },
+  "pricing": {
+    "title": "Pricing",
+    "free_plan": "Free",
+    "pro_plan": "Pro",
+    "manage_subscription": "Manage subscription"
+  },
+  "profile": {
+    "title": "Profile",
+    "section_account": "Account",
+    "section_plan": "Plan",
+    "section_billing": "Billing",
+    "section_danger": "Danger zone"
+  },
+  "auth": {
+    "sign_in_with_google": "Sign in with Google"
+  },
+  "legal_disclaimer_ru": "",
+  "legal_disclaimer_ru_changelog": "",
+  "footer": {
+    "product": "Product",
+    "resources": "Resources",
+    "legal": "Legal",
+    "social": "Social"
+  }
+}
