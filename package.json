@@ -6,9 +6,13 @@
   "description": "YouTube audience analytics: sentiment, top words, and emoji insights via the YouTube Data API. Free. No setup.",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "vitest run && next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
@@ -44,10 +48,13 @@
     "@types/papaparse": "^5.5.2",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitest/coverage-v8": "^4.1.6",
+    "@vitest/ui": "^4.1.6",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.6"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
