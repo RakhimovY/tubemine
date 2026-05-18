@@ -142,11 +142,11 @@ These are documented as acceptable for Phase 0 traffic. The Dashboard "Recent an
 
 ### 3.3 New endpoints
 
-**Auth contract (consistent across all three endpoints below):**
+**Auth contract (applies to both endpoints below unless overridden):**
 
 - `401 Unauthorized` if the request has no valid Supabase session (no auth header / expired JWT). Surfaces at middleware or route entry.
-- `404 Not Found` if the row does not exist OR exists but is owned by another user. RLS makes the two cases indistinguishable at the SELECT layer, and we do not surface that distinction (preventing enumeration attacks).
-- `400 Bad Request` if the `:id` path param is not a valid UUID (validated via regex before DB call).
+- `400 Bad Request` if `:id` path param is not a valid UUID (validated via regex before DB call), or if `cursor` query param is malformed (per `GET` definition).
+- For not-found / not-owner cases, each endpoint specifies its own response shape (DELETE is idempotent, returns `200 { deleted: 0 }`; LIST returns empty `items` array).
 
 #### `GET /api/analyses?cursor=<base64>&limit=20`
 
@@ -464,7 +464,7 @@ Documented for clarity, not to be added in this sprint:
 - [ ] Migration applied to prod Supabase BEFORE code deploy. `analyses` table + indexes + RLS policies exist.
 - [ ] `POST /api/extract` saves rows for signed-in users via single-statement `INSERT ... ON CONFLICT (user_id, video_id) DO UPDATE`. Returns extract result regardless of save outcome.
 - [ ] `GET /api/analyses?limit=20` returns paginated list ordered by `processed_at desc`. Malformed cursor returns 400.
-- [ ] `DELETE /api/analyses/:id` removes row. 401 if anonymous, 404 if missing or not owner (RLS), 400 if id not a UUID.
+- [ ] `DELETE /api/analyses/:id` is idempotent: returns `200 { deleted: <count> }` where count is 0 or 1. 401 if anonymous. 400 if id not a UUID. RLS enforces ownership; missing-or-not-owner collapses to `deleted: 0`.
 - [ ] `vercel.json` declares daily cron at `0 3 * * *` UTC, production only.
 - [ ] `GET /api/internal/cron/purge-analyses` validates `CRON_SECRET` bearer, executes single-statement `DELETE WHERE expires_at < now() RETURNING id`.
 - [ ] `/history` page renders auth-gated, paginated card grid with delete action and full state coverage (loading / empty / error). Uses `force-dynamic` + shared `listAnalyses()` data function (no internal self-fetch).
@@ -501,7 +501,7 @@ Documented for clarity, not to be added in this sprint:
 2. **Anonymous no-save:** Extract video B anonymously. Verify no row inserted.
 3. **UPSERT semantics:** Re-extract video A (same user). Verify same row updated (no duplicate row), `processed_at` refreshed, `expires_at` extended by ~30 days.
 4. **List paginated:** Insert 25 fixture rows. Call `GET /api/analyses?limit=10`. Verify 10 returned, `nextCursor` non-null. Call with that cursor. Verify next 10. Third page: 5 + null cursor.
-5. **Delete:** `DELETE /api/analyses/:id` returns `{ deleted: true }`. Subsequent `GET /api/analyses` confirms the row is gone. With wrong owner: 404 (no enumeration leak). Anonymous: 401. Non-UUID id: 400.
+5. **Delete:** `DELETE /api/analyses/:id` returns `200 { deleted: 1 }`. Subsequent `GET /api/analyses` confirms the row is gone. Repeated DELETE on same id: `200 { deleted: 0 }` (idempotent, no error). DELETE on row owned by another user: `200 { deleted: 0 }` (RLS, no enumeration leak). Anonymous: 401. Non-UUID id: 400.
 6. **Cursor edge cases:** call `GET /api/analyses?cursor=not-base64`. Verify 400 with `{ error: "invalid_cursor" }`. Call with valid-base64 but malformed JSON. Verify 400.
 7. **Cron purge:** insert row with `expires_at = now() - interval '1 day'`. Call cron endpoint with `Authorization: Bearer $CRON_SECRET` via GET. Verify `{ purged: 1 }`. Row gone.
 8. **Cron auth:** call cron endpoint without `Authorization` header. Verify 401. Call with wrong bearer. Verify 401.
