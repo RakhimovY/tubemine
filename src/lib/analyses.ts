@@ -158,3 +158,18 @@ export async function deleteAnalysis(
   }
   return data?.length ?? 0
 }
+
+export async function purgeExpiredAnalyses(): Promise<number> {
+  const sb = createServiceClient()
+  const { data, error } = await sb
+    .from("analyses")
+    .delete()
+    .select("id")
+    .lt("expires_at", new Date().toISOString())
+
+  if (error) {
+    console.warn("[analyses] cron purge failed", { error: error.message })
+    return 0
+  }
+  return data?.length ?? 0
+}

@@ -97,3 +97,18 @@ describe("deleteAnalysis", () => {
     expect(result).toBe(0)
   })
 })
+
+describe("purgeExpiredAnalyses", () => {
+  it("deletes rows where expires_at < now() and returns count", async () => {
+    const table = createMockTable()
+    const ltMock = vi.fn().mockResolvedValue({ data: [{ id: "a" }, { id: "b" }], error: null })
+    table.delete.mockReturnValue({ select: vi.fn(() => ({ lt: ltMock })) } as never)
+    ;(createServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(
+      createMockServiceClient(table),
+    )
+
+    const { purgeExpiredAnalyses } = await import("@/lib/analyses")
+    const result = await purgeExpiredAnalyses()
+    expect(result).toBe(2)
+  })
+})
