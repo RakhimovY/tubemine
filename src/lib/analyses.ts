@@ -3,6 +3,19 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 import { createServiceClient } from "@/lib/supabase/server"
 import type { SentimentAggregate } from "@/lib/sentiment"
 
+// Keep in sync with 01_analyses.sql DEFAULT `expires_at` interval. saveAnalysis
+// writes expires_at explicitly so the SQL default never applies; this constant
+// is the source of truth.
+const ANALYSES_TTL_MS = 30 * 24 * 60 * 60 * 1000
+
+export const ANALYSES_LIST_MIN = 1
+export const ANALYSES_LIST_MAX = 50
+
+// Cursor id is the analyses table primary key, which is uuid. Validating here
+// keeps the .or() filter below safe from injection via crafted cursor payloads
+// (PostgREST does NOT escape values inside .or() string filters).
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export type TopWord = { token: string; count: number }
 export type EmojiFreq = { emoji: string; count: number; percent: number }
 
@@ -42,7 +55,7 @@ export type ListResult = {
 export async function saveAnalysis(input: AnalysisInsert): Promise<void> {
   const sb = createServiceClient()
   const now = new Date()
-  const expires = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
+  const expires = new Date(now.getTime() + ANALYSES_TTL_MS)
 
   const { error } = await sb.from("analyses").upsert(
     {
@@ -87,6 +100,7 @@ export function decodeCursor(raw: string): Cursor | null {
       return null
     }
     if (Number.isNaN(Date.parse(parsed.processed_at))) return null
+    if (!UUID_RE.test(parsed.id)) return null
     return { processed_at: parsed.processed_at, id: parsed.id }
   } catch {
     return null
@@ -101,7 +115,9 @@ export async function listAnalyses(
   // sb is the USER-SCOPED Supabase server client (createClient()). RLS policy
   // "users read own analyses" filters to auth.uid() = user_id, so no manual
   // user_id .eq() is needed per SPEC architectural decision.
-  const cap = Math.min(Math.max(1, limit), 50)
+  // Caller should validate the limit (Phase 4 route uses Zod); clamp here is
+  // defense in depth.
+  const cap = Math.min(Math.max(ANALYSES_LIST_MIN, limit), ANALYSES_LIST_MAX)
 
   let query = sb
     .from("analyses")

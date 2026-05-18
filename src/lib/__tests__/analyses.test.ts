@@ -49,7 +49,10 @@ describe("saveAnalysis", () => {
 describe("listAnalyses cursor encoding", () => {
   it("encodes and decodes a cursor losslessly", async () => {
     const { encodeCursor, decodeCursor } = await import("@/lib/analyses")
-    const input = { processed_at: "2026-05-18T12:00:00.000Z", id: "abc" }
+    const input = {
+      processed_at: "2026-05-18T12:00:00.000Z",
+      id: "550e8400-e29b-41d4-a716-446655440000",
+    }
     const encoded = encodeCursor(input)
     expect(decodeCursor(encoded)).toEqual(input)
   })
@@ -58,6 +61,15 @@ describe("listAnalyses cursor encoding", () => {
     const { decodeCursor } = await import("@/lib/analyses")
     expect(decodeCursor("not-base64!!!")).toBeNull()
     expect(decodeCursor("eyJpbnZhbGlkIjp0cnVlfQ==")).toBeNull()
+  })
+
+  it("returns null when id is not a UUID", async () => {
+    const { encodeCursor, decodeCursor } = await import("@/lib/analyses")
+    const encoded = encodeCursor({
+      processed_at: "2026-05-18T12:00:00.000Z",
+      id: "abc",
+    })
+    expect(decodeCursor(encoded)).toBeNull()
   })
 })
 
