@@ -19,28 +19,42 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 })
 
-export const metadata: Metadata = {
-  title: "TubeMine, YouTube Audience Analytics. Free. No Setup.",
-  description:
-    "Paste a YouTube URL. Get sentiment, top words, and audience themes in seconds. Free up to 1,000 comments per month.",
-  metadataBase: new URL("https://tubemine.vercel.app"),
-  openGraph: {
-    title: "TubeMine, YouTube Audience Analytics",
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>
+}): Promise<Metadata> {
+  const { locale } = await params
+  const base = "https://tubemine.vercel.app"
+  return {
+    title: "TubeMine, YouTube Audience Analytics. Free. No Setup.",
     description:
-      "Paste a URL. Get instant audience analytics: sentiment, top words, emojis.",
-    type: "website",
-    url: "https://tubemine.vercel.app",
-    siteName: "TubeMine",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "TubeMine, YouTube Audience Analytics",
-    description:
-      "Paste a URL. Get instant audience analytics: sentiment, top words, emojis.",
-  },
-  alternates: {
-    canonical: "https://tubemine.vercel.app",
-  },
+      "Paste a YouTube URL. Get sentiment, top words, and audience themes in seconds. Free up to 1,000 comments per month.",
+    metadataBase: new URL(base),
+    openGraph: {
+      title: "TubeMine, YouTube Audience Analytics",
+      description:
+        "Paste a URL. Get instant audience analytics: sentiment, top words, emojis.",
+      type: "website",
+      url: `${base}/${locale}`,
+      siteName: "TubeMine",
+      locale,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: "TubeMine, YouTube Audience Analytics",
+      description:
+        "Paste a URL. Get instant audience analytics: sentiment, top words, emojis.",
+    },
+    alternates: {
+      canonical: `${base}/${locale}`,
+      languages: {
+        en: `${base}/en`,
+        ru: `${base}/ru`,
+        "x-default": `${base}/en`,
+      },
+    },
+  }
 }
 
 export function generateStaticParams() {
