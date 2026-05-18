@@ -11,7 +11,7 @@ import { createClient } from "@/lib/supabase/client"
 
 export function LoginForm() {
   const search = useSearchParams()
-  const redirect = search.get("redirect") ?? "/dashboard"
+  const next = search.get("next") ?? "/"
   const errorParam = search.get("error")
   const [loading, setLoading] = useState(false)
 
@@ -19,10 +19,14 @@ export function LoginForm() {
     setLoading(true)
     try {
       const supabase = createClient()
-      const redirectTo = `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(redirect)}`
+      const redirectTo = new URL(
+        "/auth/callback",
+        window.location.origin,
+      )
+      redirectTo.searchParams.set("next", next)
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: { redirectTo },
+        options: { redirectTo: redirectTo.toString() },
       })
       if (error) {
         toast.error(error.message)
