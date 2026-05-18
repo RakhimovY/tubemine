@@ -101,40 +101,70 @@ create policy "users delete own analyses"
 
 ### 3.2 Modified endpoint: `POST /api/extract`
 
-Add a non-blocking write at the end of the existing flow:
+Add a best-effort write at the end of the existing flow:
 
-1. Extract completes successfully, response payload ready.
-2. If `userId !== null` (signed-in), call `saveAnalysis(userId, videoId, payload)` wrapped in `try/catch`.
-3. `saveAnalysis` performs UPSERT on `(user_id, video_id)` with fresh `processed_at = now()` and `expires_at = now() + interval '30 days'`.
-4. Errors logged via `console.warn("[analyses] save failed", { error, userId, videoId })`. Response is returned regardless.
+1. Extract completes successfully, response payload assembled.
+2. If `userId !== null` (signed-in), `await saveAnalysis(userId, videoId, payload)` wrapped in `try/catch`. The `await` is required for Vercel serverless (function may terminate before unawaited promises resolve).
+3. `saveAnalysis` executes:
+   ```sql
+   INSERT INTO public.analyses
+     (user_id, video_id, video_title, channel_name, thumbnail_url,
+      comment_count, sentiment, top_words, emoji_frequency,
+      processed_at, expires_at)
+   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now(), now() + interval '30 days')
+   ON CONFLICT (user_id, video_id) DO UPDATE SET
+     video_title     = EXCLUDED.video_title,
+     channel_name    = EXCLUDED.channel_name,
+     thumbnail_url   = EXCLUDED.thumbnail_url,
+     comment_count   = EXCLUDED.comment_count,
+     sentiment       = EXCLUDED.sentiment,
+     top_words       = EXCLUDED.top_words,
+     emoji_frequency = EXCLUDED.emoji_frequency,
+     processed_at    = now(),
+     expires_at      = now() + interval '30 days';
+   ```
+   Semantics: last-write-wins. Concurrent extracts (double-click, retry) serialize on the unique constraint; the later write clobbers the earlier.
+4. Errors logged via `console.warn("[analyses] save failed", { error, userId, videoId })`. Response returned regardless. **No user-visible toast or claim of "Saved to history"** is emitted by extract response. User confirms persistence by visiting `/history` (which reflects truth).
 
-**Why best-effort:** extract is the user's primary value path. A flaky `analyses` insert must never break it.
+**Why best-effort:** extract is the user's primary value path. A flaky `analyses` insert must never break it. Save-failure rate observable via Vercel logs; if it exceeds 0.5% in week 1, escalate to retry/queue work in v2.
 
 **Anonymous users:** no row inserted. Privacy preserved for not-signed-in flow.
 
+**Re-analysis behavior in pagination:** because UPSERT refreshes `processed_at = now()`, a re-analyzed video jumps to the top of `/history` on next page load. This is expected, not a bug. Documented in §3.3 cursor semantics.
+
 ### 3.3 New endpoints
+
+**Auth contract (consistent across all three endpoints below):**
+
+- `401 Unauthorized` if the request has no valid Supabase session (no auth header / expired JWT). Surfaces at middleware or route entry.
+- `404 Not Found` if the row does not exist OR exists but is owned by another user. RLS makes the two cases indistinguishable at the SELECT layer, and we do not surface that distinction (preventing enumeration attacks).
+- `400 Bad Request` if the `:id` path param is not a valid UUID (validated via regex before DB call).
 
 #### `GET /api/analyses?cursor=<base64>&limit=20`
 
 - Auth required (Supabase server client). Returns 401 if anonymous.
 - Returns user's analyses ordered by `processed_at desc, id desc`.
-- Cursor: base64-encoded `{ processed_at: ISO, id: uuid }`. Filters to rows older than cursor.
+- Cursor: base64-encoded `{ processed_at: ISO, id: uuid }`. Filters to rows where `processed_at < cursor.processed_at OR (processed_at = cursor.processed_at AND id < cursor.id)`.
 - Default `limit=20`, max `limit=50`.
 - Response: `{ items: AnalysisRow[], nextCursor: string | null }`.
 - `AnalysisRow` shape: `{ id, video_id, video_title, channel_name, thumbnail_url, comment_count, sentiment, top_words, emoji_frequency, processed_at, expires_at }`.
+- **Cursor stability notes:**
+  - New inserts during pagination appear at head only after a full refresh (cursor strictly older than first-page head). User loading "Load more" mid-flow never sees duplicates on subsequent pages.
+  - UPSERT of an existing row refreshes `processed_at` to now, jumping it to head. If user paginated past it and then re-analyzes, the row appears at the top on next refresh and also still appears in any already-loaded later page until refresh. Expected, not a bug.
+  - Deleted rows in the cursor frontier are silently skipped.
 
 #### `GET /api/analyses/:id`
 
 - Auth required.
-- Returns single analysis. 404 if not found or not owner (RLS handles owner check; UUID format validated via regex).
+- Returns single analysis. Follows the auth contract above.
 - Same shape as one `AnalysisRow`.
 
 #### `DELETE /api/analyses/:id`
 
 - Auth required.
 - Hard delete (per non-goal §2).
-- Returns `{ deleted: true }` on success, 404 if row not found, 401 if not owner.
-- RLS policy `users delete own analyses` enforces ownership at DB layer.
+- Returns `{ deleted: true }` on success, follows the auth contract above.
+- RLS policy `users delete own analyses` enforces ownership at DB layer. A DELETE on a non-owner row removes 0 rows; the handler treats `affected_rows === 0` as 404.
 
 ### 3.4 Daily retention cron
 
@@ -151,28 +181,54 @@ Vercel Cron Jobs (configured in new `vercel.json`):
 }
 ```
 
-Endpoint `POST /api/internal/cron/purge-analyses`:
+**Cron auth mechanism:**
 
-1. Validates `Authorization: Bearer ${CRON_SECRET}` (Vercel sends this for cron-triggered requests).
-2. Executes `DELETE FROM public.analyses WHERE expires_at < now() RETURNING id`.
-3. Returns `{ purged: number }` for observability.
-4. Logs purge count.
+- `CRON_SECRET` is a user-set env var (we generate a long random string and add it via Vercel dashboard or `vercel env add CRON_SECRET production plain`). Vercel does not auto-generate it.
+- Vercel Cron sends `Authorization: Bearer ${CRON_SECRET}` automatically when invoking the configured path, but only if `CRON_SECRET` is defined for the environment. Cron jobs only run on production deployments (not preview).
+- Handler validates the bearer token; mismatched → 401. Same `CRON_SECRET` provisioned to production env only (preview/dev do not need cron to run, manual invocation via curl + the same secret works for testing).
+- Stored as plain (not sensitive) in Vercel env (sensitive type is write-only, breaks `vercel env pull` debugging; see `~/vault/references/vercel-sensitive-env-vars.md`).
 
-`CRON_SECRET` env var added to Vercel (production + preview + dev), stored as plain (not sensitive — Vercel sensitive type is write-only per [[references/vercel-sensitive-env-vars]]).
+**Endpoint `POST /api/internal/cron/purge-analyses`:**
+
+1. Validates `Authorization: Bearer ${CRON_SECRET}` header. Mismatched → 401.
+2. Batched delete loop:
+   ```sql
+   DELETE FROM public.analyses
+   WHERE id IN (
+     SELECT id FROM public.analyses
+     WHERE expires_at < now()
+     LIMIT 1000
+   )
+   RETURNING id;
+   ```
+   Loop until a batch returns 0 rows or a per-run total cap (10,000 rows, prevents runaway). Total purged accumulated across batches.
+3. Returns `{ purged: number, batches: number }` for observability.
+4. Logs purge count and per-batch durations.
+5. Function timeout: set `maxDuration: 60` (Pro plan limit). Per-batch typical duration <500ms; total run under 30s expected.
+
+**Cron skip / overlap behavior:** Vercel Cron has no automatic catch-up for missed runs. If 03:00 UTC is skipped one day, next run still uses `expires_at < now()` (eventual consistency, OK). If a run is retried (5xx), second invocation is a no-op (already purged), still returns 200.
 
 ### 3.5 `/history` page
 
-Route `app/[locale]/history/page.tsx` (i18n routing per Track B2):
+Route `app/[locale]/history/page.tsx` (i18n routing per Track B2; locked sub-path strategy in §4.3).
+
+**Scope (Phase 0 MVP):** paginated read-only list + delete. No search, no filters, no re-analyze, no detail view. These are deferred per YAGNI; ship the minimum that fulfills the "remember my history" promise.
 
 - **Auth gate:** redirect to `/[locale]/login?next=/[locale]/history` if anonymous.
-- **Header:** search input (debounced client-side filter on `video_title` + `channel_name`).
-- **Filters:** date range (7d / 30d / all), sentiment dominant (positive / neutral / negative / any). Client-side filters initially; server-side moves to PLAN if perf demands.
-- **Grid:** responsive card grid. Card shows thumbnail, video title (clamped 2 lines), channel name, comment count, sentiment dominant chip (color-coded), relative `processed_at` ("3 hours ago"), action menu (Re-analyze, View, Delete).
-- **Re-analyze action:** navigate to `/[locale]/?video=<videoId>` — landing handles the auto-analyze path.
-- **View action:** opens `/[locale]/history/[id]` (detail view showing full widgets re-rendered from JSONB).
-- **Delete action:** confirms via dialog, fires `DELETE /api/analyses/:id`, optimistic remove + revert on error.
-- **Pagination:** "Load more" button calls `GET /api/analyses?cursor=...`. Cursor stored client-side.
-- **States:** loading skeleton (8 cards), empty ("No saved analyses yet. Analyze a video to see it here."), error ("Could not load your history. Try again.").
+- **Grid:** responsive card grid. Card shows thumbnail, video title (clamped 2 lines), channel name, comment count, sentiment dominant chip (color-coded), relative `processed_at` ("3 hours ago"), Delete button.
+- **Delete action:** confirms via dialog ("Delete this analysis? This can't be undone."), fires `DELETE /api/analyses/:id`, optimistic remove + revert on error.
+- **Pagination:** "Load more" button calls `GET /api/analyses?cursor=...`. Cursor stored client-side. Hide button when `nextCursor === null`.
+- **States:** loading skeleton (8 cards), empty ("No saved analyses yet. Analyze a video to see it here."), error ("Could not load your history. Try again." with retry button).
+
+**Deferred to v2 (not in this sprint, do not implement):**
+
+- Search input
+- Date range filter
+- Sentiment dominant filter
+- Re-analyze action
+- Per-analysis detail page (`/history/[id]`)
+
+These features were considered and removed during spec review round 1 (YAGNI for Phase 0 traffic; ~20 analyses/user makes search/filter premature; re-analyze and detail add nav glue without core value).
 
 ### 3.6 Dashboard "Recent analyses" widget
 
@@ -195,6 +251,22 @@ Add to `app/[locale]/terms/page.tsx`:
 
 EN-only in this sprint. RU-locale shows the disclaimer block (per §4.7 below) until lawyer review.
 
+### 3.8 Account deletion flow
+
+The "If you delete your account, all associated analyses are removed immediately" claim in §3.7 Terms requires a real account-delete flow. Add a "Delete account" action to the Profile page Danger zone (rendered by Track A):
+
+- **Endpoint:** `POST /api/account/delete`
+  - Auth required (401 if anonymous).
+  - Cancels any active Polar subscription first (best-effort `POST /api/portal` style cancel-now via Polar SDK).
+  - Calls Supabase Admin API `auth.admin.deleteUser(userId)` via service role.
+  - Auth-cascade triggers: `profiles`, `usage`, `subscriptions`, `analyses` rows are removed via `references auth.users on delete cascade`.
+  - Signs the user out (clear session cookie).
+  - Returns `{ deleted: true }`.
+- **UI:** dialog confirmation ("This will permanently delete your account, your subscription, and all saved analyses. This cannot be undone. Type DELETE to confirm.").
+- **Webhook follow-up:** Polar may emit `subscription.canceled` after our explicit cancel; idempotent webhook handler already tolerates this.
+
+Cascade safety verified by §9 acceptance test 9 below.
+
 ---
 
 ## 4. Track B2 — i18n infrastructure
@@ -212,23 +284,45 @@ Other languages out of scope (sentiment lexicon roadmap is separate from UI loca
 
 ### 4.3 URL routing strategy
 
-**Research-driven decision in PLAN phase.** Compare:
+**Decision: sub-path routing.** All routes are namespaced under `/en/...` and `/ru/...`. Implemented via Next.js 16 App Router `app/[locale]/` directory structure and `next-intl`'s `createNavigation` helper. The root `/` redirects (307) to the locale resolved per §4.4 detection logic.
 
-1. Sub-path: `/en/...` + `/ru/...` (Next.js i18n native, hreflang, SEO-optimal)
-2. Sub-domain: `en.tubemine.tech` + `ru.tubemine.tech` (DNS complexity, SEO good)
-3. Query param: `?lang=ru` (simplest, weak SEO, fragile cache keys)
-4. Cookie-only / single URL (worst SEO, duplicate content penalty)
+**Why sub-path:**
+- Next.js 16 App Router has first-class support via `next-intl` `routing` config.
+- hreflang tags work cleanly per-URL.
+- Crawlers index each locale as a distinct URL without cookie / header sniffing.
+- Shareable links carry locale (a Russian user sharing a /ru/pricing link gets RU content for the recipient regardless of recipient's browser language).
+- Matches the pattern used by every SaaS we compete against or learn from.
 
-PLAN phase must research how Linear, Vercel, Stripe, Polar, GitHub, Twilio handle i18n in 2025-2026 and cite sources. Initial leaning: sub-path with hreflang. PLAN must confirm or override.
+PLAN must include a short research note (under 200 words) citing 3+ comparable SaaS products (Linear, Vercel, Stripe, Polar, GitHub, Twilio, etc.) and their i18n URL strategy as of 2025-2026, confirming sub-path is industry consensus. If research reveals a strong reason to override, raise a fundamental-design-flaw flag back to the user; do not silently switch.
 
-Routing artifact (regardless of choice): all routes resolve to a single canonical locale per request. No mixed-locale page renders.
+Sub-domain (`ru.tubemine.tech`) is rejected: extra DNS configuration, cookie sharing complexity, and we do not need geo-distributed origin separation.
+
+Query param (`?lang=ru`) is rejected: weak SEO, cache key fragility, cookies and URL fall out of sync.
+
+Cookie-only / single URL is rejected: duplicate content penalty, no shareable locale.
+
+Routing invariant (any chosen strategy): all routes resolve to a single canonical locale per request. No mixed-locale page renders.
 
 ### 4.4 Default locale + persistence
 
-- **First visit:** parse `Accept-Language` header. If first language tag matches `ru-*` → serve RU locale. Otherwise → serve EN locale.
-- **Manual switch:** UI dropdown sets `NEXT_LOCALE` cookie (1 year expiry). Subsequent visits prefer cookie over `Accept-Language`.
-- **Anonymous + signed-in:** same flow. Locale is a UI-layer decision, not tied to auth.
-- **Crawlers:** serve locale based on URL path (no header sniffing). Allows Googlebot to index both locales.
+Detection precedence (highest to lowest):
+
+1. **URL locale segment** — if request path starts with `/en/...` or `/ru/...`, that locale wins. URL is authoritative. No redirect.
+2. **`NEXT_LOCALE` cookie** — if path is the bare root `/`, check cookie. Valid values: `en` or `ru`. Invalid / missing → fall through.
+3. **`Accept-Language` header parse** — first language tag matching `ru` (case-insensitive, accepts `ru`, `ru-RU`, `ru-KZ`, etc.) → `ru`. Anything else, including `en-*` or missing header → `en`.
+4. **Hard fallback** — `en`.
+
+Side effects:
+
+- **Manual switch** via `<LocaleSwitcher />`: sets `NEXT_LOCALE` cookie (1 year, `SameSite=Lax`, `Secure`, `Path=/`) AND navigates to the same logical route in the new locale.
+- **Anonymous + signed-in:** identical flow. Locale is a UI-layer decision, not tied to auth.
+- **Bookmark / deep link with locale-cookie mismatch:** the URL wins, no redirect. Cookie remains whatever it was (NOT updated to match URL silently — that would cause subsequent bare-`/` visits to fight the user's last manual choice). If user wants to "stick" the new locale, they use the switcher.
+- **Crawlers:** serve locale based on URL path (no header / cookie sniffing). Allows Googlebot to index both locales independently.
+
+Validation:
+
+- Allow-list `[en, ru]`. Any `NEXT_LOCALE` cookie value not in the list → ignored, fall through to detection.
+- Any URL path with an unknown locale prefix (e.g. `/fr/pricing`) → 404 page (next-intl middleware handles this).
 
 ### 4.5 Translation source
 
@@ -250,24 +344,28 @@ Routing artifact (regardless of choice): all routes resolve to a single canonica
 - Landing (hero, all feature sections, FAQ, pricing teaser, footer CTAs)
 - Dashboard (sidebar, quota card, recent analyses widget, empty states, errors)
 - Pricing page (copy, pricing FAQ, manage subscription button)
-- Profile page (Account / Plan / Billing / Danger zone labels and descriptions)
-- /history page (filters, empty state, action menus, dialogs)
+- Profile page (Account / Plan / Billing / Danger zone labels and descriptions, account-delete dialog text)
+- /history page (empty state, error state, delete dialog)
 - /docs page
-- /changelog page (release notes; entry bodies bilingual)
 - Login page (Google OAuth CTA, legal blurb)
 - Error pages (404, 500, generic)
 - Toast messages (success, error, info)
 - Form validation errors
-- Email subjects + bodies (welcome email)
 
-**EN-only with RU-locale disclaimer:**
+**EN-only (no translation in this sprint):**
 
-- Privacy page
-- Terms page
+- Privacy page (legal text, RU translation needs lawyer review per §2)
+- Terms page (same reason)
+- /changelog entries (release notes; founder authors in EN; bilingualizing each release entry adds maintenance burden disproportionate to value at Phase 0 traffic)
+- Email subjects + bodies (welcome email and any future transactional email; deferred until email infrastructure is built out; tracked separately, not in this sprint)
 
-Disclaimer block (rendered above content when `locale === 'ru'`):
+For locale=ru visits to EN-only pages, render a disclaimer block above the content:
 
-> Эта страница пока доступна только на английском. Русская версия появится после юридической проверки.
+> Эта страница пока доступна только на английском. Русская версия появится позже.
+
+The `/changelog` disclaimer can be shorter:
+
+> Журнал изменений ведётся на английском.
 
 ### 4.8 Typography for Cyrillic
 
@@ -305,7 +403,11 @@ Disclaimer block (rendered above content when `locale === 'ru'`):
 | Cookie name | `NEXT_LOCALE` | `next-intl` convention |
 | Cookie expiry | 1 year | Standard for locale persistence |
 | Translation tooling | `pal__chat` with `deepseek/deepseek-v4-flash` + founder review | Cheap; founder is bilingual native speaker |
-| Search on /history | Client-side initially | 30 days × ~20 analyses/user = small data set; server-side later if needed |
+| /history scope | List + delete + pagination only (no search, filters, detail, re-analyze) | YAGNI for Phase 0 traffic |
+| Account delete | UI in Profile Danger zone + `POST /api/account/delete` + Polar cancel + Supabase Admin delete + cascade | Required to make §3.7 Terms claim truthful |
+| Cron batching | `LIMIT 1000` per loop, max 10,000 per run | Prevents function timeout on large purges |
+| URL routing | sub-path `/en/...` `/ru/...` | Locked in §4.3 with research-confirmation task in PLAN |
+| Save-failure UX | Silent log, no toast, user verifies via /history | No false "Saved!" promise; observable via Vercel logs |
 | Track ordering | B1 (persistence) first, B2 (i18n) second | i18n wraps existing pages; needs pages built first to wrap |
 
 ---
@@ -319,7 +421,8 @@ Disclaimer block (rendered above content when `locale === 'ru'`):
 - **No em-dash:** all user-facing text (UI, emails, FAQ, legal) follows `~/vault/feedback/no-em-dash.md`. Use `,` `.` `()` `:` `-` instead.
 - **Mobile-first:** WCAG 2.2 AA, 375px viewport zero overflows, ≥44×44px tap targets.
 - **Polar webhook UUID validation:** preserved in `src/lib/subscription.ts` (already shipped, do not regress).
-- **Existing quota system:** anonymous 1k/month per IP, Free auth 5k/month, Pro 100k/month. PRD §1.6 numbers, not the previous /vault feedback that said 100.
+- **Existing quota system:** anonymous, Free auth, and Pro quotas exist with documented per-tier limits. The exact constants (`MONTHLY_BUDGET`, `PRO_MONTHLY_CAP`, free-tier auth cap) live in `src/lib/budget.ts` and `src/lib/quota.ts`. PLAN must read these files to confirm the numeric values used in FAQ copy (PRD claims 1k / 5k / 100k; if real code disagrees, code wins and FAQ updates).
+- **Deployment ordering:** Supabase migration applied BEFORE Vercel code deploy (migration adds `analyses` table; code deploy reads/writes it). PLAN includes step-ordered checklist. Migration runs forward-only; rollback path documented separately in PLAN.
 
 ---
 
@@ -340,6 +443,14 @@ Documented for clarity, not to be added in this sprint:
 - Background queue / job worker.
 - Per-locale separate user account or settings.
 - Auto-translation of `video_title` (it remains in YouTube's original language).
+- `/history` search input (deferred to v2 once user analyses count grows).
+- `/history` date range filter (redundant under uniform 30-day retention).
+- `/history` sentiment dominant filter (no demand signal yet).
+- Per-analysis detail page `/history/[id]` (cards in the list already display all aggregate data).
+- Re-analyze action on `/history` cards (adds nav glue + landing query-param contract without core value; user can paste URL again).
+- Bilingual `/changelog` (founder authors release notes in EN; per-release translation burden disproportionate to traffic).
+- Bilingual transactional emails (welcome email + future templates stay EN-only until email infrastructure scope is opened separately).
+- `cron_runs` observability table (Vercel logs + cron response payload sufficient at Phase 0).
 
 ---
 
@@ -347,16 +458,17 @@ Documented for clarity, not to be added in this sprint:
 
 **Track B1 (persistence) ship-readiness:**
 
-- [ ] Migration applied to prod Supabase. `analyses` table + indexes + RLS policies exist.
-- [ ] `POST /api/extract` saves rows for signed-in users, returns extract result regardless of save outcome.
+- [ ] Migration applied to prod Supabase BEFORE code deploy. `analyses` table + indexes + RLS policies exist.
+- [ ] `POST /api/extract` saves rows for signed-in users, returns extract result regardless of save outcome. Save uses awaited UPSERT with explicit `ON CONFLICT (user_id, video_id) DO UPDATE` clause.
 - [ ] `GET /api/analyses?limit=20` returns paginated list ordered by `processed_at desc`.
-- [ ] `GET /api/analyses/:id` returns single row or 404.
-- [ ] `DELETE /api/analyses/:id` removes row or 404 / 401.
-- [ ] `vercel.json` declares daily cron at `0 3 * * *`.
-- [ ] `POST /api/internal/cron/purge-analyses` validates `CRON_SECRET` and purges expired rows.
-- [ ] `/history` page renders auth-gated, with search + filters + cards + states.
+- [ ] `GET /api/analyses/:id` returns single row, 401 if anonymous, 404 if missing or not owner, 400 if id not a UUID.
+- [ ] `DELETE /api/analyses/:id` removes row, follows the same auth contract.
+- [ ] `vercel.json` declares daily cron at `0 3 * * *` UTC, production only.
+- [ ] `POST /api/internal/cron/purge-analyses` validates `CRON_SECRET`, batches `LIMIT 1000` per loop, caps at 10,000 per run.
+- [ ] `/history` page renders auth-gated, paginated card grid with delete action and full state coverage (loading / empty / error). No search, no filters, no detail page, no re-analyze (deferred per §7).
 - [ ] Dashboard `<RecentAnalyses />` widget renders last 5 with "View all →" link.
 - [ ] Privacy + Terms updated with retention clause (EN-only).
+- [ ] Profile Danger zone shows account-delete UI; `POST /api/account/delete` cancels Polar subscription, calls Supabase Admin API, cascade removes analyses.
 
 **Track B2 (i18n) ship-readiness:**
 
@@ -386,36 +498,41 @@ Documented for clarity, not to be added in this sprint:
 
 1. **Save on extract:** Sign in as test user. Extract video A. Verify `SELECT * FROM analyses WHERE user_id = ? AND video_id = ?` returns one row with non-null `sentiment`.
 2. **Anonymous no-save:** Extract video B anonymously. Verify no row inserted.
-3. **UPSERT semantics:** Re-extract video A (same user). Verify same row updated, `processed_at` refreshed, `expires_at` extended.
+3. **UPSERT semantics:** Re-extract video A (same user). Verify same row updated (no duplicate row), `processed_at` refreshed, `expires_at` extended by ~30 days.
 4. **List paginated:** Insert 25 fixture rows. Call `GET /api/analyses?limit=10`. Verify 10 returned, `nextCursor` non-null. Call with that cursor. Verify next 10. Third page: 5 + null cursor.
-5. **Single fetch:** `GET /api/analyses/:id` returns 200 with payload. With wrong owner: 404 (RLS).
-6. **Delete:** `DELETE /api/analyses/:id` returns 200. Subsequent `GET` returns 404.
-7. **Cron purge:** Insert row with `expires_at = now() - interval '1 day'`. Call cron endpoint with `Authorization: Bearer $CRON_SECRET`. Verify `{ purged: 1 }`. Row gone.
+5. **Single fetch:** `GET /api/analyses/:id` returns 200 with payload. With wrong owner: 404 (RLS, not 401). With non-UUID id: 400. Anonymous: 401.
+6. **Delete:** `DELETE /api/analyses/:id` returns 200. Subsequent `GET` returns 404. With wrong owner: 404 (no enumeration leak). Anonymous: 401.
+7. **Cron purge:** Insert row with `expires_at = now() - interval '1 day'`. Call cron endpoint with `Authorization: Bearer $CRON_SECRET`. Verify `{ purged: 1, batches: 1 }`. Row gone.
 8. **Cron auth:** Call cron endpoint without `Authorization` header. Verify 401.
-9. **/history UI:** Sign in, navigate to `/history`. Verify auth gate passes, cards render, search filters in real time, delete confirms via dialog.
-10. **Dashboard widget:** Sign in, visit `/dashboard`. Verify "Recent analyses" widget shows 5 latest or empty state.
+9. **Account delete cascade:** Create test user, insert 3 analyses + 1 subscription. Call `POST /api/account/delete`. Verify Polar cancel called, `auth.users` row removed, all 3 analyses + subscription rows cascade-deleted.
+10. **Save failure does not break extract:** Mock DB to throw on UPSERT. Call `POST /api/extract` as signed-in user. Verify response payload intact (200, sentiment+top_words+emoji_frequency present), `console.warn` logged, no row in DB.
+11. **/history UI:** Sign in, navigate to `/history`. Verify auth gate passes, cards render, delete confirms via dialog, "Load more" appears when more rows exist.
+12. **Dashboard widget:** Sign in, visit `/dashboard`. Verify "Recent analyses" widget shows 5 latest or empty state.
 
 **Track B2:**
 
-1. **First visit RU:** request `/` with `Accept-Language: ru-RU,ru;q=0.9`. Verify redirect to RU locale URL, content in Russian.
-2. **First visit EN:** request `/` with `Accept-Language: en-US,en;q=0.9`. Verify EN content served.
-3. **Manual switch persists:** open `/en/`, click locale switcher → RU. Verify URL changes to RU path, content swaps, cookie set. Reload. Verify still RU.
-4. **Locale-aware redirect:** logged out user hits `/ru/history`. Verify redirect to `/ru/login?next=/ru/history`.
-5. **Privacy disclaimer:** open `/ru/privacy`. Verify disclaimer block visible above EN content.
-6. **hreflang:** inspect `<head>` of `/en/pricing`. Verify both `hreflang="en"` and `hreflang="ru"` link tags present, both pointing at correct localized URL.
-7. **Key parity lint:** add a key to `messages/en.json` only. Run lint. Verify fails. Restore parity. Verify passes.
-8. **Sitemap:** request `/sitemap.xml`. Verify includes `/en/...` and `/ru/...` entries.
+1. **First visit RU:** request `/` with `Accept-Language: ru-RU,ru;q=0.9`. Verify 307 redirect to `/ru`, content in Russian.
+2. **First visit EN:** request `/` with `Accept-Language: en-US,en;q=0.9`. Verify 307 redirect to `/en`, content in English.
+3. **Missing Accept-Language:** request `/` with no Accept-Language header. Verify 307 redirect to `/en` (hard fallback).
+4. **Invalid cookie fallback:** set cookie `NEXT_LOCALE=fr`, request `/`. Verify cookie ignored, detection falls through to Accept-Language or EN fallback.
+5. **Manual switch persists:** open `/en/`, click locale switcher → RU. Verify URL changes to `/ru/`, content swaps, cookie `NEXT_LOCALE=ru` set with 1-year expiry, `SameSite=Lax`, `Secure`. Reload. Verify still on `/ru/`.
+6. **URL beats cookie on deep-link:** set cookie `NEXT_LOCALE=en`, visit `/ru/pricing`. Verify RU content served, cookie unchanged.
+7. **Locale-aware redirect:** logged out user hits `/ru/history`. Verify redirect to `/ru/login?next=/ru/history`.
+8. **Unknown locale path:** request `/fr/pricing`. Verify 404 (next-intl middleware rejects unknown locale prefix).
+9. **Privacy disclaimer:** open `/ru/privacy`. Verify disclaimer block visible above EN content. Same for `/ru/terms`.
+10. **Changelog disclaimer:** open `/ru/changelog`. Verify short RU disclaimer visible above EN entries.
+11. **hreflang:** inspect `<head>` of `/en/pricing`. Verify both `hreflang="en"` and `hreflang="ru"` link tags present, both pointing at correct localized URL.
+12. **Key parity lint:** add a key to `messages/en.json` only. Run lint. Verify fails. Restore parity. Verify passes.
+13. **Sitemap:** request `/sitemap.xml`. Verify includes `/en/...` and `/ru/...` entries for every public route.
+14. **<html lang>:** inspect `<html>` tag of `/en/pricing` (lang="en") and `/ru/pricing` (lang="ru").
 
 ---
 
 ## 10. Open questions (deferred to PLAN)
 
-1. **i18n URL routing strategy** — research SaaS best practices (Linear, Vercel, Stripe, Polar, GitHub, Twilio in 2025-2026) and decide between sub-path, sub-domain, query param. Cite sources. Initial leaning: sub-path.
-2. **Translation memory / glossary** — maintain a shared glossary (`messages/glossary.md`) to keep brand terms consistent across LLM-translated entries? Decide in PLAN.
-3. **Search backend evolution path** — when does client-side search on `/history` get replaced by server-side (Postgres `ILIKE` or full-text)? Decide trigger threshold in PLAN (probably 100+ rows / user).
-4. **/history pagination limit ceiling** — current proposed max `limit=50`. Decide in PLAN if higher needed.
-5. **Cron observability** — should purge count post to logs only, or also to a `cron_runs` table for trend tracking? Decide in PLAN.
-6. **Welcome email locale** — should the welcome email respect user's UI locale at signup, or default to EN? Decide in PLAN with the email template work.
+1. **i18n URL routing strategy confirmation** — sub-path is locked in §4.3, but PLAN must include a short research note citing 3+ comparable SaaS (Linear, Vercel, Stripe, Polar, GitHub, Twilio in 2025-2026) confirming this is industry consensus. If research surfaces a strong reason to override, raise as a fundamental design flag to the user before proceeding.
+2. **Translation memory / glossary** — maintain a shared glossary (`messages/glossary.md`) to keep brand terms consistent across LLM-translated entries? Decide in PLAN. Recommended default: yes, a small glossary with terms like "comment", "sentiment", "TubeMine" (proper noun, do not translate).
+3. **Verify quota constants** — PLAN must read `src/lib/budget.ts` and `src/lib/quota.ts` to confirm the actual values for `MONTHLY_BUDGET` (anonymous IP cap) and `PRO_MONTHLY_CAP` (Pro tier cap) and the free-tier auth cap. FAQ copy in Track A must reflect real values, not PRD-stated values. If they differ, code wins and FAQ updates.
 
 ---
 
