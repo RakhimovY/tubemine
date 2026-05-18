@@ -1,6 +1,7 @@
-import { redirect } from "next/navigation"
-import Link from "next/link"
+import NextLink from "next/link"
+import { getTranslations, setRequestLocale } from "next-intl/server"
 import { ArrowUpRight, Sparkles, Zap } from "lucide-react"
+import { Link, redirect } from "@/i18n/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
@@ -19,31 +20,39 @@ export const metadata = {
 export const dynamic = "force-dynamic"
 
 export default async function DashboardPage({
+  params,
   searchParams,
 }: {
+  params: Promise<{ locale: string }>
   searchParams: Promise<{ welcome?: string }>
 }) {
-  const params = await searchParams
-  const showWelcome = params?.welcome === "true"
+  const { locale } = await params
+  setRequestLocale(locale)
+  const sp = await searchParams
+  const showWelcome = sp?.welcome === "true"
 
   const supabase = await createClient()
   const {
     data: { user },
   } = await supabase.auth.getUser()
-  if (!user) redirect("/login?redirect=/dashboard")
+  if (!user) redirect({ href: "/login?redirect=/dashboard", locale })
 
   const quota = await getUserQuota(user.id)
   const percent = Math.min(100, Math.round((quota.used / quota.cap) * 100))
-  const resetDate = new Date(quota.resetAt).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  })
+  const resetDate = new Date(quota.resetAt).toLocaleDateString(
+    locale === "ru" ? "ru-RU" : "en-US",
+    {
+      month: "short",
+      day: "numeric",
+    },
+  )
+  const t = await getTranslations("dashboard")
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-6 pt-24 pb-16 sm:pt-28">
       <header className="flex flex-col gap-2">
         <p className="text-sm text-muted-foreground">{user.email}</p>
-        <h1 className="text-3xl font-semibold tracking-tight">Dashboard</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">{t("title")}</h1>
       </header>
 
       {showWelcome && quota.tier === "pro" && (
@@ -123,12 +132,12 @@ export default async function DashboardPage({
                   Manage payment method, invoices, or cancel anytime.
                 </p>
               </div>
-              <Link
+              <NextLink
                 href="/api/portal"
                 className={buttonVariants({ variant: "outline", size: "sm" })}
               >
                 Manage subscription <ArrowUpRight className="size-3.5" />
-              </Link>
+              </NextLink>
             </div>
           )}
         </CardContent>

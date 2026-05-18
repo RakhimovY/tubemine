@@ -1,6 +1,6 @@
 "use client"
 
-import Link from "next/link"
+import { Link } from "@/i18n/navigation"
 import { useEffect } from "react"
 import { Download, LogIn } from "lucide-react"
 import { track } from "@vercel/analytics"
