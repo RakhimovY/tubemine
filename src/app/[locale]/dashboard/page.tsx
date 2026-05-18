@@ -9,6 +9,7 @@ import { buttonVariants } from "@/components/ui/button"
 import { createClient } from "@/lib/supabase/server"
 import { getUserQuota, FREE_MONTHLY_CAP, PRO_MONTHLY_CAP } from "@/lib/quota"
 import { formatNumber } from "@/lib/format"
+import { RecentAnalyses } from "@/components/recent-analyses"
 import { UpgradeButton } from "./upgrade-button"
 import { LogoutButton } from "./logout-button"
 
@@ -175,6 +176,8 @@ export default async function DashboardPage({
         Free tier: {formatNumber(FREE_MONTHLY_CAP)} comments/month. Pro:{" "}
         {formatNumber(PRO_MONTHLY_CAP)} comments/month for $19.
       </p>
+
+      <RecentAnalyses />
     </main>
   )
 }
