@@ -1,3 +1,4 @@
+import { getTranslations, setRequestLocale } from "next-intl/server"
 import { Badge } from "@/components/ui/badge"
 import { TubeMine } from "@/components/tubemine"
 import { createClient } from "@/lib/supabase/server"
@@ -24,7 +25,13 @@ async function isUserSignedIn(): Promise<boolean> {
   }
 }
 
-export default async function HomePage() {
+export default async function HomePage({
+  params,
+}: {
+  params: Promise<{ locale: string }>
+}) {
+  const { locale } = await params
+  setRequestLocale(locale)
   const isSignedIn = await isUserSignedIn()
   return (
     <div className="flex flex-1 flex-col">
@@ -37,7 +44,8 @@ export default async function HomePage() {
   )
 }
 
-function Hero() {
+async function Hero() {
+  const t = await getTranslations("landing")
   return (
     <header className="relative isolate overflow-hidden">
       <div aria-hidden="true" className="mesh-bg absolute inset-0" />
@@ -53,13 +61,12 @@ function Hero() {
           Public OSS, MIT licensed
         </Badge>
         <h1 className="text-balance text-4xl font-semibold tracking-tight text-foreground sm:text-5xl md:text-6xl">
-          Understand any YouTube
+          {t("hero_title_a")}
           <br />
-          video&rsquo;s audience.
+          {t("hero_title_b")}
         </h1>
         <p className="mt-5 max-w-xl text-pretty text-base leading-relaxed text-foreground/70 sm:text-lg">
-          Paste a URL. Get sentiment, top words, and the emojis your audience
-          leans on, in seconds. Free up to 1,000 comments per month.
+          {t("hero_subtitle")}
         </p>
         <p className="mt-3 text-xs text-foreground/50">
           For researchers, marketers, creators, and indie devs who want the
