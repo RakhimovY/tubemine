@@ -101,11 +101,13 @@ create policy "users delete own analyses"
 
 ### 3.2 Modified endpoint: `POST /api/extract`
 
-Add a best-effort write at the end of the existing flow:
+Add a best-effort write at the end of the existing flow.
+
+**Quota interaction:** re-extracting the same video (UPSERT path below) still consumes monthly quota. The extract endpoint runs end-to-end, fetches comments, scores, increments the counter. UPSERT only deduplicates the history row, not the quota cost. Document in Track A FAQ + /docs.
 
 1. Extract completes successfully, response payload assembled.
 2. If `userId !== null` (signed-in), `await saveAnalysis(userId, videoId, payload)` wrapped in `try/catch`. The `await` is required for Vercel serverless (function may terminate before unawaited promises resolve).
-3. `saveAnalysis` executes:
+3. `saveAnalysis` executes a single-statement UPSERT (one `query()` call). Single-statement form means the unique-constraint conflict is resolved atomically by Postgres, never throws 23505 to the application:
    ```sql
    INSERT INTO public.analyses
      (user_id, video_id, video_title, channel_name, thumbnail_url,
@@ -152,12 +154,7 @@ Add a best-effort write at the end of the existing flow:
   - New inserts during pagination appear at head only after a full refresh (cursor strictly older than first-page head). User loading "Load more" mid-flow never sees duplicates on subsequent pages.
   - UPSERT of an existing row refreshes `processed_at` to now, jumping it to head. If user paginated past it and then re-analyzes, the row appears at the top on next refresh and also still appears in any already-loaded later page until refresh. Expected, not a bug.
   - Deleted rows in the cursor frontier are silently skipped.
-
-#### `GET /api/analyses/:id`
-
-- Auth required.
-- Returns single analysis. Follows the auth contract above.
-- Same shape as one `AnalysisRow`.
+- **Malformed cursor:** if `cursor` fails to base64-decode or the decoded payload is missing `processed_at`/`id` or has invalid types, return `400 Bad Request` with `{ error: "invalid_cursor" }`. Do not throw 500.
 
 #### `DELETE /api/analyses/:id`
 
@@ -181,30 +178,26 @@ Vercel Cron Jobs (configured in new `vercel.json`):
 }
 ```
 
+**HTTP method:** Vercel Cron Jobs invoke the configured path with a **GET** request. Endpoint is implemented as a `GET` handler accordingly. There is no method override in cron config (Vercel does not support it). Anyone wanting to manually trigger uses `curl -H "Authorization: Bearer $CRON_SECRET" https://.../api/internal/cron/purge-analyses`.
+
 **Cron auth mechanism:**
 
-- `CRON_SECRET` is a user-set env var (we generate a long random string and add it via Vercel dashboard or `vercel env add CRON_SECRET production plain`). Vercel does not auto-generate it.
-- Vercel Cron sends `Authorization: Bearer ${CRON_SECRET}` automatically when invoking the configured path, but only if `CRON_SECRET` is defined for the environment. Cron jobs only run on production deployments (not preview).
-- Handler validates the bearer token; mismatched → 401. Same `CRON_SECRET` provisioned to production env only (preview/dev do not need cron to run, manual invocation via curl + the same secret works for testing).
+- `CRON_SECRET` is a user-set env var (long random string added via `vercel env add CRON_SECRET production plain`). Vercel does not auto-generate it.
+- When `CRON_SECRET` exists in the environment, Vercel Cron automatically includes `Authorization: Bearer ${CRON_SECRET}` in the cron invocation. Handler reads `process.env.CRON_SECRET` and compares against the incoming header. Mismatch → 401.
+- Cron only runs on production deployments (not preview). `CRON_SECRET` provisioned to production env only.
 - Stored as plain (not sensitive) in Vercel env (sensitive type is write-only, breaks `vercel env pull` debugging; see `~/vault/references/vercel-sensitive-env-vars.md`).
+- PLAN must verify the bearer-via-`CRON_SECRET` pattern against current Vercel docs via context7 before implementation (Vercel has changed cron auth signaling over time; the doc as of writing this SPEC is `vercel.com/docs/cron-jobs/manage-cron-jobs#secure-cron-jobs`).
 
-**Endpoint `POST /api/internal/cron/purge-analyses`:**
+**Endpoint `GET /api/internal/cron/purge-analyses`:**
 
 1. Validates `Authorization: Bearer ${CRON_SECRET}` header. Mismatched → 401.
-2. Batched delete loop:
+2. Single-statement purge:
    ```sql
-   DELETE FROM public.analyses
-   WHERE id IN (
-     SELECT id FROM public.analyses
-     WHERE expires_at < now()
-     LIMIT 1000
-   )
-   RETURNING id;
+   DELETE FROM public.analyses WHERE expires_at < now() RETURNING id;
    ```
-   Loop until a batch returns 0 rows or a per-run total cap (10,000 rows, prevents runaway). Total purged accumulated across batches.
-3. Returns `{ purged: number, batches: number }` for observability.
-4. Logs purge count and per-batch durations.
-5. Function timeout: set `maxDuration: 60` (Pro plan limit). Per-batch typical duration <500ms; total run under 30s expected.
+3. Returns `{ purged: number }` (count from `RETURNING`).
+4. Logs purge count.
+5. Function timeout: `maxDuration: 60` (Vercel Pro plan ceiling we already pay for). Phase 0 expected purge size: single digits to low hundreds, runs in milliseconds. PLAN re-evaluates batching only if a single run measurably approaches the 60s ceiling.
 
 **Cron skip / overlap behavior:** Vercel Cron has no automatic catch-up for missed runs. If 03:00 UTC is skipped one day, next run still uses `expires_at < now()` (eventual consistency, OK). If a run is retried (5xx), second invocation is a no-op (already purged), still returns 200.
 
@@ -215,9 +208,11 @@ Route `app/[locale]/history/page.tsx` (i18n routing per Track B2; locked sub-pat
 **Scope (Phase 0 MVP):** paginated read-only list + delete. No search, no filters, no re-analyze, no detail view. These are deferred per YAGNI; ship the minimum that fulfills the "remember my history" promise.
 
 - **Auth gate:** redirect to `/[locale]/login?next=/[locale]/history` if anonymous.
+- **Caching:** `export const dynamic = 'force-dynamic'` on the page (per-request render, no static generation, no RSC cache). After `DELETE /api/analyses/:id` returns, the client calls `router.refresh()` to invalidate Server Component data and re-fetch fresh state.
+- **Data source:** the Server Component calls a shared data-access function (`listAnalyses(userId, cursor, limit)` in `src/lib/analyses.ts`) directly against the Supabase server client. It does NOT internally fetch its own `/api/analyses` route (avoids cookie-forwarding fragility on Vercel and 401-on-self-fetch bugs). The same module exposes the function for the `/api/analyses` route handler to consume.
 - **Grid:** responsive card grid. Card shows thumbnail, video title (clamped 2 lines), channel name, comment count, sentiment dominant chip (color-coded), relative `processed_at` ("3 hours ago"), Delete button.
 - **Delete action:** confirms via dialog ("Delete this analysis? This can't be undone."), fires `DELETE /api/analyses/:id`, optimistic remove + revert on error.
-- **Pagination:** "Load more" button calls `GET /api/analyses?cursor=...`. Cursor stored client-side. Hide button when `nextCursor === null`.
+- **Pagination:** "Load more" button calls `GET /api/analyses?cursor=...` from the client. Cursor stored client-side. Hide button when `nextCursor === null`.
 - **States:** loading skeleton (8 cards), empty ("No saved analyses yet. Analyze a video to see it here."), error ("Could not load your history. Try again." with retry button).
 
 **Deferred to v2 (not in this sprint, do not implement):**
@@ -234,10 +229,11 @@ These features were considered and removed during spec review round 1 (YAGNI for
 
 Component `<RecentAnalyses />` on `app/[locale]/dashboard/page.tsx`:
 
-- Server component, fetches `GET /api/analyses?limit=5` server-side.
+- Server component, calls `listAnalyses(userId, null, 5)` directly (same shared function as §3.5 — avoid internal fetch).
 - Renders 5 mini-cards (thumbnail, title, processed_at, dominant sentiment chip).
 - "View all →" link to `/[locale]/history`.
 - Empty state mirrors `/history` empty state.
+- Dashboard page sets `export const dynamic = 'force-dynamic'` to ensure the widget reflects current state on every navigation (no stale cache after extract or delete).
 
 ### 3.7 Privacy + Terms text updates
 
@@ -247,25 +243,11 @@ Add to `app/[locale]/privacy/page.tsx`:
 
 Add to `app/[locale]/terms/page.tsx`:
 
-> Analysis results saved to your account are retained for 30 days from the date of analysis. You may delete any analysis at any time. If you delete your account, all associated analyses are removed immediately.
+> Analysis results saved to your account are retained for 30 days from the date of analysis. You may delete any analysis at any time from your history page.
 
 EN-only in this sprint. RU-locale shows the disclaimer block (per §4.7 below) until lawyer review.
 
-### 3.8 Account deletion flow
-
-The "If you delete your account, all associated analyses are removed immediately" claim in §3.7 Terms requires a real account-delete flow. Add a "Delete account" action to the Profile page Danger zone (rendered by Track A):
-
-- **Endpoint:** `POST /api/account/delete`
-  - Auth required (401 if anonymous).
-  - Cancels any active Polar subscription first (best-effort `POST /api/portal` style cancel-now via Polar SDK).
-  - Calls Supabase Admin API `auth.admin.deleteUser(userId)` via service role.
-  - Auth-cascade triggers: `profiles`, `usage`, `subscriptions`, `analyses` rows are removed via `references auth.users on delete cascade`.
-  - Signs the user out (clear session cookie).
-  - Returns `{ deleted: true }`.
-- **UI:** dialog confirmation ("This will permanently delete your account, your subscription, and all saved analyses. This cannot be undone. Type DELETE to confirm.").
-- **Webhook follow-up:** Polar may emit `subscription.canceled` after our explicit cancel; idempotent webhook handler already tolerates this.
-
-Cascade safety verified by §9 acceptance test 9 below.
+**Note:** A self-service "delete account" flow is OUT of scope for this sprint (§7). Users wanting account deletion email support; the deletion is performed manually via Supabase Admin and cascades clean all analyses + subscriptions via the existing `on delete cascade` FK constraints. PLAN does not implement an automated account-delete endpoint.
 
 ---
 
@@ -301,7 +283,7 @@ Query param (`?lang=ru`) is rejected: weak SEO, cache key fragility, cookies and
 
 Cookie-only / single URL is rejected: duplicate content penalty, no shareable locale.
 
-Routing invariant (any chosen strategy): all routes resolve to a single canonical locale per request. No mixed-locale page renders.
+**Routing invariant:** all routes resolve to a single canonical locale per request, meaning the URL prefix and `<html lang>` are authoritative. **Chrome (header, footer, navigation, switcher) always renders in the canonical locale.** Page body content normally matches; the exception is EN-only legal/changelog pages under `/ru/*` (per §4.7), which render their body in EN with a localized RU disclaimer wrapper. This is documented as an intentional pattern, not a routing violation: the chrome and disclaimer are RU, only the legal body text is EN-source.
 
 ### 4.4 Default locale + persistence
 
@@ -309,7 +291,7 @@ Detection precedence (highest to lowest):
 
 1. **URL locale segment** — if request path starts with `/en/...` or `/ru/...`, that locale wins. URL is authoritative. No redirect.
 2. **`NEXT_LOCALE` cookie** — if path is the bare root `/`, check cookie. Valid values: `en` or `ru`. Invalid / missing → fall through.
-3. **`Accept-Language` header parse** — first language tag matching `ru` (case-insensitive, accepts `ru`, `ru-RU`, `ru-KZ`, etc.) → `ru`. Anything else, including `en-*` or missing header → `en`.
+3. **`Accept-Language` header parse** — find the highest-quality language tag (highest `q=` value, where missing `q=` defaults to 1.0). If that top tag is `ru` (case-insensitive, accepts `ru`, `ru-RU`, `ru-KZ`, etc.) → serve `ru`. Anything else, including `en-*`, `uk-*` with `ru` only as fallback, or a missing header → serve `en`. This avoids routing Ukrainian-primary users (whose Accept-Language often lists `ru` as a low-priority fallback) to the RU UI.
 4. **Hard fallback** — `en`.
 
 Side effects:
@@ -318,6 +300,7 @@ Side effects:
 - **Anonymous + signed-in:** identical flow. Locale is a UI-layer decision, not tied to auth.
 - **Bookmark / deep link with locale-cookie mismatch:** the URL wins, no redirect. Cookie remains whatever it was (NOT updated to match URL silently — that would cause subsequent bare-`/` visits to fight the user's last manual choice). If user wants to "stick" the new locale, they use the switcher.
 - **Crawlers:** serve locale based on URL path (no header / cookie sniffing). Allows Googlebot to index both locales independently.
+- **OAuth callback locale preservation:** Supabase Auth callback (`/auth/callback`) must preserve the originating locale. Pattern: include `next=/[locale]/<route>` in the callback's redirect param; the callback handler uses that value verbatim. PLAN: update existing `/auth/callback` route to read the `next` query param and redirect there (default `/` if absent, which then resolves locale per detection above).
 
 Validation:
 
@@ -404,10 +387,15 @@ The `/changelog` disclaimer can be shorter:
 | Cookie expiry | 1 year | Standard for locale persistence |
 | Translation tooling | `pal__chat` with `deepseek/deepseek-v4-flash` + founder review | Cheap; founder is bilingual native speaker |
 | /history scope | List + delete + pagination only (no search, filters, detail, re-analyze) | YAGNI for Phase 0 traffic |
-| Account delete | UI in Profile Danger zone + `POST /api/account/delete` + Polar cancel + Supabase Admin delete + cascade | Required to make §3.7 Terms claim truthful |
-| Cron batching | `LIMIT 1000` per loop, max 10,000 per run | Prevents function timeout on large purges |
+| Account delete | OUT of scope; manual via support email + Supabase Admin | Phase 0 has 1 paying customer; automated flow is YAGNI |
+| Cron purge SQL | Single-statement `DELETE WHERE expires_at < now()` | Phase 0 row count too small to need batching; revisit if a run measurably approaches 60s timeout |
+| Cron HTTP method | GET (Vercel Cron sends GET, no override) | Vercel constraint |
 | URL routing | sub-path `/en/...` `/ru/...` | Locked in §4.3 with research-confirmation task in PLAN |
 | Save-failure UX | Silent log, no toast, user verifies via /history | No false "Saved!" promise; observable via Vercel logs |
+| Cache strategy | `force-dynamic` on /history and /dashboard | Avoids stale RSC cache after extract or delete |
+| Server-side data fetch | Shared `listAnalyses()` function, direct Supabase server client | Avoids internal `/api/analyses` self-fetch cookie-forwarding fragility |
+| Glossary file | NOT created in this sprint | Founder is bilingual reviewer; one diff is enough |
+| OAuth callback locale | Preserved via `next=/[locale]/...` param | Avoids landing on EN after RU login |
 | Track ordering | B1 (persistence) first, B2 (i18n) second | i18n wraps existing pages; needs pages built first to wrap |
 
 ---
@@ -447,10 +435,14 @@ Documented for clarity, not to be added in this sprint:
 - `/history` date range filter (redundant under uniform 30-day retention).
 - `/history` sentiment dominant filter (no demand signal yet).
 - Per-analysis detail page `/history/[id]` (cards in the list already display all aggregate data).
+- `GET /api/analyses/:id` single-row endpoint (no remaining caller after the detail view was cut).
 - Re-analyze action on `/history` cards (adds nav glue + landing query-param contract without core value; user can paste URL again).
 - Bilingual `/changelog` (founder authors release notes in EN; per-release translation burden disproportionate to traffic).
 - Bilingual transactional emails (welcome email + future templates stay EN-only until email infrastructure scope is opened separately).
 - `cron_runs` observability table (Vercel logs + cron response payload sufficient at Phase 0).
+- Self-service account deletion endpoint + UI (manual via support + Supabase Admin until Phase 0 customer count justifies an automated flow).
+- Cron batching machinery (`LIMIT 1000` loop + 10,000 cap + per-batch metrics — premature for current row counts).
+- Translation glossary file (`messages/glossary.md` — single bilingual reviewer; revisit when a third locale or external translator is added).
 
 ---
 
@@ -459,16 +451,14 @@ Documented for clarity, not to be added in this sprint:
 **Track B1 (persistence) ship-readiness:**
 
 - [ ] Migration applied to prod Supabase BEFORE code deploy. `analyses` table + indexes + RLS policies exist.
-- [ ] `POST /api/extract` saves rows for signed-in users, returns extract result regardless of save outcome. Save uses awaited UPSERT with explicit `ON CONFLICT (user_id, video_id) DO UPDATE` clause.
-- [ ] `GET /api/analyses?limit=20` returns paginated list ordered by `processed_at desc`.
-- [ ] `GET /api/analyses/:id` returns single row, 401 if anonymous, 404 if missing or not owner, 400 if id not a UUID.
-- [ ] `DELETE /api/analyses/:id` removes row, follows the same auth contract.
+- [ ] `POST /api/extract` saves rows for signed-in users via single-statement `INSERT ... ON CONFLICT (user_id, video_id) DO UPDATE`. Returns extract result regardless of save outcome.
+- [ ] `GET /api/analyses?limit=20` returns paginated list ordered by `processed_at desc`. Malformed cursor returns 400.
+- [ ] `DELETE /api/analyses/:id` removes row. 401 if anonymous, 404 if missing or not owner (RLS), 400 if id not a UUID.
 - [ ] `vercel.json` declares daily cron at `0 3 * * *` UTC, production only.
-- [ ] `POST /api/internal/cron/purge-analyses` validates `CRON_SECRET`, batches `LIMIT 1000` per loop, caps at 10,000 per run.
-- [ ] `/history` page renders auth-gated, paginated card grid with delete action and full state coverage (loading / empty / error). No search, no filters, no detail page, no re-analyze (deferred per §7).
-- [ ] Dashboard `<RecentAnalyses />` widget renders last 5 with "View all →" link.
-- [ ] Privacy + Terms updated with retention clause (EN-only).
-- [ ] Profile Danger zone shows account-delete UI; `POST /api/account/delete` cancels Polar subscription, calls Supabase Admin API, cascade removes analyses.
+- [ ] `GET /api/internal/cron/purge-analyses` validates `CRON_SECRET` bearer, executes single-statement `DELETE WHERE expires_at < now() RETURNING id`.
+- [ ] `/history` page renders auth-gated, paginated card grid with delete action and full state coverage (loading / empty / error). Uses `force-dynamic` + shared `listAnalyses()` data function (no internal self-fetch).
+- [ ] Dashboard `<RecentAnalyses />` widget renders last 5 with "View all →" link, also `force-dynamic`.
+- [ ] Privacy + Terms updated with retention clause (EN-only). No self-delete claim in Terms.
 
 **Track B2 (i18n) ship-readiness:**
 
@@ -500,14 +490,14 @@ Documented for clarity, not to be added in this sprint:
 2. **Anonymous no-save:** Extract video B anonymously. Verify no row inserted.
 3. **UPSERT semantics:** Re-extract video A (same user). Verify same row updated (no duplicate row), `processed_at` refreshed, `expires_at` extended by ~30 days.
 4. **List paginated:** Insert 25 fixture rows. Call `GET /api/analyses?limit=10`. Verify 10 returned, `nextCursor` non-null. Call with that cursor. Verify next 10. Third page: 5 + null cursor.
-5. **Single fetch:** `GET /api/analyses/:id` returns 200 with payload. With wrong owner: 404 (RLS, not 401). With non-UUID id: 400. Anonymous: 401.
-6. **Delete:** `DELETE /api/analyses/:id` returns 200. Subsequent `GET` returns 404. With wrong owner: 404 (no enumeration leak). Anonymous: 401.
-7. **Cron purge:** Insert row with `expires_at = now() - interval '1 day'`. Call cron endpoint with `Authorization: Bearer $CRON_SECRET`. Verify `{ purged: 1, batches: 1 }`. Row gone.
-8. **Cron auth:** Call cron endpoint without `Authorization` header. Verify 401.
-9. **Account delete cascade:** Create test user, insert 3 analyses + 1 subscription. Call `POST /api/account/delete`. Verify Polar cancel called, `auth.users` row removed, all 3 analyses + subscription rows cascade-deleted.
-10. **Save failure does not break extract:** Mock DB to throw on UPSERT. Call `POST /api/extract` as signed-in user. Verify response payload intact (200, sentiment+top_words+emoji_frequency present), `console.warn` logged, no row in DB.
-11. **/history UI:** Sign in, navigate to `/history`. Verify auth gate passes, cards render, delete confirms via dialog, "Load more" appears when more rows exist.
-12. **Dashboard widget:** Sign in, visit `/dashboard`. Verify "Recent analyses" widget shows 5 latest or empty state.
+5. **Delete:** `DELETE /api/analyses/:id` returns `{ deleted: true }`. Subsequent `GET /api/analyses` confirms the row is gone. With wrong owner: 404 (no enumeration leak). Anonymous: 401. Non-UUID id: 400.
+6. **Cursor edge cases:** call `GET /api/analyses?cursor=not-base64`. Verify 400 with `{ error: "invalid_cursor" }`. Call with valid-base64 but malformed JSON. Verify 400.
+7. **Cron purge:** insert row with `expires_at = now() - interval '1 day'`. Call cron endpoint with `Authorization: Bearer $CRON_SECRET` via GET. Verify `{ purged: 1 }`. Row gone.
+8. **Cron auth:** call cron endpoint without `Authorization` header. Verify 401. Call with wrong bearer. Verify 401.
+9. **Save failure does not break extract:** mock DB to throw on UPSERT. Call `POST /api/extract` as signed-in user. Verify response payload intact (200, sentiment+top_words+emoji_frequency present), `console.warn` logged, no row in DB.
+10. **/history UI:** sign in, navigate to `/en/history`. Verify auth gate passes when signed in, cards render, delete confirms via dialog, "Load more" appears when more rows exist. After delete, navigate to `/en/dashboard` and back to `/en/history`. Verify deleted row stays gone (no stale RSC cache).
+11. **Dashboard widget:** sign in, visit `/en/dashboard`. Verify "Recent analyses" widget shows 5 latest or empty state. After extracting a new video, widget refreshes on next dashboard navigation.
+12. **Re-extract quota cost:** sign in, extract video A (consumes 100 from quota). Re-extract video A. Verify second extract consumes another 100 from quota (UPSERT deduplicates the history row, not the quota cost).
 
 **Track B2:**
 
@@ -531,8 +521,8 @@ Documented for clarity, not to be added in this sprint:
 ## 10. Open questions (deferred to PLAN)
 
 1. **i18n URL routing strategy confirmation** — sub-path is locked in §4.3, but PLAN must include a short research note citing 3+ comparable SaaS (Linear, Vercel, Stripe, Polar, GitHub, Twilio in 2025-2026) confirming this is industry consensus. If research surfaces a strong reason to override, raise as a fundamental design flag to the user before proceeding.
-2. **Translation memory / glossary** — maintain a shared glossary (`messages/glossary.md`) to keep brand terms consistent across LLM-translated entries? Decide in PLAN. Recommended default: yes, a small glossary with terms like "comment", "sentiment", "TubeMine" (proper noun, do not translate).
-3. **Verify quota constants** — PLAN must read `src/lib/budget.ts` and `src/lib/quota.ts` to confirm the actual values for `MONTHLY_BUDGET` (anonymous IP cap) and `PRO_MONTHLY_CAP` (Pro tier cap) and the free-tier auth cap. FAQ copy in Track A must reflect real values, not PRD-stated values. If they differ, code wins and FAQ updates.
+2. **Verify quota constants** — PLAN must read `src/lib/budget.ts` and `src/lib/quota.ts` to confirm the actual values for `MONTHLY_BUDGET` (anonymous IP cap) and `PRO_MONTHLY_CAP` (Pro tier cap) and the free-tier auth cap. FAQ copy in Track A must reflect real values, not PRD-stated values. If they differ, code wins and FAQ updates.
+3. **Verify Vercel Cron auth pattern** — PLAN must verify via context7 / Vercel docs that the `CRON_SECRET` bearer-token pattern (handler reads `process.env.CRON_SECRET` and compares to incoming `Authorization: Bearer ...`) is the current recommended pattern, not the older `x-vercel-cron-signature` header. If Vercel docs have shifted, update §3.4 before implementation.
 
 ---
 
