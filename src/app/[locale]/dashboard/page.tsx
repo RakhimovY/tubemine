@@ -35,7 +35,10 @@ export default async function DashboardPage({
   const {
     data: { user },
   } = await supabase.auth.getUser()
-  if (!user) redirect({ href: "/login?redirect=/dashboard", locale })
+  if (!user) {
+    redirect({ href: "/login?redirect=/dashboard", locale })
+    return null
+  }
 
   const quota = await getUserQuota(user.id)
   const percent = Math.min(100, Math.round((quota.used / quota.cap) * 100))
