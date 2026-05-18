@@ -686,12 +686,9 @@ describe("listAnalyses cursor encoding", () => {
 })
 
 describe("listAnalyses", () => {
-  it("queries with cursor filter when cursor provided", async () => {
-    // (test sketch: see acceptance test 4 in SPEC §9)
-    // We test that with cursor, the query applies the OR (lt processed_at) OR (eq processed_at AND lt id)
-    // construct, and limit is applied.
-    expect(true).toBe(true)  // placeholder; full mock query test added when integration tests run
-  })
+  it.todo(
+    "queries with cursor filter when cursor provided (verified via Phase 12 smoke against preview DB)",
+  )
 })
 ```
 
@@ -1136,11 +1133,17 @@ export async function DELETE(
 - [ ] **Step 2: Smoke test**
 
 ```bash
-curl -X DELETE -s http://localhost:3000/api/analyses/not-a-uuid
-# Expected: {"error":"invalid_id"} with 400 — except no auth, so 401 first.
+# Anonymous → 401 (auth check is first per SPEC §3.3 precedence):
+curl -X DELETE -s -o /dev/null -w "%{http_code}\n" http://localhost:3000/api/analyses/not-a-uuid
+# Expected: 401
+
+# Anonymous with valid-shaped UUID → still 401 (auth always first):
+curl -X DELETE -s -o /dev/null -w "%{http_code}\n" \
+  http://localhost:3000/api/analyses/00000000-0000-0000-0000-000000000000
+# Expected: 401
 ```
 
-The order in handler is UUID check → auth check → DB. Anonymous DELETE on malformed id returns 400 before 401. PLAN choice: swap if you want 401 to take precedence. Default kept above (faster fail for malformed input).
+Order in handler is: auth → UUID → DB. Anonymous DELETE always returns 401 regardless of id format. The 400 path triggers only for signed-in requests with malformed UUID.
 
 - [ ] **Step 3: Commit**
 
@@ -1852,13 +1855,13 @@ Files to move into `[locale]/` (Tasks 7.3 + 7.4 handle this):
 - `src/app/pricing/`
 - `src/app/login/`
 
-After Task 7.2 delete of root layout, no rendered page should exist at root level. Verify:
+After Tasks 7.3 + 7.4 + Phase 10 complete (all page moves done), no rendered page should exist at root level. Verification command (run AFTER Phase 7 + Phase 10, not in Task 7.2 itself):
 
 ```bash
 find src/app -maxdepth 2 -name page.tsx -not -path '*/[locale]/*'
 ```
 
-Expected: empty output. If any unexpected `page.tsx` shows up at root level after Phase 7, halt and move it under `[locale]/` before Phase 12.
+Expected output (post Phase 7/10): empty. If any unexpected `page.tsx` shows up at root level, halt and move it under `[locale]/` before Phase 12.
 
 - [ ] **Step 4: Delete the old root layout**
 
@@ -2005,7 +2008,7 @@ import { MetadataRoute } from "next"
 
 const base = "https://tubemine.vercel.app"  // TODO: switch to tubemine.tech after DNS
 const locales = ["en", "ru"] as const
-const routes = ["", "/pricing", "/login", "/docs", "/changelog"]
+const routes = ["", "/pricing", "/login", "/docs", "/changelog", "/privacy", "/terms"]
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const out: MetadataRoute.Sitemap = []
@@ -3022,22 +3025,13 @@ describe("POST /api/extract save side-effect", () => {
     vi.mocked(saveAnalysis).mockClear()
   })
 
-  it("calls saveAnalysis when userId is non-null", async () => {
-    // Stub createClient → auth.getUser() returns a user.
-    // Stub YouTube + sentiment dependencies as needed.
-    // Invoke POST /api/extract handler with a valid payload.
-    // Assert saveAnalysis was called once with payload shape:
-    // { userId, videoId, videoTitle, channelName, thumbnailUrl,
-    //   commentCount, sentiment, topWords, emojiFrequency }
-    expect(saveAnalysis).toBeDefined()
-  })
+  it.todo(
+    "calls saveAnalysis when userId is non-null with full payload shape (verified via Phase 12 smoke against preview)",
+  )
 
-  it("does NOT call saveAnalysis when userId is null", async () => {
-    // Stub createClient → auth.getUser() returns no user.
-    // Invoke POST /api/extract.
-    // Assert saveAnalysis was never called.
-    expect(saveAnalysis).toBeDefined()
-  })
+  it.todo(
+    "does NOT call saveAnalysis when userId is null (verified via Phase 12 smoke)",
+  )
 })
 ```
 
@@ -3086,12 +3080,9 @@ describe("cron purge", () => {
     expect(res.status).toBe(401)
   })
 
-  it("returns purged count with valid bearer", async () => {
-    // Setup: insert a row with expires_at in the past via test DB
-    // Call cron endpoint with correct bearer
-    // Assert response.json().purged >= 1
-    expect(true).toBe(true) // sketch; full test wired with DB harness
-  })
+  it.todo(
+    "returns purged count with valid bearer (verified via Phase 12 smoke against preview DB)",
+  )
 })
 ```
 
@@ -3102,9 +3093,13 @@ describe("cron purge", () => {
 **Files:**
 - Create: `src/app/auth/callback/__tests__/safe-next.test.ts`
 
-- [ ] **Step 1: Export the validator separately for testing**
+- [ ] **Step 1: Verify the module exists**
 
-In `src/app/auth/callback/route.ts`, factor `safeNext` into a sub-module or named export.
+`src/app/auth/callback/safe-next.ts` was created in Task 8.3 Step 2. Confirm:
+
+```bash
+test -f /Users/rakhimovy/projects/yt-comments/src/app/auth/callback/safe-next.ts && echo OK
+```
 
 - [ ] **Step 2: Write tests**
 
@@ -3414,12 +3409,17 @@ vitest.config.ts
 docs/ux-redesign-v3/E2E-runbook.md
 ```
 
+**Deleted files:**
+
+```
+src/app/layout.tsx (removed; [locale]/layout.tsx owns html/body)
+```
+
 **Modified files:**
 
 ```
 src/app/api/extract/route.ts (add saveAnalysis call)
 src/app/auth/callback/route.ts (add safeNext validation)
-src/app/layout.tsx (delegate to [locale] layout for chrome)
 src/app/sitemap.ts (both locales)
 src/proxy.ts (chain intl + supabase middleware)
 src/app/[locale]/dashboard/page.tsx (was src/app/dashboard, add RecentAnalyses + force-dynamic)
