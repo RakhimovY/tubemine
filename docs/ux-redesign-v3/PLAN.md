@@ -32,6 +32,8 @@
 
 **Hard ordering:** Phase 2 (migration) MUST land on prod Supabase BEFORE Phase 12 prod deploy. Phase 6 (i18n setup) MUST land before Phase 7 (route migration). Phases 11 + 12 are gates, not parallelizable.
 
+**Shell quoting note:** every bash command that references `src/app/[locale]/*` MUST single-quote the path. zsh (the user's shell) glob-expands `[locale]` as a character class without quoting and the command fails. Use `'src/app/[locale]/dashboard'`, not `src/app/[locale]/dashboard`. Same for `find`, `git mv`, `git add`, `grep -r src/app/[locale]/`. Plan code blocks below follow this convention; if you see an unquoted bracket path in a copy-paste step, quote it before running.
+
 ---
 
 # Phase 0: Pre-flight verification
@@ -644,7 +646,20 @@ git add src/lib/analyses.ts src/lib/__tests__/analyses.test.ts
 git commit -m "feat(analyses): saveAnalysis upsert with 30-day TTL"
 ```
 
-### Task 3.3: Implement `listAnalyses` (TDD)
+### Task 3.2.5: Confirm Supabase server module exports
+
+**Files:** none (verification only).
+
+- [ ] **Step 1: grep exports**
+
+```bash
+grep -nE "^export (async )?function (createClient|createServiceClient)" \
+  /Users/rakhimovy/projects/yt-comments/src/lib/supabase/server.ts
+```
+
+Expected: both `createClient` (user-scoped, reads via RLS) AND `createServiceClient` (service-role, writes) are exported. If either is missing, halt and add it before continuing.
+
+### Task 3.3: Implement `listAnalyses` (TDD, user-scoped client, RLS reads)
 
 **Files:**
 - Modify: `src/lib/__tests__/analyses.test.ts`
@@ -716,20 +731,24 @@ export function decodeCursor(raw: string): Cursor | null {
   }
 }
 
+import type { SupabaseClient } from "@supabase/supabase-js"
+
 export async function listAnalyses(
-  userId: string,
+  sb: SupabaseClient,
   cursor: Cursor | null,
   limit: number,
 ): Promise<ListResult> {
+  // sb is the USER-SCOPED Supabase server client (createClient()). RLS policy
+  // "users read own analyses" filters to auth.uid() = user_id, so no manual
+  // user_id .eq() is needed — required per SPEC §5 architectural decision
+  // ("RLS reads: yes; service role for writes only").
   const cap = Math.min(Math.max(1, limit), 50)
-  const sb = createServiceClient()
 
   let query = sb
     .from("analyses")
     .select(
       "id, video_id, video_title, channel_name, thumbnail_url, comment_count, sentiment, top_words, emoji_frequency, processed_at, expires_at",
     )
-    .eq("user_id", userId)
     .order("processed_at", { ascending: false })
     .order("id", { ascending: false })
     .limit(cap + 1)
@@ -744,7 +763,7 @@ export async function listAnalyses(
 
   const { data, error } = await query
   if (error) {
-    console.warn("[analyses] list failed", { error: error.message, userId })
+    console.warn("[analyses] list failed", { error: error.message })
     return { items: [], nextCursor: null }
   }
 
@@ -776,7 +795,7 @@ git add src/lib/analyses.ts src/lib/__tests__/analyses.test.ts
 git commit -m "feat(analyses): listAnalyses cursor pagination"
 ```
 
-### Task 3.4: Implement `deleteAnalysis` (TDD, idempotent)
+### Task 3.4: Implement `deleteAnalysis` (TDD, idempotent, user-scoped client, RLS owner check)
 
 **Files:**
 - Modify: `src/lib/__tests__/analyses.test.ts`
@@ -800,8 +819,9 @@ describe("deleteAnalysis", () => {
     table.delete.mockReturnValue({ select: vi.fn(() => ({ eq: eqMock })) } as never)
     const { deleteAnalysis } = await import("@/lib/analyses")
 
-    // pass a user-scoped client OR rely on RLS via service role + .eq("user_id", uid)
-    const result = await deleteAnalysis("user-1", "row1")
+    // pass the (mocked) user-scoped client; RLS would filter to caller's user_id in prod
+    const mockClient = createMockServiceClient(table)
+    const result = await deleteAnalysis(mockClient as never, "row1")
     expect(result).toBe(1)
   })
 
@@ -810,7 +830,8 @@ describe("deleteAnalysis", () => {
     table.delete.mockReturnValue({ select: vi.fn(() => ({ eq: eqMock })) } as never)
     const { deleteAnalysis } = await import("@/lib/analyses")
 
-    const result = await deleteAnalysis("user-1", "ghost-id")
+    const mockClient = createMockServiceClient(table)
+    const result = await deleteAnalysis(mockClient as never, "ghost-id")
     expect(result).toBe(0)
   })
 })
@@ -828,26 +849,24 @@ Append to `src/lib/analyses.ts`:
 
 ```ts
 export async function deleteAnalysis(
-  userId: string,
+  sb: SupabaseClient,
   id: string,
 ): Promise<number> {
-  const sb = createServiceClient()
+  // sb is the USER-SCOPED Supabase server client. RLS policy
+  // "users delete own analyses" enforces auth.uid() = user_id. A DELETE on a
+  // row owned by another user removes 0 rows; we collapse that to
+  // { deleted: 0 } per SPEC §3.3 idempotent contract (no enumeration leak).
   const { data, error } = await sb
     .from("analyses")
     .delete()
-    .eq("user_id", userId)
     .eq("id", id)
     .select("id")
 
   if (error) {
-    console.warn("[analyses] delete failed", {
-      error: error.message,
-      userId,
-      id,
-    })
+    console.warn("[analyses] delete failed", { error: error.message, id })
     return 0
   }
-  return (data?.length ?? 0)
+  return data?.length ?? 0
 }
 ```
 
@@ -941,18 +960,17 @@ Expected: no matches.
 **Files:**
 - Modify: `src/app/api/extract/route.ts`
 
-- [ ] **Step 1: Read the file to locate the success path**
+- [ ] **Step 1: Read the file end-to-end**
 
 ```bash
-grep -n "return NextResponse.json\|response payload\|userId" \
-  /Users/rakhimovy/projects/yt-comments/src/app/api/extract/route.ts | head -20
+cat /Users/rakhimovy/projects/yt-comments/src/app/api/extract/route.ts
 ```
 
-Find the `return NextResponse.json(<response>)` line at the end of the happy path.
+Identify the local variable names actually used: which variable holds the YouTube video metadata, which holds the parsed comments array, which holds the sentiment result, which holds top words, which holds emoji frequency. (These will be passed to `saveAnalysis`.) Write them down before editing.
 
 - [ ] **Step 2: Add import**
 
-At top of file:
+At top of `src/app/api/extract/route.ts`, alongside existing imports:
 
 ```ts
 import { saveAnalysis } from "@/lib/analyses"
@@ -960,33 +978,33 @@ import { saveAnalysis } from "@/lib/analyses"
 
 - [ ] **Step 3: Insert save call before the success return**
 
-Immediately before the final `return NextResponse.json(payload)`:
+Locate the final successful `return NextResponse.json(...)` in the POST handler (this is the path after sentiment scoring + top-words + emoji-frequency computation). Immediately BEFORE that return, insert:
 
 ```ts
 if (userId !== null) {
   try {
     await saveAnalysis({
       userId,
-      videoId: validated.videoId,
-      videoTitle: metadata.title ?? null,
-      channelName: metadata.channelTitle ?? null,
-      thumbnailUrl: metadata.thumbnail ?? null,
-      commentCount: comments.length,
-      sentiment: sentimentResult.aggregate,
-      topWords: topWords.slice(0, 50),
-      emojiFrequency: emojis.slice(0, 20),
+      videoId: <YOUR_VIDEO_ID_VAR>,           // e.g. parsed.videoId or input.videoId
+      videoTitle: <YOUR_METADATA_VAR>?.title ?? null,
+      channelName: <YOUR_METADATA_VAR>?.channelTitle ?? null,
+      thumbnailUrl: <YOUR_METADATA_VAR>?.thumbnail ?? null,
+      commentCount: <YOUR_COMMENTS_ARRAY>.length,
+      sentiment: <YOUR_SENTIMENT_RESULT>.aggregate,
+      topWords: <YOUR_TOP_WORDS>.slice(0, 50),
+      emojiFrequency: <YOUR_EMOJI_FREQ>.slice(0, 20),
     })
   } catch (e) {
     console.warn("[analyses] save threw (extract continues)", {
       error: String(e),
       userId,
-      videoId: validated.videoId,
+      videoId: <YOUR_VIDEO_ID_VAR>,
     })
   }
 }
 ```
 
-Adjust variable names (`validated`, `metadata`, `comments`, `sentimentResult`, `topWords`, `emojis`) to match the actual local names in `extract/route.ts`. Read the surrounding code to identify them.
+Replace the `<YOUR_*>` tokens with the actual local-variable names you wrote down in Step 1. The contract: `userId` comes from the existing `authUserId()` call in `extract/route.ts`; all other values are already computed in scope by the time you reach the response return.
 
 - [ ] **Step 4: Run lint + build**
 
@@ -1051,7 +1069,8 @@ export async function GET(request: Request) {
     )
   }
 
-  const result = await listAnalyses(user.id, cursor, limit)
+  // Pass user-scoped client (NOT service role) so RLS enforces ownership at DB layer.
+  const result = await listAnalyses(supabase, cursor, limit)
   return NextResponse.json(result)
 }
 ```
@@ -1108,7 +1127,8 @@ export async function DELETE(
     return NextResponse.json({ error: "unauthorized" }, { status: 401 })
   }
 
-  const deleted = await deleteAnalysis(user.id, id)
+  // Pass user-scoped client. RLS owner-check enforced at DB.
+  const deleted = await deleteAnalysis(supabase, id)
   return NextResponse.json({ deleted })
 }
 ```
@@ -1541,6 +1561,7 @@ git commit -m "feat(i18n): integrate next-intl middleware with supabase auth"
     "sign_in_with_google": "Sign in with Google"
   },
   "legal_disclaimer_ru": "",
+  "legal_disclaimer_ru_changelog": "",
   "footer": {
     "product": "Product",
     "resources": "Resources",
@@ -1732,35 +1753,43 @@ git add src/app/[locale]/layout.tsx
 git commit -m "feat(i18n): locale layout with NextIntlClientProvider"
 ```
 
-### Task 7.2: Move existing root layout chrome into locale layout
+### Task 7.2: Locale layout owns `<html><body>`; delete unused root layout
+
+**Decision locked:** `src/app/[locale]/layout.tsx` provides `<html lang={locale}><body>{...}</body></html>`. The legacy `src/app/layout.tsx` is removed. API route handlers and `/auth/callback` are route handlers that return Response objects (no HTML render), so they need no layout. `sitemap.ts` and `robots.ts` are MetadataRoute exports (no layout needed). All rendered pages live under `[locale]/*`.
 
 **Files:**
-- Read: `src/app/layout.tsx`
-- Modify: `src/app/[locale]/layout.tsx` (merge chrome)
-- Modify: `src/app/layout.tsx` (strip chrome)
+- Inspect: `src/app/layout.tsx`
+- Modify: `src/app/[locale]/layout.tsx` (own chrome + html/body)
+- Delete: `src/app/layout.tsx`
 
-- [ ] **Step 1: Inspect current root layout**
+- [ ] **Step 1: Capture existing root chrome**
 
 ```bash
 cat src/app/layout.tsx
 ```
 
-Identify head metadata, body class, font, header, footer.
+Note current font import, metadata export, body class, any global styles import.
 
-- [ ] **Step 2: Move chrome to `[locale]/layout.tsx`**
-
-Add fonts/metadata/header/footer to the locale layout. The root `src/app/layout.tsx` should become minimal (just an outer pass-through with `<html><body>{children}</body></html>` for non-locale routes like `/api/*` and `/auth/*`). Since Next.js requires a single root layout, keep `src/app/layout.tsx` as the html/body wrapper but move per-locale content into `[locale]/layout.tsx` and remove `<html>/<body>` from `[locale]/layout.tsx`.
-
-Adjusted `[locale]/layout.tsx`:
+- [ ] **Step 2: Rewrite `src/app/[locale]/layout.tsx` to own html/body**
 
 ```tsx
+import "./globals.css"  // path relative to file; adjust if globals.css lives elsewhere
+import type { Metadata } from "next"
 import { NextIntlClientProvider, hasLocale } from "next-intl"
 import { setRequestLocale } from "next-intl/server"
 import { notFound } from "next/navigation"
 import { routing } from "@/i18n/routing"
+// Re-import any fonts that were in the old root layout, e.g.:
+// import { Inter } from "next/font/google"
+// const inter = Inter({ subsets: ["latin", "cyrillic"] })
 
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }))
+}
+
+export const metadata: Metadata = {
+  title: "TubeMine",
+  description: "Understand any YouTube video's audience.",
 }
 
 export default async function LocaleLayout({
@@ -1774,25 +1803,39 @@ export default async function LocaleLayout({
   if (!hasLocale(routing.locales, locale)) notFound()
   setRequestLocale(locale)
 
-  return <NextIntlClientProvider>{children}</NextIntlClientProvider>
+  return (
+    <html lang={locale} /* className={inter.className} */>
+      <body>
+        <NextIntlClientProvider>{children}</NextIntlClientProvider>
+      </body>
+    </html>
+  )
 }
 ```
 
-Keep `src/app/layout.tsx` as the `<html><body>` wrapper. Set `lang` dynamically via `<html lang={...}>` in this root layout using a server util to read locale from cookies/URL (alternatively keep `lang="en"` here and override with metadata API; PLAN decision: `lang="en"` here, hreflang tags in head per-locale).
+If `src/app/globals.css` exists, the import path becomes `../globals.css`. Verify the actual path by looking at the existing root layout's CSS import.
 
-Actually for `<html lang>` per locale, simpler: keep the locale layout as `<html lang={locale}>` and avoid wrapping in a root layout. Achievable by NOT having `src/app/layout.tsx` at all (Next 16 supports this if `src/app/[locale]/layout.tsx` covers all routes — but only for routes inside `[locale]`).
-
-For routes outside `[locale]` (`/api/*`, `/auth/*`, `/sitemap.xml`, `/robots.txt`), the proxy bypasses intl, so they need their own response without html wrapper (API routes don't render HTML anyway). Conclusion: delete `src/app/layout.tsx` if it adds nothing, OR keep as fallback for any non-locale rendered page. Phase 7 keeps it for safety.
-
-- [ ] **Step 3: Verify with `pnpm dev`**
-
-Visit `http://localhost:3000/en` and inspect `<html lang>`. Expected: `lang="en"`.
-
-- [ ] **Step 4: Commit**
+- [ ] **Step 3: Delete the old root layout**
 
 ```bash
-git add src/app/[locale]/layout.tsx src/app/layout.tsx
-git commit -m "feat(i18n): per-locale html lang attribute"
+git rm src/app/layout.tsx
+```
+
+- [ ] **Step 4: Verify with `pnpm dev`**
+
+```bash
+pnpm dev
+curl -s http://localhost:3000/en | grep -E '<html|<body|lang='
+```
+
+Expected: `<html lang="en">`, `<body>`.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add 'src/app/[locale]/layout.tsx'
+git rm src/app/layout.tsx
+git commit -m "feat(i18n): locale layout owns html/body; remove unused root layout"
 ```
 
 ### Task 7.3: Move landing page to `app/[locale]/page.tsx`
@@ -1809,33 +1852,33 @@ git mv src/app/page.tsx src/app/[locale]/page.tsx
 
 - [ ] **Step 2: Inject `setRequestLocale` + `useTranslations`**
 
-At the top of the moved file:
+Convert the page to an async server component using `getTranslations` (NOT `useTranslations`, which is a client-only hook):
 
 ```tsx
-import { setRequestLocale } from "next-intl/server"
-import { useTranslations } from "next-intl"
+import { setRequestLocale, getTranslations } from "next-intl/server"
 
-export default function Page({
-  params,
-}: {
-  params: Promise<{ locale: string }>
-}) {
-  return <LandingContent params={params} />
-}
-
-async function LandingContent({
+export default async function Page({
   params,
 }: {
   params: Promise<{ locale: string }>
 }) {
   const { locale } = await params
   setRequestLocale(locale)
-  const t = useTranslations("landing")
-  // ... existing JSX, swap hardcoded strings with t("hero_title_a") etc.
+  const t = await getTranslations("landing")
+
+  return (
+    <main>
+      <h1>
+        {t("hero_title_a")} {t("hero_title_b")}
+      </h1>
+      <p>{t("hero_subtitle")}</p>
+      {/* ... rest of existing JSX, swap hardcoded strings to t("...") */}
+    </main>
+  )
 }
 ```
 
-Adjust based on actual existing file structure.
+For any subtree that needs the React `useTranslations` client hook (e.g., interactive components), extract a separate client component (`"use client"`) and use `useTranslations` only inside it. Server-tree code uses `getTranslations(namespace)` exclusively.
 
 - [ ] **Step 3: Verify**
 
@@ -1863,13 +1906,13 @@ git commit -m "feat(i18n): landing page under [locale]"
 - Move: `src/app/login/page.tsx` → `src/app/[locale]/login/page.tsx`
 - Move: `src/app/login/login-form.tsx` → `src/app/[locale]/login/login-form.tsx`
 
-- [ ] **Step 1: Move each**
+- [ ] **Step 1: Move each (quote bracket paths)**
 
 ```bash
 cd /Users/rakhimovy/projects/yt-comments
-git mv src/app/dashboard src/app/[locale]/dashboard
-git mv src/app/pricing src/app/[locale]/pricing
-git mv src/app/login src/app/[locale]/login
+git mv src/app/dashboard 'src/app/[locale]/dashboard'
+git mv src/app/pricing 'src/app/[locale]/pricing'
+git mv src/app/login 'src/app/[locale]/login'
 ```
 
 - [ ] **Step 2: For each page, add `setRequestLocale(locale)` + `useTranslations` (mirror Task 7.3 pattern).**
@@ -1993,14 +2036,16 @@ git add src/app/[locale]/layout.tsx
 git commit -m "feat(i18n): hreflang + canonical tags"
 ```
 
-### Task 7.7: Wire `Accept-Language` q-value parsing into routing
+### Task 7.7: Custom `Accept-Language` matcher per SPEC §4.4
 
 **Files:**
 - Modify: `src/i18n/routing.ts`
+- Create: `src/i18n/detect-locale.ts`
+- Modify: `src/proxy.ts` (apply matcher before next-intl middleware)
 
-- [ ] **Step 1: Add localeDetection config**
+**Why custom matcher:** SPEC §4.4 step 3 requires the highest-q `Accept-Language` tag MUST match `ru` to serve RU. next-intl's default `localeDetection: true` matches if ANY tag in the header is in the locales list — that would route a `uk-UA,uk;q=0.9,ru;q=0.5` user to RU (because `ru` is present), violating SPEC. We implement custom matching and pass the resolved locale through a `NEXT_LOCALE` cookie which next-intl then honors.
 
-next-intl reads `Accept-Language` automatically with q-value awareness. Verify routing config has detection enabled:
+- [ ] **Step 1: Configure routing with cookie + disabled auto-detection**
 
 ```ts
 import { defineRouting } from "next-intl/routing"
@@ -2009,7 +2054,9 @@ export const routing = defineRouting({
   locales: ["en", "ru"],
   defaultLocale: "en",
   localePrefix: "always",
-  localeDetection: true,  // honors Accept-Language q-values
+  // We do our own Accept-Language parsing per SPEC §4.4; next-intl reads
+  // the NEXT_LOCALE cookie we set in proxy.
+  localeDetection: false,
   localeCookie: {
     name: "NEXT_LOCALE",
     maxAge: 60 * 60 * 24 * 365, // 1 year
@@ -2020,15 +2067,110 @@ export const routing = defineRouting({
 })
 ```
 
-- [ ] **Step 2: Confirm against acceptance test 1-4 in SPEC §9 Track B2**
+- [ ] **Step 2: Create `src/i18n/detect-locale.ts`**
 
-These four tests are the source of truth for the detection behavior. PLAN Task 11.6 will execute them.
+```ts
+import { routing } from "./routing"
 
-- [ ] **Step 3: Commit**
+export type AppLocale = (typeof routing.locales)[number]
+
+/**
+ * SPEC §4.4: find the highest-quality tag in Accept-Language.
+ * If it starts with "ru" (case-insensitive), serve "ru". Else "en".
+ * Missing / malformed header → "en".
+ */
+export function detectLocaleFromAcceptLanguage(
+  acceptLanguage: string | null,
+): AppLocale {
+  if (!acceptLanguage) return "en"
+
+  const parts = acceptLanguage
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .map((part) => {
+      const [tag, ...params] = part.split(";").map((s) => s.trim())
+      let q = 1
+      for (const param of params) {
+        const m = param.match(/^q\s*=\s*([0-9.]+)$/i)
+        if (m) {
+          const v = Number.parseFloat(m[1])
+          if (!Number.isNaN(v)) q = v
+        }
+      }
+      return { tag: tag.toLowerCase(), q }
+    })
+    .filter((x) => x.tag && !Number.isNaN(x.q))
+
+  if (parts.length === 0) return "en"
+
+  // Highest q wins; tie-break by order.
+  parts.sort((a, b) => b.q - a.q)
+  const top = parts[0]
+  return top.tag.startsWith("ru") ? "ru" : "en"
+}
+
+/**
+ * Validate cookie value against the locale allow-list.
+ * Per SPEC §4.4: unknown values fall through to detection.
+ */
+export function readLocaleCookie(value: string | undefined): AppLocale | null {
+  if (!value) return null
+  return (routing.locales as readonly string[]).includes(value)
+    ? (value as AppLocale)
+    : null
+}
+```
+
+- [ ] **Step 3: Apply in `src/proxy.ts` BEFORE intl middleware**
+
+In `src/proxy.ts`, before calling `intl(request)`, ensure the `NEXT_LOCALE` cookie reflects the SPEC §4.4 precedence:
+
+```ts
+import { detectLocaleFromAcceptLanguage, readLocaleCookie } from "@/i18n/detect-locale"
+import { routing } from "@/i18n/routing"
+
+// ... inside proxy(), after the skipIntl branch:
+const url = request.nextUrl
+const hasLocalePrefix = routing.locales.some((loc) =>
+  url.pathname === `/${loc}` || url.pathname.startsWith(`/${loc}/`),
+)
+if (!hasLocalePrefix && !skipIntl) {
+  // URL has no locale prefix; resolve via cookie or Accept-Language and let
+  // intl middleware redirect.
+  const cookieLocale = readLocaleCookie(request.cookies.get("NEXT_LOCALE")?.value)
+  if (!cookieLocale) {
+    const detected = detectLocaleFromAcceptLanguage(
+      request.headers.get("accept-language"),
+    )
+    // We don't set the cookie here — let LocaleSwitcher own that. Intl middleware
+    // will redirect to /<detected>/<pathname> because we pass it through next.
+    request.headers.set("x-locale-hint", detected)
+  }
+}
+```
+
+Note: next-intl with `localeDetection: false` redirects bare `/` to `/${defaultLocale}`. To honor browser detection without enabling next-intl's broad matching, pass the detected locale by rewriting the request URL before `intl()` runs. Implementer choice: either use a small custom redirect for bare `/` based on `detectLocaleFromAcceptLanguage`, or set `routing.defaultLocale` based on request (not supported statically). PLAN-recommended approach: handle the bare `/` redirect in `src/proxy.ts` BEFORE delegating to `intl`:
+
+```ts
+if (request.nextUrl.pathname === "/") {
+  const cookieLocale = readLocaleCookie(request.cookies.get("NEXT_LOCALE")?.value)
+  const target = cookieLocale ?? detectLocaleFromAcceptLanguage(
+    request.headers.get("accept-language"),
+  )
+  return NextResponse.redirect(new URL(`/${target}`, request.url))
+}
+```
+
+- [ ] **Step 4: Confirm against SPEC §9 Track B2 tests 1-4**
+
+These four tests are the source of truth for the detection behavior. Task 11.6 will execute them.
+
+- [ ] **Step 5: Commit**
 
 ```bash
-git add src/i18n/routing.ts
-git commit -m "feat(i18n): enable q-value-aware locale detection"
+git add src/i18n/routing.ts src/i18n/detect-locale.ts src/proxy.ts
+git commit -m "feat(i18n): q-value Accept-Language matcher per SPEC §4.4"
 ```
 
 ### Task 7.8: Verify proxy + intl middleware order
@@ -2146,6 +2288,7 @@ git commit -m "feat(i18n): LocaleSwitcher in header"
 ### Task 8.3: Harden OAuth callback with `next` validation
 
 **Files:**
+- Create: `src/app/auth/callback/safe-next.ts` (exportable validator, testable in Task 11.4)
 - Modify: `src/app/auth/callback/route.ts`
 
 - [ ] **Step 1: Read current callback**
@@ -2154,21 +2297,29 @@ git commit -m "feat(i18n): LocaleSwitcher in header"
 cat src/app/auth/callback/route.ts
 ```
 
-- [ ] **Step 2: Add next-param validation**
+- [ ] **Step 2: Create `safe-next.ts` (extracted for unit testing)**
 
-Add at top:
+Create `src/app/auth/callback/safe-next.ts`:
 
 ```ts
 const NEXT_RE = /^\/(en|ru)\/[\w\-/]*$/
 
-function safeNext(raw: string | null): string {
+export function safeNext(raw: string | null): string {
   if (!raw) return "/"
   if (!NEXT_RE.test(raw)) return "/"
   return raw
 }
 ```
 
-In the handler, after exchanging code for session, replace any existing redirect logic:
+- [ ] **Step 3: Use it in the callback route**
+
+In `src/app/auth/callback/route.ts`, add:
+
+```ts
+import { safeNext } from "./safe-next"
+```
+
+After exchanging code for session, replace any existing redirect logic:
 
 ```ts
 const next = safeNext(request.nextUrl.searchParams.get("next"))
@@ -2300,12 +2451,14 @@ export default async function HistoryPage({
 
 ```tsx
 import { listAnalyses } from "@/lib/analyses"
+import { createClient } from "@/lib/supabase/server"
 import { getTranslations } from "next-intl/server"
 import { Link } from "@/i18n/navigation"
 
-export async function RecentAnalyses({ userId }: { userId: string }) {
+export async function RecentAnalyses() {
   const t = await getTranslations("dashboard")
-  const { items } = await listAnalyses(userId, null, 5)
+  const supabase = await createClient()
+  const { items } = await listAnalyses(supabase, null, 5)
 
   if (items.length === 0) {
     return (
@@ -2382,12 +2535,12 @@ export default async function DashboardPage({
   const {
     data: { user },
   } = await supabase.auth.getUser()
-  if (!user) redirect({ href: "/login?next=/dashboard", locale })
+  if (!user) redirect({ href: `/login?next=/${locale}/dashboard`, locale })
 
   return (
     <main>
       {/* existing dashboard content */}
-      <RecentAnalyses userId={user.id} />
+      <RecentAnalyses />
     </main>
   )
 }
@@ -2438,7 +2591,8 @@ export default async function HistoryPage({
   }
 
   const t = await getTranslations("history")
-  const initial = await listAnalyses(user.id, null, 20)
+  // Pass user-scoped client; RLS filters to caller's rows.
+  const initial = await listAnalyses(supabase, null, 20)
 
   return (
     <main className="container mx-auto py-8">
@@ -2469,6 +2623,7 @@ type Props = {
 
 export function HistoryClient({ initialItems, initialNextCursor }: Props) {
   const t = useTranslations("history")
+  const tCommon = useTranslations("common")
   const router = useRouter()
   const [items, setItems] = useState(initialItems)
   const [cursor, setCursor] = useState(initialNextCursor)
@@ -2532,7 +2687,7 @@ export function HistoryClient({ initialItems, initialNextCursor }: Props) {
           disabled={loading}
           className="mt-6 mx-auto block rounded border px-4 py-2"
         >
-          {loading ? t("loading") : t("load_more") /* fallback to common */}
+          {loading ? tCommon("loading") : tCommon("load_more")}
         </button>
       ) : null}
 
