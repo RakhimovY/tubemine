@@ -45,3 +45,24 @@ describe("saveAnalysis", () => {
     expect(opts).toEqual({ onConflict: "user_id,video_id" })
   })
 })
+
+describe("listAnalyses cursor encoding", () => {
+  it("encodes and decodes a cursor losslessly", async () => {
+    const { encodeCursor, decodeCursor } = await import("@/lib/analyses")
+    const input = { processed_at: "2026-05-18T12:00:00.000Z", id: "abc" }
+    const encoded = encodeCursor(input)
+    expect(decodeCursor(encoded)).toEqual(input)
+  })
+
+  it("returns null on malformed cursor", async () => {
+    const { decodeCursor } = await import("@/lib/analyses")
+    expect(decodeCursor("not-base64!!!")).toBeNull()
+    expect(decodeCursor("eyJpbnZhbGlkIjp0cnVlfQ==")).toBeNull()
+  })
+})
+
+describe("listAnalyses", () => {
+  it.todo(
+    "queries with cursor filter when cursor provided (verified via Phase 12 smoke against preview DB)",
+  )
+})
