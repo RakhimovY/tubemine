@@ -36,7 +36,7 @@ export default async function DashboardPage({
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) {
-    redirect({ href: "/login?redirect=/dashboard", locale })
+    redirect({ href: `/login?next=/${locale}/dashboard`, locale })
     return null
   }
 
