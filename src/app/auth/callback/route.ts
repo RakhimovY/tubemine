@@ -1,13 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { createClient, createServiceClient } from "@/lib/supabase/server"
 import { sendWelcomeEmail } from "@/lib/email"
+import { safeNext } from "./safe-next"
 
 export const runtime = "nodejs"
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get("code")
-  const redirect = sanitizeRedirect(searchParams.get("redirect"))
+  const next = safeNext(searchParams.get("next"))
 
   if (!code) {
     return NextResponse.redirect(`${origin}/login?error=missing_code`)
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest) {
     console.error("[auth/callback] welcome failed:", err),
   )
 
-  return NextResponse.redirect(`${origin}${redirect}`)
+  return NextResponse.redirect(`${origin}${next}`)
 }
 
 async function maybeSendWelcome(): Promise<void> {
@@ -50,11 +51,4 @@ async function maybeSendWelcome(): Promise<void> {
 
   if (!claimed) return // already sent (or profile row missing)
   await sendWelcomeEmail(user.email)
-}
-
-function sanitizeRedirect(value: string | null): string {
-  if (!value) return "/dashboard"
-  // Allow only same-origin paths
-  if (value.startsWith("/") && !value.startsWith("//")) return value
-  return "/dashboard"
 }
