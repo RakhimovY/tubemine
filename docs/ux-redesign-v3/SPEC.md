@@ -134,6 +134,12 @@ Add a best-effort write at the end of the existing flow.
 
 **Re-analysis behavior in pagination:** because UPSERT refreshes `processed_at = now()`, a re-analyzed video jumps to the top of `/history` on next page load. This is expected, not a bug. Documented in §3.3 cursor semantics.
 
+**Truth divergence between extract response and history:** there are two rare edge cases where the user's perception can diverge from what's persisted:
+- Save succeeded but the response was killed mid-flight (cold-start timeout or client disconnect after the UPSERT committed). User sees an error or no response, but the row is in `/history`.
+- Save failed silently (best-effort `console.warn`) but extract response succeeded. User sees a successful analysis, but the row is not in `/history`.
+
+These are documented as acceptable for Phase 0 traffic. The Dashboard "Recent analyses" widget (§3.6) reflects DB truth on next render, not the most recent extract — meaning a save-failure briefly shows stale data until the next successful save or until the user explicitly visits `/history` (which is also DB-truth). If save-failure rate exceeds 0.5% in week 1, escalate to retry/queue work.
+
 ### 3.3 New endpoints
 
 **Auth contract (consistent across all three endpoints below):**
@@ -160,8 +166,10 @@ Add a best-effort write at the end of the existing flow.
 
 - Auth required.
 - Hard delete (per non-goal §2).
-- Returns `{ deleted: true }` on success, follows the auth contract above.
-- RLS policy `users delete own analyses` enforces ownership at DB layer. A DELETE on a non-owner row removes 0 rows; the handler treats `affected_rows === 0` as 404.
+- **Idempotent**: returns `200 { deleted: <count> }` where `<count>` is the number of rows actually removed (0 or 1). This matches REST DELETE conventions and avoids spurious 404 toasts when a row is deleted by the same user from another tab between optimistic-remove and re-click.
+- The handler does NOT distinguish between "row never existed", "row belonged to another user" (RLS returns 0 rows), and "row was already deleted". All collapse to `deleted: 0`. This prevents user-existence enumeration.
+- 401 if anonymous. 400 if id not a UUID.
+- RLS policy `users delete own analyses` enforces ownership at DB layer; the application code does not need an extra owner check.
 
 ### 3.4 Daily retention cron
 
@@ -196,7 +204,7 @@ Vercel Cron Jobs (configured in new `vercel.json`):
    DELETE FROM public.analyses WHERE expires_at < now() RETURNING id;
    ```
 3. Returns `{ purged: number }` (count from `RETURNING`).
-4. Logs purge count.
+4. Logs purge count in the format `console.log("[analyses] cron purge", { purged, durationMs })`. Same prefix convention as §3.2 save logs for grep-ability in Vercel logs.
 5. Function timeout: `maxDuration: 60` (Vercel Pro plan ceiling we already pay for). Phase 0 expected purge size: single digits to low hundreds, runs in milliseconds. PLAN re-evaluates batching only if a single run measurably approaches the 60s ceiling.
 
 **Cron skip / overlap behavior:** Vercel Cron has no automatic catch-up for missed runs. If 03:00 UTC is skipped one day, next run still uses `expires_at < now()` (eventual consistency, OK). If a run is retried (5xx), second invocation is a no-op (already purged), still returns 200.
@@ -300,7 +308,10 @@ Side effects:
 - **Anonymous + signed-in:** identical flow. Locale is a UI-layer decision, not tied to auth.
 - **Bookmark / deep link with locale-cookie mismatch:** the URL wins, no redirect. Cookie remains whatever it was (NOT updated to match URL silently — that would cause subsequent bare-`/` visits to fight the user's last manual choice). If user wants to "stick" the new locale, they use the switcher.
 - **Crawlers:** serve locale based on URL path (no header / cookie sniffing). Allows Googlebot to index both locales independently.
-- **OAuth callback locale preservation:** Supabase Auth callback (`/auth/callback`) must preserve the originating locale. Pattern: include `next=/[locale]/<route>` in the callback's redirect param; the callback handler uses that value verbatim. PLAN: update existing `/auth/callback` route to read the `next` query param and redirect there (default `/` if absent, which then resolves locale per detection above).
+- **OAuth callback locale preservation:** Supabase Auth callback (`/auth/callback`) preserves the originating locale and route via a `next` query param.
+  - **Login page** (`app/[locale]/login/page.tsx`) reads its own `?next=` query param. When initiating Google OAuth via `supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: <site>/auth/callback?next=<encoded> } })`, it forwards `next` through the OAuth flow.
+  - **Callback handler** (`app/auth/callback/route.ts`) reads `next`, **validates** it against a strict allow-list pattern: must match `^/(en|ru)/[\w\-/]*$` (starts with `/en/` or `/ru/`, contains only word chars / dashes / slashes, no `://`, no `@`, no `?`, no `#`). If validation fails OR `next` is absent → redirect to `/` (root, which then resolves to locale per §4.4 detection).
+  - **Why allow-list validation:** the `next` param is attacker-controlled at click time (`/auth/callback?next=https://evil.com` would otherwise create an open-redirect). The validation ensures redirects only land on internal locale-prefixed routes.
 
 Validation:
 
@@ -463,7 +474,7 @@ Documented for clarity, not to be added in this sprint:
 **Track B2 (i18n) ship-readiness:**
 
 - [ ] `next-intl` installed + configured for `en` + `ru`.
-- [ ] URL routing strategy implemented per PLAN-decided approach.
+- [ ] Sub-path URL routing implemented per §4.3 (`/en/...` and `/ru/...`).
 - [ ] `Accept-Language` detection works on first visit, `NEXT_LOCALE` cookie persists choice.
 - [ ] `<LocaleSwitcher />` in header (desktop + mobile inside hamburger).
 - [ ] `messages/en.json` and `messages/ru.json` exist with key parity, lint enforced.
@@ -495,7 +506,7 @@ Documented for clarity, not to be added in this sprint:
 7. **Cron purge:** insert row with `expires_at = now() - interval '1 day'`. Call cron endpoint with `Authorization: Bearer $CRON_SECRET` via GET. Verify `{ purged: 1 }`. Row gone.
 8. **Cron auth:** call cron endpoint without `Authorization` header. Verify 401. Call with wrong bearer. Verify 401.
 9. **Save failure does not break extract:** mock DB to throw on UPSERT. Call `POST /api/extract` as signed-in user. Verify response payload intact (200, sentiment+top_words+emoji_frequency present), `console.warn` logged, no row in DB.
-10. **/history UI:** sign in, navigate to `/en/history`. Verify auth gate passes when signed in, cards render, delete confirms via dialog, "Load more" appears when more rows exist. After delete, navigate to `/en/dashboard` and back to `/en/history`. Verify deleted row stays gone (no stale RSC cache).
+10. **/history UI:** sign in, navigate to `/en/history`. Verify auth gate passes when signed in, cards render, delete confirms via dialog, "Load more" appears when more rows exist. After delete, navigate to `/en/dashboard` and back to `/en/history`. Verify deleted row stays gone (no stale RSC cache). Double-click delete on a row: first DELETE returns `200 { deleted: 1 }`, second returns `200 { deleted: 0 }` (idempotent, no error toast).
 11. **Dashboard widget:** sign in, visit `/en/dashboard`. Verify "Recent analyses" widget shows 5 latest or empty state. After extracting a new video, widget refreshes on next dashboard navigation.
 12. **Re-extract quota cost:** sign in, extract video A (consumes 100 from quota). Re-extract video A. Verify second extract consumes another 100 from quota (UPSERT deduplicates the history row, not the quota cost).
 
@@ -515,12 +526,14 @@ Documented for clarity, not to be added in this sprint:
 12. **Key parity lint:** add a key to `messages/en.json` only. Run lint. Verify fails. Restore parity. Verify passes.
 13. **Sitemap:** request `/sitemap.xml`. Verify includes `/en/...` and `/ru/...` entries for every public route.
 14. **<html lang>:** inspect `<html>` tag of `/en/pricing` (lang="en") and `/ru/pricing` (lang="ru").
+15. **OAuth round-trip preserves locale:** anonymous user visits `/ru/history`, gets redirected to `/ru/login?next=%2Fru%2Fhistory`. Click Google sign-in, complete OAuth flow. After callback, user lands on `/ru/history` (signed-in, correct locale).
+16. **OAuth open-redirect blocked:** craft `/auth/callback?next=https://evil.com` (or `?next=//evil.com`, `?next=/ru/../../evil`, etc.). Verify callback rejects the value (regex non-match), redirects to `/` instead. Test passes if `https://evil.com` is NEVER reached.
 
 ---
 
 ## 10. Open questions (deferred to PLAN)
 
-1. **i18n URL routing strategy confirmation** — sub-path is locked in §4.3, but PLAN must include a short research note citing 3+ comparable SaaS (Linear, Vercel, Stripe, Polar, GitHub, Twilio in 2025-2026) confirming this is industry consensus. If research surfaces a strong reason to override, raise as a fundamental design flag to the user before proceeding.
+1. **i18n URL routing confirmation** — sub-path is locked in §4.3. PLAN does a short sanity check via context7 / `mcp__plugin_context7_context7__query-docs` against current Next.js 16 + next-intl docs to confirm the App Router `app/[locale]/` pattern is current and unchanged. No external SaaS citation hunt needed (sub-path is well-documented industry standard; the risk is library API drift, not strategy choice).
 2. **Verify quota constants** — PLAN must read `src/lib/budget.ts` and `src/lib/quota.ts` to confirm the actual values for `MONTHLY_BUDGET` (anonymous IP cap) and `PRO_MONTHLY_CAP` (Pro tier cap) and the free-tier auth cap. FAQ copy in Track A must reflect real values, not PRD-stated values. If they differ, code wins and FAQ updates.
 3. **Verify Vercel Cron auth pattern** — PLAN must verify via context7 / Vercel docs that the `CRON_SECRET` bearer-token pattern (handler reads `process.env.CRON_SECRET` and compares to incoming `Authorization: Bearer ...`) is the current recommended pattern, not the older `x-vercel-cron-signature` header. If Vercel docs have shifted, update §3.4 before implementation.
 
