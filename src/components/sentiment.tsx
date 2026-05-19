@@ -7,6 +7,11 @@ import { Link } from "@/i18n/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { formatNumber } from "@/lib/format"
 import type { ExtractTier } from "@/components/tubemine"
+import {
+  deriveDistribution,
+  qualitativeSummary,
+  type SentimentDistribution,
+} from "@/lib/sentiment-summary"
 
 export type SentimentAggregateProp = {
   positive: number
@@ -19,11 +24,7 @@ export type SentimentAggregateProp = {
   ruShare: number
 }
 
-export type SentimentDistribution = {
-  positive: number
-  neutral: number
-  negative: number
-}
+export type { SentimentDistribution }
 
 export function SentimentPanel({
   tier,
@@ -249,25 +250,3 @@ function Legend({
   )
 }
 
-function deriveDistribution(
-  a: SentimentAggregateProp,
-): SentimentDistribution | null {
-  const total = a.positive + a.neutral + a.negative
-  if (total === 0) return null
-  return {
-    positive: a.positive / total,
-    neutral: a.neutral / total,
-    negative: a.negative / total,
-  }
-}
-
-function qualitativeSummary(dist: SentimentDistribution): string {
-  const { positive: pos, negative: neg, neutral: neu } = dist
-  if (neu >= 0.99) return "Mixed"
-  if (pos >= 0.3 && neg >= 0.3) return "Polarized audience"
-  if (pos >= 0.6) return "Mostly positive"
-  if (neg >= 0.6) return "Mostly negative"
-  if (pos > neg) return "Leans positive"
-  if (neg > pos) return "Leans negative"
-  return "Mostly neutral"
-}

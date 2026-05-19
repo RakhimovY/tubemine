@@ -177,7 +177,7 @@ export default async function DashboardPage({
         {formatNumber(PRO_MONTHLY_CAP)} comments/month for $19.
       </p>
 
-      <RecentAnalyses />
+      <RecentAnalyses tier={quota.tier} />
     </main>
   )
 }

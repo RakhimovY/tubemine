@@ -9,7 +9,7 @@ import type { SentimentAggregate } from "@/lib/sentiment"
 const ANALYSES_TTL_MS = 30 * 24 * 60 * 60 * 1000
 
 export const ANALYSES_LIST_MIN = 1
-export const ANALYSES_LIST_MAX = 50
+export const ANALYSES_LIST_MAX = 100
 
 // Cursor id is the analyses table primary key, which is uuid. Validating here
 // keeps the .or() filter below safe from injection via crafted cursor payloads

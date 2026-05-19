@@ -9,7 +9,9 @@
     "cancel": "Cancel",
     "delete": "Delete",
     "confirm": "Confirm",
-    "load_more": "Load more"
+    "load_more": "Load more",
+    "export_json": "Export JSON",
+    "export_excel": "Export Excel"
   },
   "landing": {
     "hero_title_a": "Understand any",
@@ -22,7 +24,8 @@
     "title": "Dashboard",
     "recent_analyses_heading": "Recent analyses",
     "view_all": "View all",
-    "empty": "No saved analyses yet. Analyze a video to see it here."
+    "empty": "No saved analyses yet. Analyze a video to see it here.",
+    "last_100_saved": "Last 100 analyses saved"
   },
   "history": {
     "title": "History",
@@ -30,7 +33,9 @@
     "delete_dialog_body": "This can't be undone.",
     "empty": "No saved analyses yet. Analyze a video to see it here.",
     "error": "Could not load your history. Try again.",
-    "retry": "Retry"
+    "retry": "Retry",
+    "cap_label_free": "Last 10 analyses",
+    "cap_label_pro": "Last 100 analyses"
   },
   "pricing": {
     "title": "Pricing",

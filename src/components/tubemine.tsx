@@ -39,7 +39,7 @@ import {
   type SentimentDistribution,
 } from "@/components/sentiment"
 import { EmojiPanel } from "@/components/emoji-frequency"
-import { CsvGate } from "@/components/csv-gate"
+import { ExportBar } from "@/components/export-bar"
 
 export type ExtractTier = "anonymous" | "free" | "pro"
 
@@ -226,6 +226,17 @@ export function TubeMine({ tier: initialTier }: { tier: ExtractTier }) {
     form.reset({ url: "" })
   }
 
+  function triggerDownload(blob: Blob, filename: string) {
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
   function downloadCsv() {
     if (comments.length === 0) return
     track("csv_downloaded", {
@@ -236,21 +247,68 @@ export function TubeMine({ tier: initialTier }: { tier: ExtractTier }) {
     const csv = Papa.unparse(comments, {
       columns: ["author", "text", "sentiment", "likes", "replies", "publishedAt"],
     })
-    const slug = (preview?.title ?? "comments")
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "")
-      .slice(0, 50)
-    const filename = `tubemine-${slug || preview?.videoId}.csv`
+    const today = new Date().toISOString().slice(0, 10)
+    const filename = `tubemine-${preview?.videoId ?? "unknown"}-${today}.csv`
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = filename
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+    triggerDownload(blob, filename)
+  }
+
+  async function downloadJson() {
+    if (comments.length === 0 || !preview) return
+    try {
+      const res = await fetch("/api/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          format: "json",
+          videoId: preview.videoId,
+          videoTitle: preview.title,
+          channelName: preview.channel,
+          comments,
+        }),
+      })
+      if (!res.ok) throw new Error(`Export failed (${res.status})`)
+      const blob = await res.blob()
+      const today = new Date().toISOString().slice(0, 10)
+      triggerDownload(blob, `tubemine-${preview.videoId}-${today}.json`)
+      track("export_completed", {
+        format: "json",
+        videoId: preview.videoId,
+        count: comments.length,
+        tier,
+      })
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Export failed")
+    }
+  }
+
+  async function downloadExcel() {
+    if (comments.length === 0 || !preview) return
+    try {
+      const res = await fetch("/api/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          format: "xlsx",
+          videoId: preview.videoId,
+          videoTitle: preview.title,
+          channelName: preview.channel,
+          comments,
+        }),
+      })
+      if (!res.ok) throw new Error(`Export failed (${res.status})`)
+      const blob = await res.blob()
+      const today = new Date().toISOString().slice(0, 10)
+      triggerDownload(blob, `tubemine-${preview.videoId}-${today}.xlsx`)
+      track("export_completed", {
+        format: "xlsx",
+        videoId: preview.videoId,
+        count: comments.length,
+        tier,
+      })
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Export failed")
+    }
   }
 
   const remainingLabel = budget
@@ -416,7 +474,9 @@ export function TubeMine({ tier: initialTier }: { tier: ExtractTier }) {
             videoTitle={preview?.title ?? ""}
             videoId={preview?.videoId}
             tier={tier}
-            onDownload={downloadCsv}
+            onDownloadCsv={downloadCsv}
+            onDownloadJson={downloadJson}
+            onDownloadExcel={downloadExcel}
           />
         </>
       )}
@@ -444,13 +504,17 @@ function ResultsPanel({
   videoTitle,
   videoId,
   tier,
-  onDownload,
+  onDownloadCsv,
+  onDownloadJson,
+  onDownloadExcel,
 }: {
   comments: Comment[]
   videoTitle: string
   videoId?: string
   tier: ExtractTier
-  onDownload: () => void
+  onDownloadCsv: () => void
+  onDownloadJson: () => void | Promise<void>
+  onDownloadExcel: () => void | Promise<void>
 }) {
   return (
     <Card className="mt-6 border-border/60">
@@ -466,7 +530,13 @@ function ResultsPanel({
               </p>
             )}
           </div>
-          <CsvGate tier={tier} onDownload={onDownload} videoId={videoId} />
+          <ExportBar
+            tier={tier}
+            videoId={videoId}
+            onDownloadCsv={onDownloadCsv}
+            onDownloadJson={onDownloadJson}
+            onDownloadExcel={onDownloadExcel}
+          />
         </div>
         <div className="max-h-[60vh] overflow-auto">
           <Table>

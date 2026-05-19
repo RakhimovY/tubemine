@@ -9,7 +9,6 @@ import {
   recordUsage,
 } from "@/lib/budget"
 import { analyzeTopEmojis, type EmojiCount } from "@/lib/emoji-frequency"
-import { createClient } from "@/lib/supabase/server"
 import {
   PRO_MONTHLY_CAP,
   bumpUserUsage,
@@ -19,6 +18,7 @@ import { scoreCommentsSentiment, type SentimentAggregate } from "@/lib/sentiment
 import { analyzeTopWords, type WordCount } from "@/lib/top-words"
 import type { Comment } from "@/lib/types"
 import { ytClient } from "@/lib/youtube"
+import { authUserId } from "@/lib/auth"
 
 type ExtractTier = "anonymous" | "free" | "pro"
 
@@ -80,27 +80,6 @@ const ExtractSchema = z.object({
 })
 
 const PAGE_SIZE = 100
-
-async function authUserId(): Promise<{
-  userId: string | null
-  userEmail: string | null
-}> {
-  if (
-    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  ) {
-    return { userId: null, userEmail: null }
-  }
-  try {
-    const supabase = await createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    return { userId: user?.id ?? null, userEmail: user?.email ?? null }
-  } catch {
-    return { userId: null, userEmail: null }
-  }
-}
 
 export async function POST(req: NextRequest) {
   let body: unknown
