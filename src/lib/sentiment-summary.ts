@@ -24,19 +24,29 @@ export function deriveDistribution(
   }
 }
 
+export type SentimentLabelKey =
+  | "mostly_positive"
+  | "leans_positive"
+  | "mixed"
+  | "leans_negative"
+  | "mostly_negative"
+  | "polarized"
+  | "mostly_neutral"
+
 /**
- * Coarse qualitative label for a distribution. English-only by design;
- * shown on Free-tier surfaces where the exact percent is paywalled.
+ * Coarse qualitative label key for a distribution. Consumers translate via
+ * next-intl `t("sentiment_label." + key)`. Shown on Free-tier surfaces
+ * where the exact percent is paywalled.
  */
-export function qualitativeSummary(dist: SentimentDistribution): string {
+export function qualitativeSummary(dist: SentimentDistribution): SentimentLabelKey {
   const { positive: pos, negative: neg, neutral: neu } = dist
-  if (neu >= 0.99) return "Mixed"
-  if (pos >= 0.3 && neg >= 0.3) return "Polarized audience"
-  if (pos >= 0.6) return "Mostly positive"
-  if (neg >= 0.6) return "Mostly negative"
-  if (pos > neg) return "Leans positive"
-  if (neg > pos) return "Leans negative"
-  return "Mostly neutral"
+  if (neu >= 0.99) return "mixed"
+  if (pos >= 0.3 && neg >= 0.3) return "polarized"
+  if (pos >= 0.6) return "mostly_positive"
+  if (neg >= 0.6) return "mostly_negative"
+  if (pos > neg) return "leans_positive"
+  if (neg > pos) return "leans_negative"
+  return "mostly_neutral"
 }
 
 /**

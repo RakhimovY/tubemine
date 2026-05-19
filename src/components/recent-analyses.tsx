@@ -12,6 +12,7 @@ type Tier = "free" | "pro"
 
 export async function RecentAnalyses({ tier }: { tier: Tier }) {
   const t = await getTranslations("dashboard")
+  const tLabel = await getTranslations("sentiment_label")
   const supabase = await createClient()
   const { items } = await listAnalyses(supabase, null, 5)
 
@@ -63,7 +64,7 @@ export async function RecentAnalyses({ tier }: { tier: Tier }) {
               </div>
               {dist ? (
                 <span className="shrink-0 text-xs text-muted-foreground">
-                  {tier === "free" ? qualitativeSummary(dist) : proSentimentLabel(dist)}
+                  {tier === "free" ? tLabel(qualitativeSummary(dist)) : proSentimentLabel(dist)}
                 </span>
               ) : null}
             </li>

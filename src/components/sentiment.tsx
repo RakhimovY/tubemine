@@ -3,6 +3,7 @@
 import { useEffect } from "react"
 import { Activity, FlaskConical, Lock } from "lucide-react"
 import { track } from "@vercel/analytics"
+import { useTranslations } from "next-intl"
 import { Link } from "@/i18n/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { formatNumber } from "@/lib/format"
@@ -86,8 +87,9 @@ export function SentimentPanel({
     distribution ?? deriveDistribution(aggregate)
   if (!dist) return null
 
+  const tLabel = useTranslations("sentiment_label")
   const ruExperimental = aggregate.ruShare >= 0.25
-  const summary = qualitativeSummary(dist)
+  const summary = tLabel(qualitativeSummary(dist))
 
   return (
     <Card className="mt-6 border-border/60">

@@ -53,6 +53,15 @@
   "auth": {
     "sign_in_with_google": "Войти через Google"
   },
+  "sentiment_label": {
+    "mostly_positive": "В основном позитив",
+    "leans_positive": "Скорее позитив",
+    "mixed": "Смешанные",
+    "leans_negative": "Скорее негатив",
+    "mostly_negative": "В основном негатив",
+    "polarized": "Поляризованная аудитория",
+    "mostly_neutral": "В основном нейтрально"
+  },
   "legal_disclaimer_ru": "Эта страница пока доступна только на английском. Русская версия появится позже.",
   "legal_disclaimer_ru_changelog": "Журнал изменений ведётся на английском.",
   "footer": {

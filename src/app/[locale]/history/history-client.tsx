@@ -23,6 +23,7 @@ const PRO_HISTORY_CAP = 100
 export function HistoryClient({ tier, initialItems, initialNextCursor }: Props) {
   const t = useTranslations("history")
   const tCommon = useTranslations("common")
+  const tLabel = useTranslations("sentiment_label")
   const router = useRouter()
   const [items, setItems] = useState(initialItems)
   // Free tier discards the server cursor; Pro tier tracks it for Load More.
@@ -93,7 +94,7 @@ export function HistoryClient({ tier, initialItems, initialNextCursor }: Props) 
               </p>
               {dist ? (
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {tier === "free" ? qualitativeSummary(dist) : proSentimentLabel(dist)}
+                  {tier === "free" ? tLabel(qualitativeSummary(dist)) : proSentimentLabel(dist)}
                 </p>
               ) : null}
               <button

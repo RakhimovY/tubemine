@@ -53,6 +53,15 @@
   "auth": {
     "sign_in_with_google": "Sign in with Google"
   },
+  "sentiment_label": {
+    "mostly_positive": "Mostly positive",
+    "leans_positive": "Leans positive",
+    "mixed": "Mixed",
+    "leans_negative": "Leans negative",
+    "mostly_negative": "Mostly negative",
+    "polarized": "Polarized audience",
+    "mostly_neutral": "Mostly neutral"
+  },
   "legal_disclaimer_ru": "",
   "legal_disclaimer_ru_changelog": "",
   "footer": {
