@@ -83,10 +83,23 @@ Footer stays for everyone (single source-link, low chrome). Negative top margin 
 
 RLS policy "users read own subscription" already allows the signed-in user to SELECT their own row via `createClient`. No service role escalation needed in the dashboard server component.
 
-`<TrialBanner userId={user.id} />` server component:
+`<TrialBanner userId={user.id} />` server component, full structure:
 
-```ts
-async function loadTrialState(userId: string) {
+```tsx
+import "server-only"
+import NextLink from "next/link"
+import { Sparkles, ArrowUpRight } from "lucide-react"
+import { getTranslations } from "next-intl/server"
+import { Card, CardContent } from "@/components/ui/card"
+import { buttonVariants } from "@/components/ui/button"
+import { createClient } from "@/lib/supabase/server"
+
+type TrialState =
+  | { kind: "active"; daysLeft: number }
+  | { kind: "today" }
+  | null
+
+async function loadTrialState(userId: string): Promise<TrialState> {
   const supabase = await createClient()
   const { data } = await supabase
     .from("subscriptions")
@@ -96,12 +109,37 @@ async function loadTrialState(userId: string) {
   if (!data || data.status !== "trialing" || !data.current_period_end) return null
   const endsAt = Date.parse(data.current_period_end)
   if (Number.isNaN(endsAt) || endsAt <= Date.now()) return null
-  const daysLeft = Math.max(1, Math.ceil((endsAt - Date.now()) / 86_400_000))
-  return { daysLeft }
+  const msRemaining = endsAt - Date.now()
+  if (msRemaining < 86_400_000) return { kind: "today" }
+  const daysLeft = Math.ceil(msRemaining / 86_400_000)
+  return { kind: "active", daysLeft }
+}
+
+export async function TrialBanner({ userId }: { userId: string }) {
+  const state = await loadTrialState(userId)
+  if (!state) return null
+  const t = await getTranslations("dashboard")
+  const text =
+    state.kind === "today"
+      ? t("trial_banner_today")
+      : t("trial_banner_text", { days: state.daysLeft })
+  return (
+    <Card className="border-amber-500/30 bg-amber-500/[0.04]">
+      <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        <div className="flex items-center gap-3">
+          <Sparkles className="size-5 text-amber-600" />
+          <p className="text-sm">{text}</p>
+        </div>
+        <NextLink href="/api/portal" className={buttonVariants({ variant: "outline", size: "sm" })}>
+          {t("trial_manage_cta")} <ArrowUpRight className="size-3.5" />
+        </NextLink>
+      </CardContent>
+    </Card>
+  )
 }
 ```
 
-Render contract: returns `null` when there is nothing to show (no row, non-trialing, missing date, expired date). Otherwise renders an info card with the count + Manage subscription button.
+Render contract: returns `null` when there is nothing to show (no row, non-trialing, missing date, expired date). The "today" branch fires when less than 24h remain, replacing the misleading "1 day left" copy with explicit "Trial ends today" wording.
 
 ### Sentiment label localization
 
@@ -143,51 +181,45 @@ Consumers:
 
 ### `src/components/trial-banner.tsx` (new)
 
-Server component. Renders nothing when the user is not trialing. When trialing, renders an info card visually consistent with the Plan card sibling. Layout:
-
-```tsx
-<Card className="border-amber-500/30 bg-amber-500/[0.04]">
-  <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-    <div className="flex items-center gap-3">
-      <Sparkles className="size-5 text-amber-600" />
-      <p className="text-sm">{t("trial_banner_text", { days: daysLeft })}</p>
-    </div>
-    <NextLink href="/api/portal" className={buttonVariants({ variant: "outline", size: "sm" })}>
-      {t("trial_manage_cta")} <ArrowUpRight className="size-3.5" />
-    </NextLink>
-  </CardContent>
-</Card>
-```
+Server component. Renders nothing when the user is not trialing. Full structure shown in Architecture section above.
 
 i18n keys (under `dashboard.*` namespace, matches existing Dashboard convention):
 
-- `dashboard.trial_banner_text`
+- `dashboard.trial_banner_text` (fires when 1+ full day remains)
   - EN: `"Trial: {days, plural, one {# day} other {# days}} left, then $19/mo."`
   - RU: `"Триал: осталось {days, plural, one {# день} few {# дня} many {# дней} other {# дней}}, потом $19/мес."`
+- `dashboard.trial_banner_today` (fires when less than 24h remain)
+  - EN: `"Trial ends today, then $19/mo."`
+  - RU: `"Триал заканчивается сегодня, потом $19/мес."`
 - `dashboard.trial_manage_cta`
   - EN: `"Manage subscription"`
   - RU: `"Управлять подпиской"`
 
-Russian pluralization uses ICU plural per next-intl docs (1 день, 2-4 дня, 5+ дней).
+Russian pluralization uses ICU plural per next-intl docs. For 3-day trial only `one` and `few` are reachable today; `many` and `other` kept for resilience if trial length changes in the future.
 
 Mount point: `src/app/[locale]/dashboard/page.tsx`, between the `showWelcome` notice (if any) and the Plan card. Rendered as `<TrialBanner userId={user.id} />`. Component returns `null` when not trialing, so the slot collapses silently.
 
 ### `src/components/upgrade-button.tsx` (modified)
 
-Add an optional `label` prop. When provided, replaces the default "Upgrade to Pro" string. Existing callers (no `label`) keep current behavior; new callers (pricing page Pro CTA, dashboard Free upgrade panel) pass the localized trial CTA.
+Add a REQUIRED `label` prop. Both existing callers (pricing page Pro CTA, dashboard Free upgrade panel) pass the localized trial CTA. Making the prop required avoids dead-code fallback strings.
 
 ```tsx
-export function UpgradeButton({ fullWidth = false, label }: { fullWidth?: boolean; label?: string }) {
-  // ...
+export function UpgradeButton({ fullWidth = false, label }: { fullWidth?: boolean; label: string }) {
+  // existing useState + onUpgrade logic unchanged
   return (
-    <Button ...>
-      {loading ? <Loader2 className="size-4 animate-spin" /> : (label ?? "Upgrade to Pro")}
+    <Button
+      onClick={onUpgrade}
+      disabled={loading}
+      size={fullWidth ? "default" : "sm"}
+      className={fullWidth ? "w-full" : undefined}
+    >
+      {loading ? <Loader2 className="size-4 animate-spin" /> : label}
     </Button>
   )
 }
 ```
 
-Pricing page Pro CTA (when signed-in Free) passes `label={t("pricing.start_trial_cta")}`. Dashboard Free upgrade panel passes the same. Anon Pro CTA on pricing page stays "Sign in to upgrade" (no change).
+Pricing page Pro CTA (when signed-in Free) passes `label={t("pricing.start_trial_cta")}`. Dashboard Free upgrade panel passes the same. Anon Pro CTA on pricing page stays "Sign in to upgrade" (no change, that path does not render UpgradeButton).
 
 i18n key `pricing.start_trial_cta`:
 
@@ -232,11 +264,12 @@ Polar Pro product (trial_period_days = 3, set in Polar dashboard)
 
 ## i18n key inventory
 
-Phase J adds 11 keys per locale (22 total across EN and RU).
+Phase J adds 12 keys per locale (24 total across EN and RU).
 
 | Key | EN | RU |
 |---|---|---|
 | `dashboard.trial_banner_text` | `Trial: {days, plural, one {# day} other {# days}} left, then $19/mo.` | `Триал: осталось {days, plural, one {# день} few {# дня} many {# дней} other {# дней}}, потом $19/мес.` |
+| `dashboard.trial_banner_today` | `Trial ends today, then $19/mo.` | `Триал заканчивается сегодня, потом $19/мес.` |
 | `dashboard.trial_manage_cta` | `Manage subscription` | `Управлять подпиской` |
 | `pricing.start_trial_cta` | `Start 3-day free trial` | `Начать 3-дневный пробный период` |
 | `pricing.trial_subnote` | `$19/mo after. Cancel anytime.` | `После $19/мес. Отмена в любой момент.` |
@@ -267,15 +300,15 @@ The agent halts code-side work until this confirmation lands. The agent does NOT
 1. **Anonymous on `/`** seeing the hero is current behavior. Phase J preserves it.
 2. **Signed-in Free on `/`** sees only extractor. The `<TubeMine tier="free" />` extractor still renders the curiosity-gap analytics CTAs from Phase G.
 3. **Signed-in Pro on `/`** sees only extractor.
-4. **Trialing user on `/`** is treated as Pro (via `effectiveTier`). Sees no hero. Sees Pro-tier `<TubeMine />` widgets.
+4. **Trialing user on `/`** is treated as Pro because the webhook sets `profiles.tier = "pro"` on `subscription.created` (per `src/lib/subscription.ts:101-142`). `getUserQuota` therefore returns `tier: "pro"`. Hero is hidden, Pro-tier `<TubeMine />` widgets render.
 5. **Dashboard with no `subscriptions` row** (Free user who never started a trial): TrialBanner returns null. Plan card shows Free.
 6. **Dashboard with `subscriptions.status="active"`** (paid Pro, no trial): TrialBanner returns null. Plan card shows Pro.
 7. **Dashboard with `subscriptions.status="trialing"` but `current_period_end` already past** (race during cron downgrade): TrialBanner returns null defensively. Plan card may briefly show Pro until webhook updates flow.
 8. **Dashboard with `subscriptions.status="trialing"` and `current_period_end` null** (malformed Polar payload): TrialBanner returns null.
 9. **Dashboard with `subscriptions.status="canceled"` mid-trial**: Polar still treats as active until `current_period_end`. Webhook keeps tier=pro. TrialBanner checks `status === "trialing"`, so a `canceled` status returns null (banner hides; users see the regular Plan card and Manage CTA).
 10. **`Date.parse(current_period_end)` returns NaN**: TrialBanner returns null.
-11. **`daysLeft = 0` or negative**: clamped to 1 via `Math.max(1, Math.ceil(...))` so the banner never says "0 days left". When the trial has actually expired, `endsAt <= Date.now()` short-circuits to null before clamp.
-12. **RU plural at day 1**: `plural, one {# день}` resolves to "1 день". At days 2-4: "2 дня". At days 5+: "5 дней". next-intl uses Intl.PluralRules.
+11. **Less than 24h remaining** (e.g. 2 hours left): `loadTrialState` returns `{ kind: "today" }` and the banner shows "Trial ends today, then $19/mo." instead of the misleading "1 day left". When the trial has actually expired, `endsAt <= Date.now()` short-circuits to null before this branch.
+12. **RU plural at day 1**: `plural, one {# день}` resolves to "1 день". At days 2-4: "2 дня". At days 5+: "5 дней". next-intl uses Intl.PluralRules. Today's 3-day trial reaches only `one` and `few`; `many`/`other` are kept future-proofed.
 13. **EN plural at day 1**: "1 day left". At day 2+: "N days left".
 14. **Sentiment label key collision in RU**: `mostly_positive` and `leans_positive` use different Russian wording ("В основном позитив" vs "Скорее позитив") to preserve the gradient distinction. Similarly negative.
 15. **`qualitativeSummary` callers using the old string-returning version**: callers updated atomically in the same commit. No callers outside the three components above (`sentiment.tsx`, `recent-analyses.tsx`, `history-client.tsx`) per `grep -rn 'qualitativeSummary' src`.
@@ -288,22 +321,35 @@ The agent halts code-side work until this confirmation lands. The agent does NOT
 22. **Server-component `getTranslations` mid-render error**: returns the key string back to the caller (next-intl default). Visible degraded but does not throw.
 23. **Sentiment label NOT in trial-banner copy**: TrialBanner and sentiment-label namespaces are independent.
 24. **`subscriptions.status="past_due"`**: TrialBanner returns null (status !== "trialing"). Existing payment-failure UI is out of scope.
+25. **Pre-webhook arrival**: user completes Polar checkout and lands on `/dashboard` before the `subscription.created` webhook fires (typical Polar latency 1-30s). `profiles.tier` is still `"free"`, `subscriptions` row is absent. Plan card shows Free, TrialBanner returns null, the "Start 3-day free trial" upgrade CTA is still visible. Mitigation: existing post-checkout redirect appends `?welcome=true` to the URL. We add a soft client-side refresh hint inside the welcome card ("Your trial is processing, refresh in a few seconds if it does not appear") rather than building a polling pipeline. Acceptable trade-off because Polar webhooks typically land within a beat and a manual refresh resolves the rare slow case.
+26. **Mid-trial cancellation**: when user clicks Cancel in the Polar customer portal during the trial, webhook flips `subscriptions.status` to `"canceled"` immediately, but `profiles.tier` stays `"pro"` (revoked event fires later at `current_period_end`). TrialBanner returns null per its `status !== "trialing"` guard. Plan card shows Pro with the existing "Manage subscription" CTA. User has no in-app indicator of "trial canceled, ends on {date}", but the Polar customer portal shows them this information. Accepted trade-off; revisit only if support tickets surface.
+27. **Multi-tab open during trial expiry**: tab A and tab B both rendered server-side while trialing. Trial ends. Tab A is refreshed and shows "Trial ended" UI (banner gone). Tab B is left open and continues to show stale "X days left" banner until reload. Since TrialBanner is a server component, no client tick removes it. Accepted trade-off; adding a client-island timer adds 30+ lines of hydration + interactivity for a low-incidence UX nit.
+28. **FAQ "What about refunds?" 7-day reference on `/pricing`**: out of scope of Phase J. The 7-day refund window is a separate policy from the 3-day trial; coexisting numbers may briefly confuse, but rewriting the FAQ is policy work, not trial work. Defer to a follow-up sprint.
 
 ## Tests
 
 vitest (`pnpm test`). Add:
 
-1. `src/components/__tests__/trial-banner.test.tsx`, 6 cases:
+1. `src/components/__tests__/trial-banner.test.tsx`, 7 cases:
    - returns null when no `subscriptions` row.
    - returns null when status is "active".
+   - returns null when status is "canceled" (mid-trial cancel).
    - returns null when status is "trialing" but `current_period_end` is null.
    - returns null when status is "trialing" but `current_period_end` is in the past.
-   - renders 3 when status is "trialing" and `current_period_end` is now + 72h.
-   - clamps to 1 when status is "trialing" and `current_period_end` is now + 12h (less than a day).
+   - renders days copy with `daysLeft = 3` when status is "trialing" and `current_period_end` is now + 72h.
+   - renders today copy when status is "trialing" and `current_period_end` is now + 12h (less than 24h remain).
 
 2. `src/lib/__tests__/sentiment-summary.test.ts` (extend or add):
-   - Each of the 7 outcomes maps to its expected key (7 assertions).
-   - Tie-break order preserved: positive 0.5, neutral 0.5 -> "mostly_neutral" (existing ordering).
+   - Each of the 7 outcomes maps to its expected key:
+     - `{ pos: 0.7, neu: 0.2, neg: 0.1 } -> "mostly_positive"`
+     - `{ pos: 0.5, neu: 0.3, neg: 0.2 } -> "leans_positive"`
+     - `{ pos: 0, neu: 1, neg: 0 } -> "mixed"` (neu >= 0.99 branch)
+     - `{ pos: 0.2, neu: 0.3, neg: 0.5 } -> "leans_negative"`
+     - `{ pos: 0.05, neu: 0.25, neg: 0.7 } -> "mostly_negative"`
+     - `{ pos: 0.4, neu: 0.2, neg: 0.4 } -> "polarized"` (pos >= 0.3 && neg >= 0.3)
+     - `{ pos: 0.25, neu: 0.5, neg: 0.25 } -> "mostly_neutral"` (pos === neg, both < 0.3, neu < 0.99)
+   - Tie-break order preserved: when `pos > neg` strictly, `leans_positive` wins over `mostly_neutral`. Test:
+     `{ pos: 0.2, neu: 0.5, neg: 0.1 } -> "leans_positive"` (strict pos > neg, neu < 0.99).
 
 Mocks: trial-banner test mocks `@/lib/supabase/server.createClient` to return a stub with `from().select().eq().maybeSingle()` returning the desired row.
 
@@ -314,7 +360,7 @@ No `/api/extract` or `/api/export` test changes.
 - [ ] `npx tsc --noEmit` clean
 - [ ] `pnpm lint` clean
 - [ ] `pnpm test` passes, with all new trial-banner and sentiment-label tests green
-- [ ] `node scripts/check-message-parity.mjs` clean (22 new keys EN+RU)
+- [ ] `node scripts/check-message-parity.mjs` clean (24 new keys EN+RU)
 - [ ] `pnpm build` succeeds, no client-bundle bloat
 - [ ] No em-dash (U+2014) or en-dash (U+2013) in any changed `src/`, `messages/`, or `docs/superpowers/` file
 - [ ] No Polar-banned verbs (extract / scrape / bulk / pull data / Priority) in new UI strings
@@ -332,20 +378,20 @@ No `/api/extract` or `/api/export` test changes.
 | File | Change | Lines (est) |
 |---|---|---|
 | `src/app/[locale]/page.tsx` | resolveHomeAuthState() helper, conditional Hero render | +20/-10 |
-| `src/components/trial-banner.tsx` | new server component | +60 |
-| `src/components/__tests__/trial-banner.test.tsx` | new test file | +120 |
+| `src/components/trial-banner.tsx` | new server component, two-branch render | +80 |
+| `src/components/__tests__/trial-banner.test.tsx` | new test file, 7 cases | +140 |
 | `src/app/[locale]/dashboard/page.tsx` | mount TrialBanner above Plan card | +3 |
-| `src/app/[locale]/dashboard/upgrade-button.tsx` | accept optional label prop | +4/-1 |
+| `src/app/[locale]/dashboard/upgrade-button.tsx` | require label prop, drop dead default | +3/-2 |
 | `src/app/[locale]/pricing/page.tsx` | pass localized trial CTA label + subnote | +12/-2 |
 | `src/lib/sentiment-summary.ts` | qualitativeSummary returns key, not string | +8/-7 |
-| `src/lib/__tests__/sentiment-summary.test.ts` | extend (or add) | +30 |
+| `src/lib/__tests__/sentiment-summary.test.ts` | extend (or add), 7+1 cases | +35 |
 | `src/components/sentiment.tsx` | useTranslations on label | +3/-1 |
 | `src/components/recent-analyses.tsx` | getTranslations on label | +3/-1 |
 | `src/app/[locale]/history/history-client.tsx` | useTranslations on label | +3/-1 |
-| `messages/en.json` | 11 new keys | +12 |
-| `messages/ru.json` | 11 new keys | +12 |
+| `messages/en.json` | 12 new keys | +13 |
+| `messages/ru.json` | 12 new keys | +13 |
 
-Total estimate: 13 files, ~300 lines added, ~25 lines removed.
+Total estimate: 13 files, ~320 lines added, ~30 lines removed.
 
 ## Locked decisions
 
@@ -357,9 +403,9 @@ Total estimate: 13 files, ~300 lines added, ~25 lines removed.
 6. **No new `trialing` tier surfaced** in `getUserQuota`. Trialing users keep `tier: "pro"` for quota and entitlements. Trial state is a separate, orthogonal flag read from `subscriptions`.
 7. **Trial CTA label is hard-coded length** (3 days) in EN and RU. If product changes to 5 or 7 in the future, copy update is a separate PR. Reason: avoids over-parameterization for a number that rarely changes.
 8. **Trial subnote is OPT-IN per call-site**, not forced everywhere. Pricing page Pro card gets it; dashboard Free upgrade panel does not (already has surrounding context). Reason: avoid duplication.
-9. **`upgrade-button.tsx` keeps the default "Upgrade to Pro" label** when no `label` prop is passed. Reason: backwards-compatible for any unforeseen call sites.
+9. **`upgrade-button.tsx` `label` prop is REQUIRED**, no default. Reason: both existing call sites pass a localized label, so a fallback would be dead code that obscures translation gaps. Future call sites are forced to provide a localized string.
 10. **Trial banner does NOT render for status "canceled" mid-trial**. Reason: once the user clicks Cancel, the "Trial X days left, then $19/mo" copy is misleading (no charge will happen). The default Plan card + Manage CTA is the correct UI for that state.
-11. **`Math.max(1, ...)` clamp on `daysLeft`**, not "expires today" branch. Reason: simpler copy, no edge-case wording.
+11. **Separate "today" branch when `msRemaining < 86_400_000`**, not a `Math.max(1, ...)` clamp. Reason: clamping made "1 day left" appear at 2h-remaining, inviting "I thought I had a day" support tickets after a same-day charge. Two branches plus one extra i18n key is worth the clarity.
 12. **No analytics events** added for trial banner views or trial CTA clicks. Reason: Phase J scope is plumbing; add analytics in a follow-up if conversion data is needed.
 13. **No webhook handler changes.** `handleSubscriptionActive` already supports `subscription.created` with `status: "trialing"` (sets tier=pro). `handleSubscriptionUpdated` also routes `trialing` to tier=pro. Verified in `src/lib/subscription.ts:101-142`.
 14. **No new `dynamic = "force-dynamic"` declarations**. `/`, `/dashboard`, and `/pricing` all already have it.
