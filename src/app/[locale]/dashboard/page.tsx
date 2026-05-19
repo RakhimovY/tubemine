@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/server"
 import { getUserQuota, FREE_MONTHLY_CAP, PRO_MONTHLY_CAP } from "@/lib/quota"
 import { formatNumber } from "@/lib/format"
 import { RecentAnalyses } from "@/components/recent-analyses"
+import { TrialBanner } from "@/components/trial-banner"
 import { UpgradeButton } from "./upgrade-button"
 import { LogoutButton } from "./logout-button"
 
@@ -59,6 +60,8 @@ export default async function DashboardPage({
         <p className="text-sm text-muted-foreground">{user.email}</p>
         <h1 className="text-3xl font-semibold tracking-tight">{t("title")}</h1>
       </header>
+
+      <TrialBanner userId={user.id} />
 
       {showWelcome && quota.tier === "pro" && (
         <Card className="border-primary/30 bg-primary/5">

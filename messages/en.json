@@ -25,7 +25,10 @@
     "recent_analyses_heading": "Recent analyses",
     "view_all": "View all",
     "empty": "No saved analyses yet. Analyze a video to see it here.",
-    "last_100_saved": "Last 100 analyses saved"
+    "last_100_saved": "Last 100 analyses saved",
+    "trial_banner_text": "Trial: {days, plural, one {# day} other {# days}} left, then $19/mo.",
+    "trial_banner_today": "Trial ends today, then $19/mo.",
+    "trial_manage_cta": "Manage subscription"
   },
   "history": {
     "title": "History",
