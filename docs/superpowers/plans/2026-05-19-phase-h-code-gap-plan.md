@@ -157,6 +157,24 @@ export function qualitativeSummary(dist: SentimentDistribution): string {
   if (neg > pos) return "Leans negative"
   return "Mostly neutral"
 }
+
+/**
+ * Exact "{pct}% {dominant}" label for Pro tier. Picks the argmax over
+ * positive/neutral/negative with tie-break order positive > neutral >
+ * negative (per spec locked decision). pct is Math.round'd.
+ */
+export function proSentimentLabel(dist: SentimentDistribution): string {
+  const entries = [
+    ["positive", dist.positive],
+    ["neutral", dist.neutral],
+    ["negative", dist.negative],
+  ] as const
+  let best = entries[0]
+  for (const e of entries) {
+    if (e[1] > best[1]) best = e
+  }
+  return `${Math.round(best[1] * 100)}% ${best[0]}`
+}
 ```
 
 ---
@@ -168,9 +186,9 @@ export function qualitativeSummary(dist: SentimentDistribution): string {
 
 - [ ] **Step 4.1: Replace inline definitions with imports**
 
-In `src/components/sentiment.tsx`:
+In `src/components/sentiment.tsx`, make THREE separate edits:
 
-Replace the existing `export type SentimentDistribution = { ... }` block (lines 22-26) with:
+**Edit A (top imports):** After the existing `import type { ExtractTier } from "@/components/tubemine"` line, add the new lib import (this is the only `import` statement; imports MUST be top-level):
 
 ```ts
 import {
@@ -178,13 +196,15 @@ import {
   qualitativeSummary,
   type SentimentDistribution,
 } from "@/lib/sentiment-summary"
+```
 
+**Edit B (replace inline type with re-export):** Replace the existing `export type SentimentDistribution = { positive: number; neutral: number; negative: number }` block (lines 22-26) with the re-export:
+
+```ts
 export type { SentimentDistribution }
 ```
 
-Place the new `import` line under the existing top imports (after `import type { ExtractTier } from "@/components/tubemine"`).
-
-Delete the inline `function deriveDistribution(...)` definition (currently lines 252-262) and the inline `function qualitativeSummary(...)` definition (currently lines 264-273).
+**Edit C (delete inline helper functions):** Delete the inline `function deriveDistribution(...)` definition (currently lines 252-262) AND the inline `function qualitativeSummary(...)` definition (currently lines 264-273). Both are now provided by the lib import.
 
 - [ ] **Step 4.2: TypeScript check**
 
@@ -545,6 +565,24 @@ describe("POST /api/export", () => {
     const buf = await res.arrayBuffer()
     expect(buf.byteLength).toBeGreaterThan(0)
   })
+
+  it("returns 200 JSON for Pro with empty comments[] (edge case 4)", async () => {
+    mockAuth.mockResolvedValue({ userId: "u1", userEmail: "u1@x" })
+    mockQuota.mockResolvedValue({ tier: "pro", cap: 100000, used: 0, remaining: 100000, resetAt: "" })
+    const res = await POST(makeRequest({ ...goodBody, comments: [] }) as never)
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.comments).toEqual([])
+  })
+
+  it("returns 200 xlsx for Pro with empty comments[] (edge case 4)", async () => {
+    mockAuth.mockResolvedValue({ userId: "u1", userEmail: "u1@x" })
+    mockQuota.mockResolvedValue({ tier: "pro", cap: 100000, used: 0, remaining: 100000, resetAt: "" })
+    const res = await POST(makeRequest({ ...goodBody, format: "xlsx", comments: [] }) as never)
+    expect(res.status).toBe(200)
+    const buf = await res.arrayBuffer()
+    expect(buf.byteLength).toBeGreaterThan(0) // valid xlsx with just header row
+  })
 })
 ```
 
@@ -590,6 +628,7 @@ import { getTranslations } from "next-intl/server"
 import { Link } from "@/i18n/navigation"
 import {
   deriveDistribution,
+  proSentimentLabel,
   qualitativeSummary,
 } from "@/lib/sentiment-summary"
 
@@ -648,7 +687,7 @@ export async function RecentAnalyses({ tier }: { tier: Tier }) {
               </div>
               {dist ? (
                 <span className="shrink-0 text-xs text-muted-foreground">
-                  {tier === "free" ? qualitativeSummary(dist) : proLabel(dist)}
+                  {tier === "free" ? qualitativeSummary(dist) : proSentimentLabel(dist)}
                 </span>
               ) : null}
             </li>
@@ -658,25 +697,7 @@ export async function RecentAnalyses({ tier }: { tier: Tier }) {
     </div>
   )
 }
-
-function proLabel(dist: { positive: number; neutral: number; negative: number }): string {
-  const entries = [
-    ["positive", dist.positive],
-    ["neutral", dist.neutral],
-    ["negative", dist.negative],
-  ] as const
-  // Tie-break: positive > neutral > negative (already the iteration order)
-  let best = entries[0]
-  for (const e of entries) {
-    if (e[1] > best[1]) best = e
-  }
-  return `${Math.round(best[1] * 100)}% ${best[0]}`
-}
 ```
-
-`★ Note on argmax ─────────────────────────────`
-The `proLabel` helper uses a simple loop with `>` (strict) so the first entry in tie order wins. Order is positive → neutral → negative, matching the spec's locked tie-break.
-`─────────────────────────────────────────────`
 
 - [ ] **Step 10.2: TypeScript check on this file**
 
@@ -773,6 +794,7 @@ import { useTranslations } from "next-intl"
 import type { AnalysisRow } from "@/lib/analyses"
 import {
   deriveDistribution,
+  proSentimentLabel,
   qualitativeSummary,
 } from "@/lib/sentiment-summary"
 
@@ -785,19 +807,6 @@ type Props = {
 }
 
 const PRO_HISTORY_CAP = 100
-
-function proLabel(dist: { positive: number; neutral: number; negative: number }): string {
-  const entries = [
-    ["positive", dist.positive],
-    ["neutral", dist.neutral],
-    ["negative", dist.negative],
-  ] as const
-  let best = entries[0]
-  for (const e of entries) {
-    if (e[1] > best[1]) best = e
-  }
-  return `${Math.round(best[1] * 100)}% ${best[0]}`
-}
 
 export function HistoryClient({ tier, initialItems, initialNextCursor }: Props) {
   const t = useTranslations("history")
@@ -872,7 +881,7 @@ export function HistoryClient({ tier, initialItems, initialNextCursor }: Props) 
               </p>
               {dist ? (
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {tier === "free" ? qualitativeSummary(dist) : proLabel(dist)}
+                  {tier === "free" ? qualitativeSummary(dist) : proSentimentLabel(dist)}
                 </p>
               ) : null}
               <button
@@ -969,8 +978,7 @@ import { useEffect } from "react"
 import { Download, LogIn } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { track } from "@vercel/analytics"
-import { Button } from "@/components/ui/button"
-import { buttonVariants } from "@/components/ui/button"
+import { Button, buttonVariants } from "@/components/ui/button"
 import type { ExtractTier } from "@/components/tubemine"
 
 export function ExportBar({
@@ -1090,7 +1098,9 @@ function triggerDownload(blob: Blob, filename: string) {
 
 - [ ] **Step 14.3: Add `downloadJson()` and `downloadExcel()` handlers**
 
-Add the following two functions immediately after `downloadCsv` (or anywhere inside the `TubeMine` component body before `return`):
+Add the following two functions immediately after `downloadCsv` (or anywhere inside the `TubeMine` component body before `return`).
+
+`toast` is already imported in this file (`import { toast } from "sonner"` near the top); no new import needed.
 
 ```ts
 async function downloadJson() {
