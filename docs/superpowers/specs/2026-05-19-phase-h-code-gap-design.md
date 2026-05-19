@@ -3,7 +3,7 @@
 **Date:** 2026-05-19
 **Spec author:** Claude (turbo-pipeline brainstorming)
 **Predecessor:** Phase G backend (commit `f381746`), Phase H design ship (Claude Design `tubemine-v3-ux`)
-**Status:** draft v3 (post round-2 review)
+**Status:** draft v4 (post round-3 review)
 **Risk surface:** small
 
 ## Mission
@@ -30,7 +30,10 @@ The Phase H design (Claude Design) advertises Pro features that the code does no
 14. **CSV filename parity (locked)**: existing `downloadCsv()` in `tubemine.tsx` is updated to use `tubemine-${preview.videoId}-${YYYY-MM-DD}.csv` (videoId only, no title slug, UTC date). Brings all three formats into the same naming convention.
 15. **No server-side tier clamp on `/api/analyses`**: per locked decision 2 (display-only cap), the server does NOT enforce a per-tier limit on the GET endpoint. A Free user requesting `limit: 100` would still get up to 100 rows; the cap is a UI promise, not a security boundary. `history-client.tsx` enforces the cap via tier-aware initial limit (10 vs 20) plus discarding `nextCursor` for Free.
 16. **Tier prop type narrowing (locked)**: `recent-analyses.tsx` and `history-client.tsx` accept tier as `"free" | "pro"` (narrower than `ExtractTier`). `ExportBar` keeps the full `ExtractTier` union (it handles the anonymous case for the home page).
-17. **Dashboard "Last N saved" subtitle ships Pro-only**: per Phase H design (which only added the line to the Pro card), the Free Dashboard does NOT render a "Last 10 analyses saved" subtitle. Drop `dashboard.last_10_analyses` key; keep only `dashboard.last_100_analyses` rendered when `tier === "pro"`. `/history` page subtitle still ships for both tiers ("Last 10 analyses" / "Last 100 analyses") since it is the page heading context.
+17. **Dashboard "Last N saved" subtitle ships Pro-only, reusing `history.cap_label_pro` key**: per Phase H design (which only added the line to the Pro card), the Free Dashboard does NOT render a "Last 10 analyses saved" subtitle. The Pro Dashboard subtitle reuses `history.cap_label_pro` ("Last 100 analyses" / "Последние 100 анализов") instead of a dedicated dashboard key. Same translation, two render sites, one source of truth (no string drift between Dashboard subtitle and /history page heading). The translation text is intentionally short and works in both contexts.
+18. **Hard-cap Pro history at 100 cumulative items (client-side)**: `history-client.tsx` tracks `items.length` after each pagination merge and hides the "Load more" button once the count reaches 100. Rationale: the page heading shows `history.cap_label_pro` = "Last 100 analyses"; if a power user paginates past 100 the heading becomes a lie. This is a marketing-consistency decision, not a defense-in-depth one. Rows beyond 100 remain in DB; v1 simply does not expose them through the UI. Phase H+1 can revisit (paginated view of all rows, no marketing string).
+19. **`qualitativeSummary()` strings render as plain JSX**, NOT wrapped in `t()`. They are English-only by locked decision 7; an implementer must not invent translation keys for them.
+20. **exceljs Buffer return uses `new Response(buffer as unknown as BodyInit, { headers })`** (or equivalent: `new Response(new Uint8Array(buffer), ...)`). Node Buffer extends Uint8Array at runtime, but Web-spec `Response` typing in Next.js 16 may require the cast. Lock the pattern explicitly.
 
 ## Constraints
 
@@ -41,7 +44,7 @@ The Phase H design (Claude Design) advertises Pro features that the code does no
 - No backwards-compat shims; ship clean code.
 - No re-extraction on export (zero YouTube quota cost).
 - `exceljs` must be server-only (no client bundle bloat).
-- **Payload comments cap: 10,000 per export request.** Server returns 413 if `payload.comments.length > 10_000`. Rationale: Vercel serverless function body default cap is 4.5MB; at average ~500 bytes per comment record, 10k rows ~= 5MB which fits with a comfortable margin. Realistic single-video extract is well below this. Pro users with larger libraries can export in slices via re-extract; not a v1 priority.
+- **Payload comments cap: 10,000 per export request.** Enforced via Zod `array.max(10_000)`; server returns 400 (Zod validation error). Rationale: Vercel serverless function body default cap is 4.5MB; at average ~500 bytes per comment record, 10k rows ~= 5MB which fits with a comfortable margin. Realistic single-video extract is well below this. Pro users with larger libraries can export in slices via re-extract; not a v1 priority.
 
 ## Architecture
 
@@ -69,7 +72,7 @@ Anonymous tier is impossible on these pages (both pages redirect unauthenticated
 - `/history` page initial fetch: `limit: tier === "pro" ? 20 : 10`.
 - For Free tier, `history-client.tsx` must **discard the `nextCursor`** returned by the server on initial render when `tier === "free"`. The server fetches `limit + 1` to detect "has more", but for Free the next-page button is not rendered regardless of cursor presence. (No server-side clamp on `/api/analyses` GET; cap is display-only, not a security boundary. See locked decision 15.)
 - Pro users can paginate through all their saved analyses via `/api/analyses` (no hard 100 server cap). The UI promise "Last 100 analyses saved" is satisfied for the typical case because `saveAnalysis` upserts on `(user_id, video_id)`, so the row count grows by unique video only. Most users will not exceed 100 unique videos. If a power user does exceed 100, they can still scroll past via "Load more"; that is acceptable v1 framing (display promise, not hard limit).
-- Dashboard "Recent analyses" widget keeps its hardcoded `limit: 5` preview. On Pro tier ONLY, render a small subtitle line under the heading: `t("dashboard.last_100_analyses")` = "Last 100 analyses saved". Free tier renders no subtitle (Phase H design did not add one to Free).
+- Dashboard "Recent analyses" widget keeps its hardcoded `limit: 5` preview. On Pro tier ONLY, render a small subtitle line under the heading: `t("history.cap_label_pro")` = "Last 100 analyses" (reused key per locked decision 17). Free tier renders no subtitle (Phase H design did not add one to Free).
 - Known behavior documented in the launch note: `saveAnalysis` upserts on `(user_id, video_id)`, so the count is "last 100 unique videos analyzed", not "last 100 extract operations".
 
 ### 3. JSON + Excel export via new `/api/export` endpoint
@@ -116,9 +119,9 @@ Aggregates (`top_words`, `top_emoji`, `sentiment`, `sentiment_distribution`, `un
 8. For `format: "xlsx"`:
    - Build `exceljs` workbook server-only (single `import ExcelJS from "exceljs"` at top of route file; bundled by Next.js into the server function only).
    - **Single worksheet "Comments"** with header row `["Author", "Comment", "Sentiment", "Likes", "Replies", "Published"]` and one data row per comment.
-   - Set column widths (Author 24, Comment 60, Sentiment 12, Likes 10, Replies 10, Published 22). Set `cell.alignment = { wrapText: true, vertical: "top" }` on the Comment column data cells so multi-line comments render readably in Excel/Numbers.
+   - No column widths, no wrapText, no formatting (locked decision 1: minimal viable, ship raw data). If users request readability polish, add in Phase H+1.
    - Wrap workbook build + `writeBuffer()` in try/catch. On throw → `console.error("[export] xlsx build failed", err)` + 500 `{ error: "Export build failed" }`.
-   - On success → return buffer with `Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` + `Content-Disposition: attachment; filename="<name>.xlsx"`.
+   - On success → return buffer via the locked pattern from decision 20: `new Response(buffer as unknown as BodyInit, { headers: { ...spreadsheet content-type and attachment content-disposition... } })`. Content-Type: `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`. Content-Disposition: `attachment; filename="<name>.xlsx"`.
 9. No DB write. No quota touch. No analytics from this route (client side has `track("export_completed", ...)` already).
 
 ### 4. Frontend export bar
@@ -135,7 +138,7 @@ export function ExportBar({
   onDownloadExcel,
 }: {
   tier: ExtractTier
-  videoId?: string
+  videoId?: string  // used only by anonymous "Sign in to export CSV" link analytics (existing CsvGate behavior)
   onDownloadCsv: () => void
   onDownloadJson: () => void | Promise<void>
   onDownloadExcel: () => void | Promise<void>
@@ -180,14 +183,13 @@ Append to `messages/en.json` and `messages/ru.json` (RU uses Cyrillic):
 |------|------|------|
 | `common.export_json` | "Export JSON" | "Экспорт JSON" |
 | `common.export_excel` | "Export Excel" | "Экспорт Excel" |
-| `dashboard.last_100_analyses` | "Last 100 analyses saved" | "Сохраняются последние 100 анализов" |
 | `history.cap_label_free` | "Last 10 analyses" | "Последние 10 анализов" |
 | `history.cap_label_pro` | "Last 100 analyses" | "Последние 100 анализов" |
 
-(`dashboard.last_100_analyses` rendered Pro-only as small subtitle in `recent-analyses.tsx` per locked decision 17; `history.cap_label_*` rendered as subtitle on `/history` page heading for both tiers.)
+(`history.cap_label_*` rendered both as `/history` page heading subtitle (both tiers) AND as Pro-only subtitle inside `recent-analyses.tsx` on Dashboard. Reuse keeps marketing copy in one source of truth per locked decision 17.)
 
 No new key for the sentiment label itself (English-only v1 per locked decision 7).
-No new key for 403 / 401 / 400 / 413 responses (server returns English error strings; no client localization since the button is not rendered for non-Pro and the response is a developer-grade error message anyway).
+No new key for 403 / 401 / 400 responses (server returns English error strings; the button is not rendered for non-Pro so the response is a developer-grade error message).
 
 Run `node scripts/check-message-parity.mjs` after edits.
 
@@ -219,10 +221,10 @@ No `dominantSentimentLabel` helper. Pro "{pct}% positive" rendering is inlined a
 **Modified:**
 - `src/lib/analyses.ts` (`ANALYSES_LIST_MAX` 50 → 100; no other changes)
 - `src/components/sentiment.tsx` (import `qualitativeSummary` + `deriveDistribution` from lib; re-export `SentimentDistribution` type)
-- `src/components/recent-analyses.tsx` (accept `tier: "free" | "pro"` prop; render tier-aware sentiment label per row; on Pro, render `dashboard.last_100_analyses` subtitle under heading)
+- `src/components/recent-analyses.tsx` (accept `tier: "free" | "pro"` prop; render tier-aware sentiment label per row; on Pro, render `history.cap_label_pro` subtitle under heading per locked decision 17)
 - `src/app/[locale]/dashboard/page.tsx` (pass `quota.tier` into `<RecentAnalyses tier={...} />`)
 - `src/app/[locale]/history/page.tsx` (add `export const dynamic = "force-dynamic"`; compute tier via `getUserQuota` inside try/catch with `"free"` fallback; pass tier into `HistoryClient`; choose initial limit `tier === "pro" ? 20 : 10`; render tier-aware subtitle from `history.cap_label_*`)
-- `src/app/[locale]/history/history-client.tsx` (accept `tier: "free" | "pro"` prop; render per-row sentiment label; for Free tier, do not render the "Load more" button regardless of cursor presence)
+- `src/app/[locale]/history/history-client.tsx` (accept `tier: "free" | "pro"` prop; render per-row sentiment label; for Free tier, do not render the "Load more" button regardless of cursor presence; for Pro tier, hide the "Load more" button once `items.length >= 100` per locked decision 18)
 - `src/app/api/extract/route.ts` (import `authUserId` from new `src/lib/auth.ts`; delete inline copy)
 - `src/components/tubemine.tsx` (`downloadJson` + `downloadExcel` handlers wrapped in try/catch with `toast.error` outer; update existing `downloadCsv` filename to videoId+date convention; swap `<CsvGate>` import to `<ExportBar>`; pass 3 download handlers; rename `ResultsPanel`'s `onDownload` prop to `onDownloadCsv`; `ResultsPanel` gains `onDownloadJson` + `onDownloadExcel` props forwarded to `ExportBar`)
 - `messages/en.json`, `messages/ru.json` (5 new keys)
@@ -254,7 +256,7 @@ No `dominantSentimentLabel` helper. Pro "{pct}% positive" rendering is inlined a
 10. **`saveAnalysis` upsert collapses to existing row by `(user_id, video_id)`**: re-analyzing the same video updates `processed_at` instead of inserting. "Last 100 analyses saved" is effectively "Last 100 unique videos analyzed". Acceptable for v1 (matches user mental model). Document in launch note.
 11. **`saveAnalysis` write fails silently** (existing Phase G behavior: `console.warn` only): user sees results but row never lands in DB; `/history` shows nothing. Known limitation pre-dating this sprint; NOT addressed in Phase H. Telemetry deferred to Phase H+1 (out of scope per locked decision).
 12. **Free user with exactly 11 rows in DB**: `listAnalyses(limit: 10)` fetches 11, returns 10 items + nextCursor. `history-client.tsx` discards the cursor for Free and does not render "Load more". User sees exactly 10 rows. Older 1 row is preserved in DB (display-only cap).
-13. **Pro user reaches 100 cumulative rows in `/history`**: there is no hard server cap (locked decision 15). Most users will not exceed 100 unique videos because `saveAnalysis` upserts by `(user_id, video_id)`. A power user with >100 unique videos can paginate past 100 via "Load more"; that is acceptable v1 framing (display promise, not hard limit). `history-client.tsx` does not enforce a client-side counter.
+13. **Pro user reaches 100 cumulative rows in `/history`**: `history-client.tsx` enforces a client-side cap of 100 per locked decision 18 (hides "Load more" once `items.length >= 100`). Marketing copy "Last 100 analyses" stays accurate. Older rows remain in DB; v1 simply does not expose them through the UI. Server has no hard cap (locked decision 15); cap is purely UX.
 14. **`/history` page statically cached**: prevented by `export const dynamic = "force-dynamic"` (added in this sprint).
 15. **Concurrent JSON + Excel button mash**: each click is an independent POST. Toast each result via the outer try/catch. No mutual lock needed.
 16. **Excel `writeBuffer()` throws** (memory pressure, exceljs bug): try/catch returns 500 `{ error: "Export build failed" }`. Frontend shows generic toast.
@@ -282,7 +284,7 @@ No `dominantSentimentLabel` helper. Pro "{pct}% positive" rendering is inlined a
 
 Pre-push:
 - [ ] `npx tsc --noEmit` clean
-- [ ] `pnpm test` (vitest) green (existing tests + 2 new test files in this sprint)
+- [ ] `pnpm test` (vitest) green (existing tests + 1 new test file: `src/app/api/export/__tests__/route.test.ts`)
 - [ ] `pnpm lint` clean
 - [ ] `node scripts/check-message-parity.mjs` clean (EN/RU keys aligned)
 - [ ] `grep -P '[\x{2013}\x{2014}]' src/ messages/ docs/superpowers/` returns no matches in changed files
