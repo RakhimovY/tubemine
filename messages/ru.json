@@ -41,7 +41,9 @@
     "title": "Цены",
     "free_plan": "Бесплатно",
     "pro_plan": "Pro",
-    "manage_subscription": "Управление подпиской"
+    "manage_subscription": "Управление подпиской",
+    "start_trial_cta": "Начать 3-дневный пробный период",
+    "trial_subnote": "После $19/мес. Отмена в любой момент."
   },
   "profile": {
     "title": "Профиль",

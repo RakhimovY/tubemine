@@ -51,6 +51,7 @@ export default async function DashboardPage({
     },
   )
   const t = await getTranslations("dashboard")
+  const tPricing = await getTranslations("pricing")
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-6 pt-24 pb-16 sm:pt-28">
@@ -126,7 +127,7 @@ export default async function DashboardPage({
                   for $19.
                 </p>
               </div>
-              <UpgradeButton />
+              <UpgradeButton label={tPricing("start_trial_cta")} />
             </div>
           ) : (
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

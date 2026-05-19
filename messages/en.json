@@ -41,7 +41,9 @@
     "title": "Pricing",
     "free_plan": "Free",
     "pro_plan": "Pro",
-    "manage_subscription": "Manage subscription"
+    "manage_subscription": "Manage subscription",
+    "start_trial_cta": "Start 3-day free trial",
+    "trial_subnote": "$19/mo after. Cancel anytime."
   },
   "profile": {
     "title": "Profile",

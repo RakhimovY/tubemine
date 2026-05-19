@@ -1,5 +1,5 @@
 import NextLink from "next/link"
-import { setRequestLocale } from "next-intl/server"
+import { getTranslations, setRequestLocale } from "next-intl/server"
 import { ArrowUpRight, Check } from "lucide-react"
 import { Link } from "@/i18n/navigation"
 import { Card, CardContent } from "@/components/ui/card"
@@ -45,6 +45,7 @@ export default async function PricingPage({
 }) {
   const { locale } = await params
   setRequestLocale(locale)
+  const t = await getTranslations("pricing")
   const state = await loadAuthState()
 
   return (
@@ -136,7 +137,12 @@ export default async function PricingPage({
                 <ArrowUpRight className="size-3.5" />
               </NextLink>
             ) : (
-              <UpgradeButton fullWidth />
+              <>
+                <UpgradeButton fullWidth label={t("start_trial_cta")} />
+                <p className="mt-2 text-center text-xs text-muted-foreground">
+                  {t("trial_subnote")}
+                </p>
+              </>
             )
           }
         />
