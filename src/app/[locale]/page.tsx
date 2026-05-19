@@ -8,23 +8,25 @@ const REPO_URL = "https://github.com/RakhimovY/tubemine"
 
 export const dynamic = "force-dynamic"
 
-async function resolveTier(): Promise<ExtractTier> {
+type HomeAuthState = { tier: ExtractTier; isAnonymous: boolean }
+
+async function resolveHomeAuthState(): Promise<HomeAuthState> {
   if (
     !process.env.NEXT_PUBLIC_SUPABASE_URL ||
     !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   ) {
-    return "anonymous"
+    return { tier: "anonymous", isAnonymous: true }
   }
   try {
     const supabase = await createClient()
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return "anonymous"
+    if (!user) return { tier: "anonymous", isAnonymous: true }
     const quota = await getUserQuota(user.id)
-    return quota.tier
+    return { tier: quota.tier, isAnonymous: false }
   } catch {
-    return "anonymous"
+    return { tier: "anonymous", isAnonymous: true }
   }
 }
 
@@ -35,11 +37,17 @@ export default async function HomePage({
 }) {
   const { locale } = await params
   setRequestLocale(locale)
-  const tier = await resolveTier()
+  const { tier, isAnonymous } = await resolveHomeAuthState()
   return (
     <div className="flex flex-1 flex-col">
-      <Hero />
-      <main className="relative z-10 -mt-20 flex flex-1 flex-col items-center sm:-mt-28">
+      {isAnonymous && <Hero />}
+      <main
+        className={
+          isAnonymous
+            ? "relative z-10 -mt-20 flex flex-1 flex-col items-center sm:-mt-28"
+            : "relative z-10 flex flex-1 flex-col items-center pt-24 sm:pt-28"
+        }
+      >
         <TubeMine tier={tier} />
       </main>
       <Footer />
