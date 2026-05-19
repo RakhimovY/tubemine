@@ -44,9 +44,13 @@ Total: 13 files (2 created in `src`, 2 created in `__tests__`, 9 modified).
 ## Hard rule reminders
 
 - No em-dash (U+2014) or en-dash (U+2013) in any new content.
-- No Polar-banned verbs (extract / scrape / bulk / pull data / Priority) in new UI strings.
+- No Polar-banned verbs (scrape / bulk / pull data / Priority) in new UI strings. `extract` is intentionally permitted because it is the canonical product verb.
 - Commits stay on `main`. Atomic, focused commits per task.
-- `pnpm test` is the test command. `pnpm lint`, `pnpm build`, `pnpm tsc` exist too; vitest runs only `.test.ts` files (NOT `.test.tsx`).
+- `pnpm test` is the test command. `pnpm lint`, `pnpm build`, `npx tsc --noEmit` exist too; vitest runs only `.test.ts` files (NOT `.test.tsx`).
+
+## Spec deviations called out
+
+The spec file says trial-banner tests live at `src/components/__tests__/trial-banner.test.tsx` (Files Changed table). The plan creates `src/components/__tests__/trial-banner.test.ts` (no `x`) because `vitest.config.ts` has `include: ["src/**/*.test.ts"]` and would silently skip `.tsx`. The function-under-test is `loadTrialState` (pure helper that returns a discriminated union), so JSX in tests is not needed. The React render path is verified by the local smoke step in Task 7.
 
 ---
 
@@ -207,7 +211,7 @@ npx tsc --noEmit
 
 Expected: failures in 3 consumer files because they still treat `qualitativeSummary(...)` as a translated string suitable for rendering. Examples: `recent-analyses.tsx:66`, `sentiment.tsx:90`, `history-client.tsx:96`.
 
-- [ ] **Step 5: Add 14 sentiment_label keys to `messages/en.json`**
+- [ ] **Step 5: Add 7 sentiment_label keys to `messages/en.json`**
 
 Insert a new top-level `sentiment_label` namespace BEFORE the `footer` key (alphabetical-ish, matching existing order). Final state of the namespace:
 
@@ -223,7 +227,7 @@ Insert a new top-level `sentiment_label` namespace BEFORE the `footer` key (alph
   },
 ```
 
-- [ ] **Step 6: Add 14 sentiment_label keys to `messages/ru.json`**
+- [ ] **Step 6: Add 7 sentiment_label keys to `messages/ru.json`**
 
 Mirror the namespace structure:
 
@@ -586,36 +590,21 @@ export function UpgradeButton({
 
 - [ ] **Step 4: Update dashboard call site**
 
-Open `src/app/[locale]/dashboard/page.tsx`. Find `<UpgradeButton />` at line 129.
+Open `src/app/[locale]/dashboard/page.tsx`. The new key `start_trial_cta` lives under the `pricing.*` namespace, but the existing dashboard `t` handle is bound to `dashboard.*`. Add a second translator handle for the pricing namespace.
 
-Replace with:
-
-```tsx
-<UpgradeButton label={t("start_trial_cta")} />
-```
-
-`t` is already imported via `const t = await getTranslations("dashboard")` at line 53. But the new key lives under `pricing.start_trial_cta`, not `dashboard.*`. Two options:
-
-Option A (preferred, minimal change): add another translator in the dashboard render:
-
-Just above line 129 (where `<UpgradeButton />` is), add:
-
-```tsx
-const tPricing = await getTranslations("pricing")
-```
-
-Wait, this is a JSX block, not the top of the function. Look at the function body. Add the new translator after the existing `const t = await getTranslations("dashboard")` (line 53):
+a) After the existing line `const t = await getTranslations("dashboard")` (line 53), insert:
 
 ```ts
-const t = await getTranslations("dashboard")
 const tPricing = await getTranslations("pricing")
 ```
 
-Then change line 129 from `<UpgradeButton />` to:
+b) Change `<UpgradeButton />` (line 129) to:
 
 ```tsx
 <UpgradeButton label={tPricing("start_trial_cta")} />
 ```
+
+`getTranslations` is already imported on line 2 of this file, so no import line change is needed.
 
 - [ ] **Step 5: Update pricing page call site + add subnote**
 
@@ -963,13 +952,21 @@ Mirror:
 
 - [ ] **Step 3: Mount `<TrialBanner>` in dashboard page**
 
-Open `src/app/[locale]/dashboard/page.tsx`. Add the import near the top of the imports block:
+Open `src/app/[locale]/dashboard/page.tsx`.
+
+a) Add the import near the top of the imports block (alongside `RecentAnalyses`):
 
 ```ts
 import { TrialBanner } from "@/components/trial-banner"
 ```
 
-Find the JSX `<header>` block (lines 57-60). Mount the banner immediately AFTER the header and BEFORE the welcome card:
+b) Locate the closing `</header>` tag (currently line 60). Immediately after it, insert a new JSX element on its own line:
+
+```tsx
+      <TrialBanner userId={user.id} />
+```
+
+(Use 6-space indentation to match the surrounding JSX.) Do not modify the welcome-card block (`{showWelcome && quota.tier === "pro" && (...)}`) that follows. The full sequence after edit reads:
 
 ```tsx
 <header className="flex flex-col gap-2">
@@ -980,11 +977,13 @@ Find the JSX `<header>` block (lines 57-60). Mount the banner immediately AFTER 
 <TrialBanner userId={user.id} />
 
 {showWelcome && quota.tier === "pro" && (
-  // ... existing welcome card
+  <Card className="border-primary/30 bg-primary/5">
+    {/* ... existing welcome card JSX ... */}
+  </Card>
 )}
 ```
 
-The `<TrialBanner>` renders nothing (null return) when the user is not trialing, so the layout collapses cleanly. When trialing, it renders the amber-tinted Card above the Plan card.
+The `<TrialBanner>` renders nothing (null return) when the user is not trialing, so the layout collapses cleanly. When trialing, it renders the amber-tinted Card above the welcome card and Plan card.
 
 - [ ] **Step 4: Verify tests, parity, typecheck**
 
@@ -1111,7 +1110,7 @@ Expected: `(clean)`. If anything matches, fix before push.
 grep -niE 'scrape|bulk|pull data|priority' messages/en.json messages/ru.json
 ```
 
-Expected: no matches on NEW strings. Pre-existing matches (e.g. legacy refund copy) are out of scope.
+Expected: no matches on NEW strings. Pre-existing matches (e.g. legacy refund copy) are out of scope. Note: `extract` is NOT in this grep because TubeMine's product copy uses "extract" as the canonical verb (extractor is the main feature surface), so it is acceptable here despite appearing in the spec's general banned-verb list.
 
 - [ ] **Step 8: Commit gate complete**
 
@@ -1126,11 +1125,12 @@ No code change in Task 8. If any check above failed, fix it and re-run before co
 - [ ] **Step 1: Collect the diff summary**
 
 ```bash
-git log --oneline main ^"$(git merge-base main origin/main)" 2>/dev/null || git log --oneline -10
-git diff --stat origin/main..HEAD 2>/dev/null || git diff --stat
+git fetch origin main
+git log --oneline origin/main..HEAD
+git diff --stat origin/main..HEAD
 ```
 
-Capture: list of commits this session, total files changed, total lines added/removed.
+Capture: list of commits this session, total files changed, total lines added/removed. If the local branch is not ahead of `origin/main`, the first two commands print nothing; that means nothing new to push, so report and stop.
 
 - [ ] **Step 2: AskUserQuestion gate**
 
