@@ -3,7 +3,7 @@
 **Date:** 2026-05-19
 **Spec author:** Claude (turbo-pipeline brainstorming)
 **Predecessor:** Phase G backend (commit `f381746`), Phase H design ship (Claude Design `tubemine-v3-ux`)
-**Status:** draft, awaiting plan + execution
+**Status:** draft v2 (post round-1 review)
 **Risk surface:** small
 
 ## Mission
@@ -14,13 +14,17 @@ The Phase H design (Claude Design) advertises Pro features that the code does no
 
 ## Locked decisions (do not re-litigate)
 
-1. **Excel export ships today** using `exceljs`, minimal viable: data only, no formatting polish.
-2. **Pro history cap is DISPLAY-ONLY.** No DB cap, no cleanup script. The "Last 100" promise is satisfied by what the user sees on screen.
-3. **Server-side gating.** JSON and Excel exports go through a new server endpoint that 403s non-Pro users. Client-side button visibility is UX only; auth is on the server.
-4. **Conditional rendering** for tier-aware labels (not the dual-label body-data CSS pattern). Tier is resolved server-side in `resolveTier()`/`getUserQuota()`, so a branch in JSX is cleaner than CSS visibility toggles. Mid-session upgrade flips correctly because dashboard pages are `dynamic = "force-dynamic"`.
-5. **3 inline export buttons for Pro**, not a dropdown. Existing ResultsPanel header is responsive flex-wrap, no shadcn dropdown dependency needed.
-6. **Re-use existing extract payload, no server re-extraction.** The export endpoint receives the already-computed data from the client and only formats it (no YouTube API quota cost).
-7. **Re-use existing `qualitativeSummary()` strings.** They ARE the Phase H qualitative scheme: "Mostly positive", "Leans positive", "Mixed", "Polarized audience", "Mostly neutral", "Leans negative", "Mostly negative".
+1. **Excel export ships today** using `exceljs`, minimal viable: ONE worksheet "Comments" with raw rows. No Summary sheet, no formatting polish, no top-N tables. (Polish deferred to Phase H+1 if asked.)
+2. **Pro history cap is DISPLAY-ONLY.** No DB cap, no cleanup script, no client-side 100-counter defense. The "Last 100" promise is satisfied by bumping `ANALYSES_LIST_MAX` to 100 and trusting the server clamp.
+3. **Server-side gating** for JSON + Excel. The new `/api/export` endpoint 401s anonymous, 403s Free. Client UI hiding is UX only; auth lives on the server. Client treats a non-200 export response as an unexpected error and lets it throw (caught by surrounding try/catch in `tubemine.tsx`). No special-case toast for 403; the UI does not render the button for non-Pro so this branch is effectively dead.
+4. **Conditional rendering** for tier-aware labels (not the dual-label body-data CSS pattern). Tier is resolved server-side; a branch in JSX is cleaner than CSS visibility toggles. Mid-session upgrade flips correctly because dashboard + history pages are `dynamic = "force-dynamic"`.
+5. **3 inline export buttons for Pro** (Export CSV / Export JSON / Export Excel), not a dropdown. ResultsPanel header is already responsive flex-wrap; no shadcn dropdown dependency.
+6. **Re-use existing extract payload, no server re-extraction.** The export endpoint receives the already-computed data from the client and only formats it (no YouTube API quota cost). Payload comments cap is enforced server-side (see §Constraints).
+7. **Re-use existing `qualitativeSummary()` strings.** They ARE the Phase H qualitative scheme: "Mostly positive", "Leans positive", "Mixed", "Polarized audience", "Mostly neutral", "Leans negative", "Mostly negative". Strings stay English-only for v1 (RU localization of sentiment labels is Phase H+1).
+8. **Single-file rename**, not new file alongside old. `src/components/csv-gate.tsx` is edited in place (renamed to `src/components/export-bar.tsx` via `git mv`) and grows to render 1/2/3 buttons based on tier. The exported component is renamed from `CsvGate` to `ExportBar`. Callers (`tubemine.tsx`) update the import.
+9. **No new helper `dominantSentimentLabel`.** The "{pct}% positive" rendering is inlined at the two call sites (RecentAnalyses row, HistoryClient row). The shared lib only exports `qualitativeSummary` and `deriveDistribution`.
+10. **Filename rule (locked)**: `tubemine-{videoId}-{YYYY-MM-DD}.{ext}`. videoId only, no title slug. Server computes the date in UTC.
+11. **`authUserId` lift location (locked)**: extract the helper from `src/app/api/extract/route.ts` into `src/lib/auth.ts`. Update `extract/route.ts` to import from the new location in the same commit. Signature stays `Promise<{ userId: string | null, userEmail: string | null }>`.
 
 ## Constraints
 
@@ -31,205 +35,286 @@ The Phase H design (Claude Design) advertises Pro features that the code does no
 - No backwards-compat shims; ship clean code.
 - No re-extraction on export (zero YouTube quota cost).
 - `exceljs` must be server-only (no client bundle bloat).
+- **Payload comments cap: 10,000 per export request.** Server returns 413 if `payload.comments.length > 10_000`. Rationale: Vercel serverless function body default cap is 4.5MB; at average ~500 bytes per comment record, 10k rows ~= 5MB which fits with a comfortable margin. Realistic single-video extract is well below this. Pro users with larger libraries can export in slices via re-extract; not a v1 priority.
 
 ## Architecture
 
 ### 1. Tier-aware sentiment label on Dashboard "Recent analyses" + `/history` page
 
-Server resolves tier on the page (already done on home + dashboard; add on history page). Tier passes down to the list component as a prop. Each row component:
+Server resolves tier on the page. Tier passes down to the list component as a prop. Each row component:
 
-- If `item.sentiment` is null → render nothing (do not invent "0%").
-- If `tier === "free"` → render qualitative label via `qualitativeSummary(sentiment)`.
-- If `tier === "pro"` → render exact "{pct}% {dominant}" where dominant is "positive" / "neutral" / "negative" picked by argmax of the distribution.
+- If `item.sentiment` is null → render nothing (do not invent "0%"). Card still shows title + channel + comment count.
+- If `tier === "free"` → render qualitative label via `qualitativeSummary(deriveDistribution(item.sentiment))`. If derivation returns null (zero counts) → render nothing.
+- If `tier === "pro"` → render exact "{pct}% {dominant}" where:
+  - `dist = deriveDistribution(item.sentiment)` (null guard same as above)
+  - `dominant` is argmax over `(dist.positive, dist.neutral, dist.negative)` with tie-break order: positive > neutral > negative (locked)
+  - `pct = Math.round(dist[dominant] * 100)` (locked: round to nearest integer)
+  - Label text: `"{pct}% positive"` / `"{pct}% neutral"` / `"{pct}% negative"` (English-only v1)
 
 Tier propagation:
 - `src/app/[locale]/dashboard/page.tsx` already calls `getUserQuota(user.id)`. Pass `quota.tier` to `<RecentAnalyses tier={quota.tier} />`.
-- `src/app/[locale]/history/page.tsx` does not yet compute tier. Add a `getUserQuota(user.id)` call (cheap, single SELECT, same RLS-protected table) and pass the tier into `<HistoryClient tier={tier} ... />`.
+- `src/app/[locale]/history/page.tsx` does not yet compute tier. Add a `getUserQuota(user.id)` call (cheap, single SELECT, same RLS-protected pattern) and pass into `<HistoryClient tier={tier} ... />`. Also add `export const dynamic = "force-dynamic"` (currently missing; mirrors dashboard).
 
-Anonymous tier is impossible on these pages (both pages redirect unauthenticated users to login). So tier is always `"free"` or `"pro"` for these renders.
+Anonymous tier is impossible on these pages (both pages redirect unauthenticated users to login). Components type tier as `"free" | "pro"` for these renders.
 
 ### 2. Pro "Last 100" history display cap
 
-- Bump `ANALYSES_LIST_MAX` in `src/lib/analyses.ts` from 50 to 100. This is the documented presentation cap, not a DB delete.
-- `src/app/[locale]/history/page.tsx` initial fetch: `limit: tier === "pro" ? 20 : 10`. Pro keeps the existing 20-per-page pagination and can scroll up to 100 cumulative; Free fetches at most 10 (one short page, no pagination cursor).
-- For Pro, also enforce a client-side hard cap of 100 cumulative items (defense-in-depth so a buggy backend cannot accidentally page past 100). Adapter: `history-client.tsx` tracks `items.length` and disables the "Load more" button at 100.
-- Dashboard "Recent analyses" widget keeps its hardcoded `limit: 5` preview. Add a Pro-only heading suffix in the recent-analyses card "Last 100 analyses saved" (or move to dashboard plan card per design).
+- Bump `ANALYSES_LIST_MAX` in `src/lib/analyses.ts` from 50 to 100. This is the server-side per-request clamp; bumping it allows a Pro user to actually scroll to row 100 through pagination.
+- `/history` page initial fetch: `limit: tier === "pro" ? 20 : 10`.
+- For Free tier, `history-client.tsx` must **discard the `nextCursor`** returned by the server on initial render when `tier === "free"`. The server fetches `limit + 1` to detect "has more", but for Free the next-page button is not rendered regardless of cursor presence. (Server caps any future Free `/api/analyses` GET request to `limit: 10` as a server-side check; see below.)
+- Server-side `/api/analyses` GET endpoint must enforce per-tier limit cap: Free max 10, Pro max 100. If client requests `limit: 100` as Free, clamp to 10 server-side. This is the only server-side enforcement of "Last N" (display-only per locked decision 2). No DB delete.
+- Dashboard "Recent analyses" widget keeps its hardcoded `limit: 5` preview. On Pro tier, render an additional small subtitle line under the heading: `t("dashboard.last_100_analyses")` = "Last 100 analyses saved". Free tier: render `t("dashboard.last_10_analyses")` = "Last 10 analyses saved" subtitle. (Locked destination: subtitle in `recent-analyses.tsx`, not a separate plan card.)
+- Known behavior to document in the launch note (not a code change): `saveAnalysis` upserts on `(user_id, video_id)`, so the "100" count is "last 100 unique videos analyzed", not "last 100 extract operations". Acceptable v1 framing; matches the marketing string "100 analyses saved" naturally because re-analyzing the same video produces one logical "analysis" entry per video.
 
 ### 3. JSON + Excel export via new `/api/export` endpoint
 
 File: `src/app/api/export/route.ts`
 
+**Request:**
 ```
 POST /api/export
 Content-Type: application/json
-Body: {
-  format: "json" | "xlsx",
-  videoId: string,
-  payload: {
-    comments: Comment[],
-    sentiment: SentimentAggregate | null,
-    sentiment_distribution: SentimentDistribution | null,
-    top_words: WordCount[],
-    top_emoji: EmojiCount[],
-    unique_words_total: number,
-    unique_emoji_total: number,
-    video_title?: string,
-    channel_name?: string,
-  }
-}
+Body: ExportRequestSchema (Zod, see below)
 ```
 
-Server flow:
-1. `authUserId()` (existing helper, lift from `extract/route.ts` into `src/lib/auth.ts` or duplicate).
-2. If no userId → 401 `{ error: "Sign in required" }`.
-3. `getUserQuota(userId)`. If `quota.tier !== "pro"` → 403 `{ error: "Pro required for JSON/Excel export" }`.
-4. Validate `format` is `"json" | "xlsx"`.
-5. Compute filename: `tubemine-${videoId}-${YYYY-MM-DD}.${ext}` (server time UTC).
-6. For `"json"`: stringify payload + standard JSON headers + `Content-Disposition: attachment; filename="..."`.
-7. For `"xlsx"`: build `exceljs` workbook server-only with 2 sheets:
-   - **Sheet 1 "Summary"**: video metadata rows (Video ID, Video Title, Channel, Comment Count, Sentiment Score, Positive %, Neutral %, Negative %), then top-20 words table (word, count), then top-20 emoji table (emoji, count, share %).
-   - **Sheet 2 "Comments"**: full comments array with columns Author, Text, Sentiment (label), Likes, Replies, Published.
-   - Return buffer with `Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` + `Content-Disposition`.
-8. No DB write. No quota touch.
+**Zod schema (locked):**
+```ts
+const CommentSchema = z.object({
+  author: z.string().max(200),
+  text: z.string().max(10_000),
+  sentiment: z.string().max(20).optional(),
+  likes: z.number().int().nonnegative().max(100_000_000),
+  replies: z.number().int().nonnegative().max(100_000_000),
+  publishedAt: z.string().max(50),
+})
 
-Server-only import: `import ExcelJS from "exceljs"` lives inside route file (App Router route handlers run server-only in Next.js by default; never bundled to client).
-
-### 4. Frontend export buttons in `ResultsPanel`
-
-`src/components/csv-gate.tsx` becomes `export-bar.tsx` (rename) OR a new sibling `export-bar.tsx` that wraps the three buttons. Decision: **new file `src/components/export-bar.tsx`** that internally renders CsvGate for the CSV button + adds JSON / Excel buttons for Pro. Avoids breaking existing CsvGate tests / imports.
-
-```tsx
-<ExportBar tier={tier} onDownloadCsv={...} onDownloadJson={...} onDownloadExcel={...} videoId={videoId} />
+const ExportRequestSchema = z.object({
+  format: z.enum(["json", "xlsx"]),
+  videoId: z.string().regex(/^[\w-]{11}$/),
+  videoTitle: z.string().max(500).optional(),
+  channelName: z.string().max(200).optional(),
+  comments: z.array(CommentSchema).max(10_000),
+})
 ```
 
-Logic:
-- `tier === "anonymous"` → render existing "Sign in to export CSV" link.
-- `tier === "free"` → render "Export CSV" only.
-- `tier === "pro"` → render "Export CSV", "Export JSON", "Export Excel" inline (flex-wrap).
+Note: `top_words`, `top_emoji`, `sentiment`, `sentiment_distribution`, `unique_*_total` are NOT in the export request body. They are derived again server-side from `comments[]` for the JSON output (re-using `analyzeTopWords`, `analyzeTopEmojis`, `scoreCommentsSentiment` from existing libs). Reason: the client-posted aggregates cannot be trusted for shape, and recomputing from comments is cheap (single in-process pass) and matches what the user actually sees. Wait, no: that contradicts locked decision 6 ("no server re-compute"). Override: skip recomputing aggregates; for JSON output, only include `comments[]` + `videoId` + `videoTitle` + `channelName` + `exported_at` ISO timestamp. Simpler, smaller, less risk of mismatch with what the client just saw.
 
-`tubemine.tsx` adds `downloadJson()` and `downloadExcel()` handlers that:
-- POST to `/api/export` with `{ format, videoId, payload: {...current extracted data} }`.
-- On success, read response as blob, trigger download via temporary anchor (same UX pattern as `downloadCsv()`).
-- On 403 → `toast.error(...)`. (Server gate is authoritative; the button only shows for Pro, but defense-in-depth.)
-- Fire `track("export_completed", { format, tier, videoId, count })` analytics.
+**Server flow:**
+1. `authUserId()` (now imported from `src/lib/auth.ts`).
+2. If `userId === null` → 401 `{ error: "Sign in required" }`.
+3. `getUserQuota(userId)`. If `quota.tier !== "pro"` → 403 `{ error: "Pro plan required for JSON and Excel export" }`.
+4. Parse + validate body with `ExportRequestSchema`. On failure → 400 `{ error: "<first zod issue message>" }`.
+5. If `body.comments.length > 10_000` → 413 `{ error: "Export size limited to 10,000 comments per request" }` (also enforced by Zod max).
+6. Compute filename: `tubemine-${videoId}-${YYYY-MM-DD}.${ext}` (UTC date, derived server-side).
+7. For `format: "json"`: respond with `Content-Type: application/json` + `Content-Disposition: attachment; filename="<name>.json"` + body `{ videoId, videoTitle, channelName, exported_at, comments }` (compact JSON, no indent).
+8. For `format: "xlsx"`:
+   - Build `exceljs` workbook server-only (single `import ExcelJS from "exceljs"` at top of route file; bundled by Next.js into the server function only).
+   - **Single worksheet "Comments"** with header row `["Author", "Comment", "Sentiment", "Likes", "Replies", "Published"]` and one data row per comment.
+   - Wrap workbook build + `writeBuffer()` in try/catch. On throw → `console.error("[export] xlsx build failed", err)` + 500 `{ error: "Export build failed" }`.
+   - On success → return buffer with `Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` + `Content-Disposition: attachment; filename="<name>.xlsx"`.
+9. No DB write. No quota touch. No analytics from this route (client side has `track("export_completed", ...)` already).
 
-ResultsPanel header swaps `<CsvGate ... />` for `<ExportBar ... />` with all three handlers wired.
+### 4. Frontend export bar
 
-### 5. i18n keys
+**Rename**: `src/components/csv-gate.tsx` → `src/components/export-bar.tsx` via `git mv`. Inside, rename exported component `CsvGate` → `ExportBar`. Update callers.
 
-`messages/en.json` and `messages/ru.json` get new entries under the appropriate namespaces. RU uses Cyrillic.
+New props:
+```ts
+export function ExportBar({
+  tier,
+  videoId,
+  onDownloadCsv,
+  onDownloadJson,
+  onDownloadExcel,
+}: {
+  tier: ExtractTier
+  videoId?: string
+  onDownloadCsv: () => void
+  onDownloadJson: () => void | Promise<void>
+  onDownloadExcel: () => void | Promise<void>
+})
+```
 
-- `common.export_json` = "Export JSON" / "Экспорт JSON"
-- `common.export_excel` = "Export Excel" / "Экспорт Excel"
-- `common.export_pro_required` = "Pro plan required for JSON and Excel export." / "Для экспорта JSON и Excel нужен план Pro."
-- `dashboard.last_100_analyses` = "Last 100 analyses saved" / "Сохраняются последние 100 анализов" (only rendered on Pro tier)
-- `history.last_100_pro_cap` = "Last 100 analyses" / "Последние 100 анализов" (subtitle on history page for Pro)
-- `history.last_10_free_cap` = "Last 10 analyses" / "Последние 10 анализов" (subtitle on history page for Free)
-- `dashboard.sentiment_label_qualitative` namespace unnecessary (the qualitative strings come from `qualitativeSummary()` which returns English-only strings today; per Phase G design these are English-only fixed strings; keep them English-only for v1 and add i18n in a later sprint when the marketing page also goes bilingual on sentiment labels).
+Render logic:
+- `tier === "anonymous"` → existing "Sign in to export CSV" link (unchanged).
+- `tier === "free"` → single "Export CSV" button (existing behavior; only the import name changes from CsvGate to ExportBar).
+- `tier === "pro"` → three inline buttons via flex-wrap: "Export CSV", "Export JSON", "Export Excel". `i18n` keys: existing CSV string + new `common.export_json` + `common.export_excel`.
+
+`tubemine.tsx` changes:
+- Existing `downloadCsv()` unchanged.
+- Add `async function downloadJson()`:
+  ```ts
+  if (comments.length === 0 || !preview) return
+  const res = await fetch("/api/export", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      format: "json",
+      videoId: preview.videoId,
+      videoTitle: preview.title,
+      channelName: preview.channel,
+      comments,
+    }),
+  })
+  if (!res.ok) throw new Error(`Export failed: ${res.status}`) // caught by surrounding handler
+  const blob = await res.blob()
+  // ...same anchor-download pattern as downloadCsv()
+  track("export_completed", { format: "json", count: comments.length, tier, videoId: preview.videoId })
+  ```
+- Add `async function downloadExcel()`: same shape, `format: "xlsx"`, same blob handling.
+- Both wrapped in `try { ... } catch (e) { toast.error(e instanceof Error ? e.message : "Export failed") }` outer scope (added in `tubemine.tsx`). No special-case 403 handling.
+- `ResultsPanel` props grow: add `onDownloadJson` + `onDownloadExcel`. Forwarded from `TubeMine` -> `ResultsPanel` -> `ExportBar`. The current `onDownload` prop on `ResultsPanel` is renamed to `onDownloadCsv` for clarity.
+
+### 5. i18n keys (locked destinations)
+
+Append to `messages/en.json` and `messages/ru.json` (RU uses Cyrillic):
+
+| Path | EN | RU |
+|------|------|------|
+| `common.export_json` | "Export JSON" | "Экспорт JSON" |
+| `common.export_excel` | "Export Excel" | "Экспорт Excel" |
+| `dashboard.last_100_analyses` | "Last 100 analyses saved" | "Сохраняются последние 100 анализов" |
+| `dashboard.last_10_analyses` | "Last 10 analyses saved" | "Сохраняются последние 10 анализов" |
+| `history.cap_label_free` | "Last 10 analyses" | "Последние 10 анализов" |
+| `history.cap_label_pro` | "Last 100 analyses" | "Последние 100 анализов" |
+
+(`dashboard.last_*` rendered as small subtitle in `recent-analyses.tsx`; `history.cap_label_*` rendered as subtitle on `/history` page heading.)
+
+No new key for the sentiment label itself (English-only v1 per locked decision 7).
+No new key for 403 / 401 / 400 / 413 responses (server returns English error strings; no client localization since the button is not rendered for non-Pro and the response is a developer-grade error message anyway).
 
 Run `node scripts/check-message-parity.mjs` after edits.
 
-### 6. `qualitativeSummary` extraction
+### 6. `qualitativeSummary` extraction to shared lib
 
-Move the function from `src/components/sentiment.tsx:264` to `src/lib/sentiment-summary.ts`. Both `sentiment.tsx` (client component) and `recent-analyses.tsx` (server component) and `history-client.tsx` (client component) import from the shared lib. The lib must be pure (no React, no "use client", no server-only), so it works in both worlds.
+New file `src/lib/sentiment-summary.ts`. Pure util, no React, no `"use client"`, no `server-only`. Exports:
 
-Also export a sibling helper `dominantSentimentLabel(distribution)` that returns `{ pct: number, label: "positive" | "neutral" | "negative" }` for the Pro variant ("68% positive").
+```ts
+export type SentimentDistribution = { positive: number; neutral: number; negative: number }
+
+export function deriveDistribution(
+  agg: { positive: number; neutral: number; negative: number } | null,
+): SentimentDistribution | null
+
+export function qualitativeSummary(dist: SentimentDistribution): string
+```
+
+`deriveDistribution` and `qualitativeSummary` are the exact functions currently inside `src/components/sentiment.tsx` (lines 252-273). Move both. `sentiment.tsx` imports from the new lib. `recent-analyses.tsx` (server component) and `history-client.tsx` (client component) also import from the lib. The `SentimentDistribution` type currently exported from `sentiment.tsx` is moved to the lib; `sentiment.tsx` re-exports it for backwards-compat with `tubemine.tsx` import.
+
+No `dominantSentimentLabel` helper. Pro "{pct}% positive" rendering is inlined at the 2 call sites (one helper would be 3 lines used twice; inline is clearer).
 
 ## Files touched (final list)
 
 **New:**
 - `src/lib/sentiment-summary.ts` (pure util)
+- `src/lib/auth.ts` (lifted `authUserId` helper)
 - `src/app/api/export/route.ts` (POST endpoint)
-- `src/components/export-bar.tsx` (3-button wrapper)
 
 **Modified:**
-- `src/lib/analyses.ts` (`ANALYSES_LIST_MAX` 50 → 100, no other changes)
-- `src/components/sentiment.tsx` (import `qualitativeSummary` from lib, drop inline definition)
-- `src/components/recent-analyses.tsx` (accept tier prop, render label + optional "Last 100" subtitle)
+- `src/lib/analyses.ts` (`ANALYSES_LIST_MAX` 50 → 100; no other changes)
+- `src/components/sentiment.tsx` (import `qualitativeSummary` + `deriveDistribution` from lib; re-export `SentimentDistribution` type)
+- `src/components/recent-analyses.tsx` (accept `tier` prop, render tier-aware sentiment label, render tier-aware "Last 10/100 analyses saved" subtitle)
 - `src/app/[locale]/dashboard/page.tsx` (pass `quota.tier` into `<RecentAnalyses tier={...} />`)
-- `src/app/[locale]/history/page.tsx` (compute tier via `getUserQuota`, pass into `HistoryClient`, choose initial limit per tier)
-- `src/app/[locale]/history/history-client.tsx` (accept tier prop, render per-row label, cap Pro at 100 cumulative, hide pagination for Free after 10)
-- `src/components/tubemine.tsx` (`downloadJson`, `downloadExcel` handlers, swap `<CsvGate>` for `<ExportBar>`)
-- `messages/en.json`, `messages/ru.json` (new keys above)
+- `src/app/[locale]/history/page.tsx` (add `export const dynamic = "force-dynamic"`; compute tier via `getUserQuota`; pass tier into `HistoryClient`; choose initial limit `tier === "pro" ? 20 : 10`; render tier-aware subtitle from `history.cap_label_*`)
+- `src/app/[locale]/history/history-client.tsx` (accept `tier` prop; render per-row sentiment label; for Free tier, do not render the "Load more" button regardless of cursor presence)
+- `src/app/api/extract/route.ts` (import `authUserId` from new `src/lib/auth.ts`; delete inline copy)
+- `src/app/api/analyses/route.ts` (clamp `limit` to tier-aware max: Free=10, Pro=100, before passing to `listAnalyses`)
+- `src/components/tubemine.tsx` (`downloadJson`, `downloadExcel` handlers; outer try/catch with toast.error; swap `<CsvGate>` import to `<ExportBar>`; pass 3 download handlers; rename `ResultsPanel`'s `onDownload` prop to `onDownloadCsv`)
+- `messages/en.json`, `messages/ru.json` (6 new keys)
 - `package.json` + lockfile (add `exceljs`)
 
+**Renamed (single rename, no duplicate):**
+- `src/components/csv-gate.tsx` → `src/components/export-bar.tsx` (export `ExportBar` replaces `CsvGate`)
+
+**New tests:**
+- `src/lib/__tests__/sentiment-summary.test.ts` (qualitative labels for representative distributions; `deriveDistribution` with zero / null aggregate)
+- `src/app/api/export/__tests__/route.test.ts` (401 path, 403 path, 400 path on bad body, 413 path on too-large `comments[]`, 200 JSON happy path, 200 xlsx happy path with buffer content-type)
+
 **Untouched (do not change):**
-- `src/components/csv-gate.tsx` (kept for backwards-compat; `export-bar.tsx` may internally reuse it OR be standalone)
-- `src/app/api/extract/route.ts` (no changes; export endpoint is separate)
-- `src/lib/quota.ts` (FREE_MONTHLY_CAP, PRO_MONTHLY_CAP unchanged)
-- Polar webhook, RLS policies, Supabase schema
+- `src/lib/quota.ts` (FREE_MONTHLY_CAP=5_000, PRO_MONTHLY_CAP=100_000 unchanged)
+- `src/lib/sentiment.ts` (scoring engine)
+- Polar webhook routes, RLS policies, Supabase schema, env vars
 
 ## Edge cases
 
-1. **Anonymous user POSTs to `/api/export`**: returns 401. Frontend would not have shown the button, but defense-in-depth handles a hand-crafted curl.
-2. **Free user POSTs to `/api/export`**: returns 403. Button is not rendered for Free, but defense-in-depth.
-3. **Pro user POSTs with invalid format**: 400.
-4. **Pro user POSTs with empty payload.comments**: produce valid JSON / Excel anyway (empty Comments sheet, Summary sheet shows 0 count). No special error.
-5. **Sentiment is null on a saved analysis row** (e.g., pre-Phase-G data): hide the sentiment label entirely. Card still renders title + channel + comment count.
-6. **Sentiment all-neutral / score=0**: `qualitativeSummary` already returns "Mixed" or "Mostly neutral". OK.
-7. **History page server fetches the wrong limit (e.g., Free user gets 20 items by bug)**: client-side does NOT trust the server; the page subtitle renders the cap label from the same tier value the page resolved, so server-bug visible as inconsistency. Acceptable for v1.
-8. **Pro tier flipped to Free mid-session**: next page render re-reads `quota.tier` (force-dynamic). Stale Pro session has its 3 buttons; first POST to `/api/export` gets 403 with toast. No data leak.
-9. **Excel buffer size**: at the Pro cap of 100,000 comments per month, a single export could be hundreds of thousands of rows. Realistic upper bound for one export = whatever the user just extracted, capped by their remaining quota. Worst-case single export ~100k rows, exceljs handles this in seconds with reasonable memory. No streaming needed for v1.
-10. **Concurrent JSON + Excel button mash**: each click is an independent POST. Toast each result. No mutual lock needed.
-11. **Browser language not en/ru**: next-intl falls back per existing pattern; no new logic needed.
-12. **Anonymous user, dashboard page**: redirects to login. Never reaches RecentAnalyses with `tier === "anonymous"`. Type stays `"free" | "pro"` for these components.
+1. **Anonymous user POSTs to `/api/export`**: 401. Defense-in-depth.
+2. **Free user POSTs to `/api/export`**: 403. UI doesn't show the button; defense-in-depth.
+3. **Pro user POSTs with invalid format / malformed body**: 400 with first Zod issue message.
+4. **Pro user POSTs with empty `comments[]`**: produces a valid empty xlsx (header row only) or valid JSON (empty array). No special error. (Frontend already short-circuits when `comments.length === 0` for `downloadJson` and `downloadExcel`, so this branch is unreachable from the UI; still well-defined on the server.)
+5. **Pro user POSTs with `comments.length > 10_000`**: 413 with payload-size error message. Frontend catches as generic export-failed toast.
+6. **Sentiment is null on a saved analysis row** (e.g., pre-Phase-G data, or aggregate's positive+neutral+negative === 0): hide the sentiment label entirely. Card still renders title + channel + comment count.
+7. **Sentiment all-neutral / score=0 with non-zero counts**: `qualitativeSummary` already returns "Mixed" when neutral >= 0.99. Pro variant returns "{pct}% neutral" with `dominant = "neutral"`. OK.
+8. **Tier flipped Pro -> Free mid-session**: next page render re-reads `quota.tier` (force-dynamic); stale Pro session has its 3 buttons in DOM; first POST to `/api/export` gets 403; outer try/catch shows generic "Export failed" toast. No data leak.
+9. **Tier flipped Free -> Pro mid-session via webhook**: stale Free session shows only Export CSV; next page navigation reflects new tier. Acceptable; we are not pushing UI updates from server-side events in this sprint.
+10. **`saveAnalysis` upsert collapses to existing row by `(user_id, video_id)`**: re-analyzing the same video updates `processed_at` instead of inserting. "Last 100 analyses saved" is effectively "Last 100 unique videos analyzed". Acceptable for v1 (matches user mental model). Document in launch note.
+11. **`saveAnalysis` write fails silently** (existing Phase G behavior: `console.warn` only): user sees results but row never lands in DB; `/history` shows nothing. Known limitation pre-dating this sprint; NOT addressed in Phase H. Telemetry deferred to Phase H+1 (out of scope per locked decision).
+12. **Free user with exactly 11 rows in DB**: `listAnalyses(limit: 10)` fetches 11, returns 10 items + nextCursor. `history-client.tsx` discards the cursor for Free and does not render "Load more". User sees exactly 10 rows. Older 1 row is preserved in DB (display-only cap).
+13. **Pro user reaches 100 cumulative rows in `/history`**: server clamps any larger fetch back to 100 via tier-aware limit. `history-client.tsx` does not need a client-side counter (locked decision 2 removed it).
+14. **`/history` page statically cached**: prevented by `export const dynamic = "force-dynamic"` (added in this sprint).
+15. **Concurrent JSON + Excel button mash**: each click is an independent POST. Toast each result via the outer try/catch. No mutual lock needed.
+16. **Excel `writeBuffer()` throws** (memory pressure, exceljs bug): try/catch returns 500 `{ error: "Export build failed" }`. Frontend shows generic toast.
+17. **Browser language not en/ru**: next-intl falls back per existing pattern; sentiment labels remain English; subtitle/keys localized via existing fallback chain.
+18. **Tie-break in dominant sentiment**: positive > neutral > negative (locked). Pure stable order, no rounding ambiguity since percentages can tie at 33/33/34 but we pick the dominant *before* rounding.
+19. **Round-trip percent on Pro**: `Math.round(dist[dominant] * 100)` can produce "33% positive" + "33% neutral" + "33% negative" displays in different views; consistency is locked by always picking the dominant first, rendering only that.
 
 ## Out of scope (Phase H+1 or never)
 
-- Excel formatting (column widths, freeze panes, conditional formatting on sentiment column). Ship raw data only.
-- JSON pretty-print toggle. Default to compact JSON.
-- Server-rendered Russian qualitative labels. Phase H+1 if the marketing team wants RU sentiment labels.
-- DB cleanup cron for analyses older than 100. Out of scope by user decision (display-only cap).
-- API tier (the design says "API coming soon"). No code change.
-- Excel export from saved analyses on `/history` (current flow exports the live extracted result only; revisit when users ask).
-- Bumping `FREE_MONTHLY_CAP` or `PRO_MONTHLY_CAP`. No change.
+- Excel formatting (column widths, freeze panes, conditional formatting).
+- Excel Summary sheet (top-words / top-emoji tables in workbook).
+- JSON pretty-print toggle. Default to compact.
+- Server-rendered Russian qualitative labels (Phase H+1 if marketing asks).
+- DB cleanup cron for analyses older than 100 (out of scope by user decision 2026-05-19).
+- API tier (the design says "API coming soon").
+- Export from saved analyses on `/history` (current flow exports the live extracted result only).
+- `saveAnalysis` failure telemetry (existing Phase G behavior, not regressed by this sprint).
+- Bumping `FREE_MONTHLY_CAP` or `PRO_MONTHLY_CAP`.
+- Streaming / chunked uploads for exports > 10k comments (re-extract slices for v1 workaround).
 
 ## Verification checklist (gate before push)
 
 Pre-push:
 - [ ] `npx tsc --noEmit` clean
-- [ ] `pnpm test` (vitest) green (existing tests + any new ones in this sprint)
+- [ ] `pnpm test` (vitest) green (existing tests + 2 new test files in this sprint)
 - [ ] `pnpm lint` clean
 - [ ] `node scripts/check-message-parity.mjs` clean (EN/RU keys aligned)
-- [ ] `grep -P '[\x{2013}\x{2014}]' src/` returns no matches in changed files
-- [ ] Local `next dev` smoke (manual or scripted curl):
-  - Anonymous: `GET /api/extract` → `tier: "anonymous"`. Dashboard/history pages redirect to login.
-  - Free signed-in cookie: `POST /api/export {format:"json"}` → 403 with `{error: "Pro required..."}`. UI shows only Export CSV button. Dashboard "Recent analyses" cards show qualitative labels.
-  - Pro signed-in cookie: `POST /api/export {format:"json"}` → 200, valid attachment. `POST /api/export {format:"xlsx"}` → 200, valid `.xlsx` (open in Numbers/Excel and confirm two sheets). UI shows all 3 export buttons. Dashboard cards show exact percentages.
+- [ ] `grep -P '[\x{2013}\x{2014}]' src/ messages/ docs/superpowers/` returns no matches in changed files
+- [ ] `pnpm build` succeeds; client bundle size delta less than 100KB compared to last main build (exceljs must NOT leak into client chunks)
+- [ ] Local `next dev` smoke (manual):
+  - Anonymous: `GET /api/extract` returns `tier: "anonymous"`. Dashboard + history pages redirect to login.
+  - Free signed-in cookie: `POST /api/export {format:"json"}` returns 403 `{error: "Pro plan required..."}`. UI shows only Export CSV button. Dashboard "Recent analyses" cards show qualitative labels (where sentiment exists). History page shows max 10 rows + no "Load more".
+  - Pro signed-in cookie: `POST /api/export {format:"json"}` returns 200 valid JSON attachment. `POST /api/export {format:"xlsx"}` returns 200 valid `.xlsx` (open in Numbers/Excel and confirm one sheet "Comments" with header + data rows). UI shows all 3 export buttons. Dashboard cards show exact "{pct}% {dominant}" labels. History page shows up to 100 cumulative rows via "Load more".
 - [ ] No Polar-banned verb in any new UI string ("extract", "scrape", "bulk", "pull data", "Priority")
-- [ ] `pnpm build` succeeds (catches client-bundle bloat regression)
 
 Hard gate before `git push`:
-- AskUserQuestion with commit SHA, files changed count, line diff stats. Wait for explicit yes.
+- AskUserQuestion with commit SHA(s), files changed count, line diff stats. Wait for explicit "yes push" / "yes deploy".
 
 Post-push:
 - Vercel deploy reaches READY.
 - Prod `GET /api/extract` still returns shape with `tier: "anonymous"`.
 - Prod `POST /api/export` with no auth cookie returns 401.
-- Prod `POST /api/export` with Free cookie returns 403 (skip if no Free test account on hand).
 
 ## Risks
 
-- **`exceljs` client bundle inclusion**: mitigated by server-only import in route handler. Risk: small. If `pnpm build` shows client bundle grew >100KB, regress.
-- **`ANALYSES_LIST_MAX` bump from 50 to 100**: doubles the worst-case row count for a list response. Each row is < 5KB. 100 rows < 500KB. Acceptable.
-- **Server-side `/api/export` adds Active CPU cost** (per Vercel Fluid Compute pricing). For typical 5k-comment Excel export, < 2s CPU. Negligible at current MRR scale.
-- **403 UX on Free side-loaded request**: toast message only, no redirect. Acceptable for defense-in-depth (UI doesn't show the button).
-- **Mobile pricing card overlap with new "Last 100" line on Pro card**: design pane shipped this; if there is a 375px overflow, we will catch it in the dev smoke. Mitigation if needed: shorten string.
+- **`exceljs` client bundle inclusion**: mitigated by server-only import in route handler. `pnpm build` output gate catches regressions.
+- **`ANALYSES_LIST_MAX` bump 50 → 100**: doubles worst-case row count in a single response. Each row ~5KB, 100 rows < 500KB. Acceptable.
+- **`/api/export` Active CPU cost** (per Vercel Fluid Compute): for 10k-comment xlsx, < 2s CPU. Negligible at current MRR scale.
+- **Body-size 4.5MB ceiling**: capped via Zod max(10_000) on comments[]. Typical extracts (100-5000 comments) fit comfortably. Pro users with rare giant videos can re-extract in slices.
+- **Mid-session tier flip 403**: outer try/catch surfaces generic toast. No data leak; acceptable v1.
 
 ## Success criteria
 
 - All Phase H design promises are deliverable by the running service:
-  - "CSV, JSON, Excel export" on Pro pricing card → ✓ via 3 buttons + endpoint.
-  - "Last 100 analyses saved" → ✓ via list cap + heading.
-  - Dashboard history cards qualitative on Free, exact on Pro → ✓ via tier-aware label.
+  - "CSV, JSON, Excel export" on Pro pricing card: ✓ via 3 buttons + endpoint.
+  - "Last 100 analyses saved" subtitle visible on Pro Dashboard recent-analyses + /history page heading: ✓ via list cap + i18n keys.
+  - Dashboard / history sentiment labels qualitative on Free, exact percent on Pro: ✓ via tier-aware label.
 - No regression in existing Phase G shape (sentiment widget, top words / emoji curiosity gaps, CSV gate).
-- Bundle size stable (verified via `pnpm build` output).
+- `pnpm build` size delta less than 100KB.
 - All verification checklist items green.
 
 ## References
 
 - `projects/yt-comments/launch/2026-05-19/phase-h-card-cleanup-and-history-tail.md` (design ship note)
-- `projects/yt-comments/launch/2026-05-19/phase-g-tier-aware-paywall-backend.md` (Phase G backend reference, commit `f381746`)
-- `references/dual-label-body-data-tier-pattern.md` (pattern considered but rejected for this sprint, see locked decision 4)
+- `projects/yt-comments/launch/2026-05-19/phase-g-tier-aware-paywall-backend.md` (Phase G backend, commit `f381746`)
+- `references/dual-label-body-data-tier-pattern.md` (pattern considered but rejected, see locked decision 4)
 - `queries/paywall-curiosity-gap.md` (gating psychology)
-- `playbooks/saas-roadmap/12-production-shipping-runbook.md` §6.12 (X-Forwarded-For Vercel CDN lesson; informs the "no IP-spoof curl on prod" testing decision)
+- `playbooks/saas-roadmap/12-production-shipping-runbook.md` §6.12 (X-Forwarded-For Vercel CDN lesson, informs the "no IP-spoof curl on prod" testing decision)
