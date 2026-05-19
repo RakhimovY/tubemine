@@ -110,7 +110,7 @@ async function loadTrialState(userId: string): Promise<TrialState> {
   const endsAt = Date.parse(data.current_period_end)
   if (Number.isNaN(endsAt) || endsAt <= Date.now()) return null
   const msRemaining = endsAt - Date.now()
-  if (msRemaining < 86_400_000) return { kind: "today" }
+  if (msRemaining <= 86_400_000) return { kind: "today" }
   const daysLeft = Math.ceil(msRemaining / 86_400_000)
   return { kind: "active", daysLeft }
 }
@@ -307,7 +307,7 @@ The agent halts code-side work until this confirmation lands. The agent does NOT
 8. **Dashboard with `subscriptions.status="trialing"` and `current_period_end` null** (malformed Polar payload): TrialBanner returns null.
 9. **Dashboard with `subscriptions.status="canceled"` mid-trial**: Polar still treats as active until `current_period_end`. Webhook keeps tier=pro. TrialBanner checks `status === "trialing"`, so a `canceled` status returns null (banner hides; users see the regular Plan card and Manage CTA).
 10. **`Date.parse(current_period_end)` returns NaN**: TrialBanner returns null.
-11. **Less than 24h remaining** (e.g. 2 hours left): `loadTrialState` returns `{ kind: "today" }` and the banner shows "Trial ends today, then $19/mo." instead of the misleading "1 day left". When the trial has actually expired, `endsAt <= Date.now()` short-circuits to null before this branch.
+11. **At or less than 24h remaining** (e.g. 24h-on-the-dot, 2 hours left): `loadTrialState` returns `{ kind: "today" }` (threshold is `msRemaining <= 86_400_000`) and the banner shows "Trial ends today, then $19/mo." instead of the misleading "1 day left". When the trial has actually expired, `endsAt <= Date.now()` short-circuits to null before this branch. "1 day left" copy is reachable only when `msRemaining` is strictly greater than 24h but less than or equal to 48h.
 12. **RU plural at day 1**: `plural, one {# день}` resolves to "1 день". At days 2-4: "2 дня". At days 5+: "5 дней". next-intl uses Intl.PluralRules. Today's 3-day trial reaches only `one` and `few`; `many`/`other` are kept future-proofed.
 13. **EN plural at day 1**: "1 day left". At day 2+: "N days left".
 14. **Sentiment label key collision in RU**: `mostly_positive` and `leans_positive` use different Russian wording ("В основном позитив" vs "Скорее позитив") to preserve the gradient distinction. Similarly negative.
@@ -321,7 +321,7 @@ The agent halts code-side work until this confirmation lands. The agent does NOT
 22. **Server-component `getTranslations` mid-render error**: returns the key string back to the caller (next-intl default). Visible degraded but does not throw.
 23. **Sentiment label NOT in trial-banner copy**: TrialBanner and sentiment-label namespaces are independent.
 24. **`subscriptions.status="past_due"`**: TrialBanner returns null (status !== "trialing"). Existing payment-failure UI is out of scope.
-25. **Pre-webhook arrival**: user completes Polar checkout and lands on `/dashboard` before the `subscription.created` webhook fires (typical Polar latency 1-30s). `profiles.tier` is still `"free"`, `subscriptions` row is absent. Plan card shows Free, TrialBanner returns null, the "Start 3-day free trial" upgrade CTA is still visible. Mitigation: existing post-checkout redirect appends `?welcome=true` to the URL. We add a soft client-side refresh hint inside the welcome card ("Your trial is processing, refresh in a few seconds if it does not appear") rather than building a polling pipeline. Acceptable trade-off because Polar webhooks typically land within a beat and a manual refresh resolves the rare slow case.
+25. **Pre-webhook arrival**: user completes Polar checkout and lands on `/dashboard` before the `subscription.created` webhook fires (typical Polar latency 1-30s, often under 2s). `profiles.tier` is still `"free"`, `subscriptions` row is absent. Plan card briefly shows Free, TrialBanner returns null, the "Start 3-day free trial" upgrade CTA is still visible. Accepted trade-off because Polar webhooks land in seconds and a manual refresh resolves the rare slow case. No additional mitigation in Phase J; if support tickets surface, revisit with a polling endpoint in a follow-up sprint.
 26. **Mid-trial cancellation**: when user clicks Cancel in the Polar customer portal during the trial, webhook flips `subscriptions.status` to `"canceled"` immediately, but `profiles.tier` stays `"pro"` (revoked event fires later at `current_period_end`). TrialBanner returns null per its `status !== "trialing"` guard. Plan card shows Pro with the existing "Manage subscription" CTA. User has no in-app indicator of "trial canceled, ends on {date}", but the Polar customer portal shows them this information. Accepted trade-off; revisit only if support tickets surface.
 27. **Multi-tab open during trial expiry**: tab A and tab B both rendered server-side while trialing. Trial ends. Tab A is refreshed and shows "Trial ended" UI (banner gone). Tab B is left open and continues to show stale "X days left" banner until reload. Since TrialBanner is a server component, no client tick removes it. Accepted trade-off; adding a client-island timer adds 30+ lines of hydration + interactivity for a low-incidence UX nit.
 28. **FAQ "What about refunds?" 7-day reference on `/pricing`**: out of scope of Phase J. The 7-day refund window is a separate policy from the 3-day trial; coexisting numbers may briefly confuse, but rewriting the FAQ is policy work, not trial work. Defer to a follow-up sprint.
@@ -391,7 +391,7 @@ No `/api/extract` or `/api/export` test changes.
 | `messages/en.json` | 12 new keys | +13 |
 | `messages/ru.json` | 12 new keys | +13 |
 
-Total estimate: 13 files, ~320 lines added, ~30 lines removed.
+Total estimate: 13 files, ~336 lines added, ~24 lines removed.
 
 ## Locked decisions
 
@@ -405,7 +405,7 @@ Total estimate: 13 files, ~320 lines added, ~30 lines removed.
 8. **Trial subnote is OPT-IN per call-site**, not forced everywhere. Pricing page Pro card gets it; dashboard Free upgrade panel does not (already has surrounding context). Reason: avoid duplication.
 9. **`upgrade-button.tsx` `label` prop is REQUIRED**, no default. Reason: both existing call sites pass a localized label, so a fallback would be dead code that obscures translation gaps. Future call sites are forced to provide a localized string.
 10. **Trial banner does NOT render for status "canceled" mid-trial**. Reason: once the user clicks Cancel, the "Trial X days left, then $19/mo" copy is misleading (no charge will happen). The default Plan card + Manage CTA is the correct UI for that state.
-11. **Separate "today" branch when `msRemaining < 86_400_000`**, not a `Math.max(1, ...)` clamp. Reason: clamping made "1 day left" appear at 2h-remaining, inviting "I thought I had a day" support tickets after a same-day charge. Two branches plus one extra i18n key is worth the clarity.
+11. **Separate "today" branch when `msRemaining <= 86_400_000`** (inclusive 24h boundary), not a `Math.max(1, ...)` clamp. Reason: clamping made "1 day left" appear at 2h-remaining, inviting "I thought I had a day" support tickets after a same-day charge. Inclusive boundary means "1 day left" shows only on the second-to-last day; the final 24h always render "today". Two branches plus one extra i18n key is worth the clarity.
 12. **No analytics events** added for trial banner views or trial CTA clicks. Reason: Phase J scope is plumbing; add analytics in a follow-up if conversion data is needed.
 13. **No webhook handler changes.** `handleSubscriptionActive` already supports `subscription.created` with `status: "trialing"` (sets tier=pro). `handleSubscriptionUpdated` also routes `trialing` to tier=pro. Verified in `src/lib/subscription.ts:101-142`.
 14. **No new `dynamic = "force-dynamic"` declarations**. `/`, `/dashboard`, and `/pricing` all already have it.
