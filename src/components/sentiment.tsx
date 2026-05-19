@@ -38,6 +38,7 @@ export function SentimentPanel({
   distribution: SentimentDistribution | null
   commentsAnalyzed: number
 }) {
+  const tLabel = useTranslations("sentiment_label")
   useEffect(() => {
     if (tier === "anonymous") {
       track("sentiment_curiosity_gap_shown", { commentsAnalyzed })
@@ -87,7 +88,6 @@ export function SentimentPanel({
     distribution ?? deriveDistribution(aggregate)
   if (!dist) return null
 
-  const tLabel = useTranslations("sentiment_label")
   const ruExperimental = aggregate.ruShare >= 0.25
   const summary = tLabel(qualitativeSummary(dist))
 
