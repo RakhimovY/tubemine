@@ -6,27 +6,28 @@ import { Download, LogIn } from "lucide-react"
 import { track } from "@vercel/analytics"
 import { Button } from "@/components/ui/button"
 import { buttonVariants } from "@/components/ui/button"
+import type { ExtractTier } from "@/components/tubemine"
 
 export function CsvGate({
-  isSignedIn,
+  tier,
   onDownload,
   videoId,
 }: {
-  isSignedIn: boolean
+  tier: ExtractTier
   onDownload: () => void
   videoId?: string
 }) {
   useEffect(() => {
-    if (!isSignedIn) {
+    if (tier === "anonymous") {
       track("csv_signin_gate_shown", { videoId: videoId ?? "unknown" })
     }
-  }, [isSignedIn, videoId])
+  }, [tier, videoId])
 
-  if (isSignedIn) {
+  if (tier === "free" || tier === "pro") {
     return (
       <Button onClick={onDownload} size="sm">
         <Download className="size-4" />
-        Download CSV
+        Export CSV
       </Button>
     )
   }

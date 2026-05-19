@@ -64,10 +64,15 @@ export function emojiName(emoji: string): string {
   return NAME_HINTS[emoji] ?? "emoji"
 }
 
-export function topEmojisFromComments(
+export type TopEmojisAnalysis = {
+  items: EmojiCount[]
+  totalUnique: number
+}
+
+export function analyzeTopEmojis(
   texts: Iterable<string>,
-  limit = 10,
-): EmojiCount[] {
+  limit: number = 10,
+): TopEmojisAnalysis {
   const counts = new Map<string, number>()
   let total = 0
 
@@ -82,10 +87,21 @@ export function topEmojisFromComments(
     }
   }
 
-  if (total === 0) return []
+  if (total === 0) return { items: [], totalUnique: 0 }
 
-  return Array.from(counts.entries())
+  const ranked = Array.from(counts.entries())
     .map(([emoji, count]) => ({ emoji, count, share: count / total }))
     .sort((a, b) => b.count - a.count)
-    .slice(0, limit)
+
+  const items =
+    Number.isFinite(limit) && limit < ranked.length ? ranked.slice(0, limit) : ranked
+
+  return { items, totalUnique: counts.size }
+}
+
+export function topEmojisFromComments(
+  texts: Iterable<string>,
+  limit: number = 10,
+): EmojiCount[] {
+  return analyzeTopEmojis(texts, limit).items
 }

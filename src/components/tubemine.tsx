@@ -29,11 +29,19 @@ import {
 } from "@/components/ui/table"
 import { extractVideoId, type Comment, type VideoMeta } from "@/lib/types"
 import type { BudgetStatus } from "@/lib/budget"
+import type { WordCount } from "@/lib/top-words"
+import type { EmojiCount } from "@/lib/emoji-frequency"
 import { formatDateRelative, formatNumber } from "@/lib/format"
 import { TopWordsPanel } from "@/components/top-words"
-import { SentimentPanel, type SentimentAggregateProp } from "@/components/sentiment"
+import {
+  SentimentPanel,
+  type SentimentAggregateProp,
+  type SentimentDistribution,
+} from "@/components/sentiment"
 import { EmojiPanel } from "@/components/emoji-frequency"
 import { CsvGate } from "@/components/csv-gate"
+
+export type ExtractTier = "anonymous" | "free" | "pro"
 
 const FormSchema = z.object({
   url: z
@@ -49,19 +57,44 @@ type FormValues = z.infer<typeof FormSchema>
 type ExtractResponse = {
   comments: Comment[]
   extracted: number
+  tier: ExtractTier
   used: number
   remaining: number
   budget: number
   resetAt: string
-  sentiment: SentimentAggregateProp | null
+  sentiment?: SentimentAggregateProp | null
+  sentiment_distribution?: SentimentDistribution | null
+  top_words: WordCount[]
+  top_emoji: EmojiCount[]
+  unique_words_total: number
+  unique_emoji_total: number
 }
 
-export function TubeMine({ isSignedIn = false }: { isSignedIn?: boolean }) {
+type Analytics = {
+  topWords: WordCount[]
+  topEmoji: EmojiCount[]
+  uniqueWordsTotal: number
+  uniqueEmojiTotal: number
+}
+
+const EMPTY_ANALYTICS: Analytics = {
+  topWords: [],
+  topEmoji: [],
+  uniqueWordsTotal: 0,
+  uniqueEmojiTotal: 0,
+}
+
+export function TubeMine({ tier: initialTier }: { tier: ExtractTier }) {
+  const [tier, setTier] = useState<ExtractTier>(initialTier)
   const [preview, setPreview] = useState<VideoMeta | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [extractLoading, setExtractLoading] = useState(false)
   const [comments, setComments] = useState<Comment[]>([])
   const [sentiment, setSentiment] = useState<SentimentAggregateProp | null>(null)
+  const [distribution, setDistribution] = useState<SentimentDistribution | null>(
+    null,
+  )
+  const [analytics, setAnalytics] = useState<Analytics>(EMPTY_ANALYTICS)
   const [budget, setBudget] = useState<BudgetStatus | null>(null)
 
   const form = useForm<FormValues>({
@@ -72,14 +105,25 @@ export function TubeMine({ isSignedIn = false }: { isSignedIn?: boolean }) {
   useEffect(() => {
     fetch("/api/extract", { method: "GET" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((data) => data && setBudget(data))
+      .then((data) => {
+        if (!data) return
+        setBudget(data)
+        if (data.tier && data.tier !== tier) {
+          setTier(data.tier as ExtractTier)
+        }
+      })
       .catch(() => undefined)
+    // Run once on mount: server-rendered tier is the authoritative starting point;
+    // we only re-sync to catch mid-session webhook flips.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function onPreview(values: FormValues) {
     setPreviewLoading(true)
     setComments([])
     setSentiment(null)
+    setDistribution(null)
+    setAnalytics(EMPTY_ANALYTICS)
     try {
       const res = await fetch("/api/preview", {
         method: "POST",
@@ -112,6 +156,8 @@ export function TubeMine({ isSignedIn = false }: { isSignedIn?: boolean }) {
     setExtractLoading(true)
     setComments([])
     setSentiment(null)
+    setDistribution(null)
+    setAnalytics(EMPTY_ANALYTICS)
     try {
       const res = await fetch("/api/extract", {
         method: "POST",
@@ -142,6 +188,14 @@ export function TubeMine({ isSignedIn = false }: { isSignedIn?: boolean }) {
       }
       setComments(data.comments)
       setSentiment(data.sentiment ?? null)
+      setDistribution(data.sentiment_distribution ?? null)
+      setAnalytics({
+        topWords: data.top_words ?? [],
+        topEmoji: data.top_emoji ?? [],
+        uniqueWordsTotal: data.unique_words_total ?? 0,
+        uniqueEmojiTotal: data.unique_emoji_total ?? 0,
+      })
+      if (data.tier && data.tier !== tier) setTier(data.tier)
       setBudget({
         used: data.used,
         remaining: data.remaining,
@@ -153,6 +207,7 @@ export function TubeMine({ isSignedIn = false }: { isSignedIn?: boolean }) {
         extracted: data.extracted,
         used: data.used,
         remaining: data.remaining,
+        tier: data.tier ?? "unknown",
       })
       toast.success(`Analyzed ${data.extracted} comments`)
     } catch (e) {
@@ -166,6 +221,8 @@ export function TubeMine({ isSignedIn = false }: { isSignedIn?: boolean }) {
     setPreview(null)
     setComments([])
     setSentiment(null)
+    setDistribution(null)
+    setAnalytics(EMPTY_ANALYTICS)
     form.reset({ url: "" })
   }
 
@@ -174,6 +231,7 @@ export function TubeMine({ isSignedIn = false }: { isSignedIn?: boolean }) {
     track("csv_downloaded", {
       videoId: preview?.videoId ?? "unknown",
       count: comments.length,
+      tier,
     })
     const csv = Papa.unparse(comments, {
       columns: ["author", "text", "sentiment", "likes", "replies", "publishedAt"],
@@ -336,14 +394,28 @@ export function TubeMine({ isSignedIn = false }: { isSignedIn?: boolean }) {
 
       {comments.length > 0 && (
         <>
-          <TopWordsPanel comments={comments} />
-          <SentimentPanel aggregate={sentiment} />
-          <EmojiPanel comments={comments} />
+          <TopWordsPanel
+            tier={tier}
+            items={analytics.topWords}
+            totalUnique={analytics.uniqueWordsTotal}
+            commentsAnalyzed={comments.length}
+          />
+          <SentimentPanel
+            tier={tier}
+            aggregate={sentiment}
+            distribution={distribution}
+            commentsAnalyzed={comments.length}
+          />
+          <EmojiPanel
+            tier={tier}
+            items={analytics.topEmoji}
+            totalUnique={analytics.uniqueEmojiTotal}
+          />
           <ResultsPanel
             comments={comments}
             videoTitle={preview?.title ?? ""}
             videoId={preview?.videoId}
-            isSignedIn={isSignedIn}
+            tier={tier}
             onDownload={downloadCsv}
           />
         </>
@@ -371,13 +443,13 @@ function ResultsPanel({
   comments,
   videoTitle,
   videoId,
-  isSignedIn,
+  tier,
   onDownload,
 }: {
   comments: Comment[]
   videoTitle: string
   videoId?: string
-  isSignedIn: boolean
+  tier: ExtractTier
   onDownload: () => void
 }) {
   return (
@@ -394,11 +466,7 @@ function ResultsPanel({
               </p>
             )}
           </div>
-          <CsvGate
-            isSignedIn={isSignedIn}
-            onDownload={onDownload}
-            videoId={videoId}
-          />
+          <CsvGate tier={tier} onDownload={onDownload} videoId={videoId} />
         </div>
         <div className="max-h-[60vh] overflow-auto">
           <Table>

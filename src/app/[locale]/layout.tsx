@@ -29,7 +29,7 @@ export async function generateMetadata({
   return {
     title: "TubeMine, YouTube Audience Analytics. Free. No Setup.",
     description:
-      "Paste a YouTube URL. Get sentiment, top words, and audience themes in seconds. Free up to 1,000 comments per month.",
+      "Paste a YouTube URL. Get sentiment, top words, and audience themes in seconds. Free up to 5,000 comments per month with a free account.",
     metadataBase: new URL(base),
     openGraph: {
       title: "TubeMine, YouTube Audience Analytics",
@@ -97,7 +97,7 @@ export default async function LocaleLayout({
               "@type": "WebApplication",
               name: "TubeMine",
               description:
-                "YouTube audience analytics: sentiment, top words, and emoji insights from public comment data via the YouTube Data API. Free up to 1,000 comments per month.",
+                "YouTube audience analytics: sentiment, top words, and emoji insights from public comment data via the YouTube Data API. Free up to 5,000 comments per month with a free account.",
               url: "https://tubemine.vercel.app",
               applicationCategory: "DeveloperApplication",
               operatingSystem: "Web",

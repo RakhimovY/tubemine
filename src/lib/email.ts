@@ -46,7 +46,7 @@ function welcomeHtml(): string {
               <td style="padding:32px 32px 24px">
                 <h1 style="margin:0 0 12px;font-size:22px;font-weight:600">Welcome to TubeMine</h1>
                 <p style="margin:0 0 16px;line-height:1.55;color:#404040">
-                  Thanks for signing up. You can now extract up to <strong>1,000 comments per month</strong> on the free plan.
+                  Thanks for signing up. You can now analyze up to <strong>5,000 comments per month</strong> on the free plan.
                 </p>
                 <p style="margin:0 0 24px;line-height:1.55;color:#404040">
                   Need more? Pro unlocks <strong>100,000 comments per month</strong> for $19.
@@ -62,7 +62,7 @@ function welcomeHtml(): string {
             </tr>
             <tr>
               <td style="padding:16px 32px 24px;border-top:1px solid #f0f0f0;font-size:12px;color:#737373;line-height:1.5">
-                TubeMine extracts public YouTube comments as research-ready CSV. Source on GitHub: <a href="https://github.com/RakhimovY/tubemine" style="color:#525252">RakhimovY/tubemine</a>.
+                TubeMine analyzes public YouTube comments and exports the dataset as research-ready CSV. Source on GitHub: <a href="https://github.com/RakhimovY/tubemine" style="color:#525252">RakhimovY/tubemine</a>.
               </td>
             </tr>
           </table>
@@ -78,7 +78,7 @@ function welcomeText(): string {
   return [
     "Welcome to TubeMine",
     "",
-    "Thanks for signing up. The free plan gives you 1,000 comments per month.",
+    "Thanks for signing up. The free plan gives you 5,000 comments per month.",
     "Pro unlocks 100,000 comments per month for $19.",
     "",
     `Dashboard: ${origin}/dashboard`,

@@ -1,27 +1,30 @@
 import { getTranslations, setRequestLocale } from "next-intl/server"
 import { Badge } from "@/components/ui/badge"
-import { TubeMine } from "@/components/tubemine"
+import { TubeMine, type ExtractTier } from "@/components/tubemine"
 import { createClient } from "@/lib/supabase/server"
+import { getUserQuota } from "@/lib/quota"
 
 const REPO_URL = "https://github.com/RakhimovY/tubemine"
 
 export const dynamic = "force-dynamic"
 
-async function isUserSignedIn(): Promise<boolean> {
+async function resolveTier(): Promise<ExtractTier> {
   if (
     !process.env.NEXT_PUBLIC_SUPABASE_URL ||
     !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   ) {
-    return false
+    return "anonymous"
   }
   try {
     const supabase = await createClient()
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    return !!user
+    if (!user) return "anonymous"
+    const quota = await getUserQuota(user.id)
+    return quota.tier
   } catch {
-    return false
+    return "anonymous"
   }
 }
 
@@ -32,12 +35,12 @@ export default async function HomePage({
 }) {
   const { locale } = await params
   setRequestLocale(locale)
-  const isSignedIn = await isUserSignedIn()
+  const tier = await resolveTier()
   return (
     <div className="flex flex-1 flex-col">
       <Hero />
       <main className="relative z-10 -mt-20 flex flex-1 flex-col items-center sm:-mt-28">
-        <TubeMine isSignedIn={isSignedIn} />
+        <TubeMine tier={tier} />
       </main>
       <Footer />
     </div>

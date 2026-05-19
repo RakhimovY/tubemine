@@ -47,20 +47,22 @@ const MAX_WORD_LEN = 24
 
 export type WordCount = { word: string; count: number }
 
-export function topWordsFromComments(
+export type TopWordsAnalysis = {
+  items: WordCount[]
+  totalUnique: number
+}
+
+export function analyzeTopWords(
   texts: Iterable<string>,
-  limit = 20,
-): WordCount[] {
+  limit: number = 20,
+): TopWordsAnalysis {
   const counts = new Map<string, number>()
 
   for (const raw of texts) {
     if (!raw) continue
     const cleaned = raw
-      // strip URLs
       .replace(/https?:\/\/\S+/g, " ")
-      // strip @mentions and #hashtags (we want word body, not handle)
       .replace(/[@#]\S+/g, " ")
-      // strip HTML entities
       .replace(/&[a-z]+;|&#\d+;/gi, " ")
       .toLowerCase()
 
@@ -68,14 +70,24 @@ export function topWordsFromComments(
       const w = word.trim().replace(/^'+|'+$/g, "")
       if (w.length < MIN_WORD_LEN || w.length > MAX_WORD_LEN) continue
       if (STOPWORDS.has(w)) continue
-      // Skip pure-number tokens.
       if (/^\d+$/.test(w)) continue
       counts.set(w, (counts.get(w) ?? 0) + 1)
     }
   }
 
-  return Array.from(counts.entries())
+  const ranked = Array.from(counts.entries())
     .map(([word, count]) => ({ word, count }))
     .sort((a, b) => b.count - a.count || a.word.localeCompare(b.word))
-    .slice(0, limit)
+
+  const items =
+    Number.isFinite(limit) && limit < ranked.length ? ranked.slice(0, limit) : ranked
+
+  return { items, totalUnique: counts.size }
+}
+
+export function topWordsFromComments(
+  texts: Iterable<string>,
+  limit: number = 20,
+): WordCount[] {
+  return analyzeTopWords(texts, limit).items
 }

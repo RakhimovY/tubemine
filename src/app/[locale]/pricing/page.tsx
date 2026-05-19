@@ -13,7 +13,7 @@ import { UpgradeButton } from "../dashboard/upgrade-button"
 export const metadata = {
   title: "Pricing, TubeMine",
   description:
-    "Free up to 1,000 comments per month. Pro unlocks 100,000 comments per month for $19. Sentiment, top words, and emoji analytics on every plan.",
+    "Free up to 5,000 comments per month with a free account. Pro unlocks 100,000 comments per month for $19. Sentiment, top words, and emoji analytics on every plan.",
 }
 
 export const dynamic = "force-dynamic"

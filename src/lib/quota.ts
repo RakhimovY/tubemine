@@ -1,7 +1,7 @@
 import "server-only"
 import { createServiceClient } from "@/lib/supabase/server"
 
-export const FREE_MONTHLY_CAP = 1_000
+export const FREE_MONTHLY_CAP = 5_000
 export const PRO_MONTHLY_CAP = 100_000
 
 export type Tier = "free" | "pro"

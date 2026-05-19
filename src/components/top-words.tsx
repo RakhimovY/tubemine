@@ -1,34 +1,45 @@
 "use client"
 
-import { useMemo } from "react"
-import { Sparkles } from "lucide-react"
+import { Lock, Sparkles } from "lucide-react"
+import { Link } from "@/i18n/navigation"
 import { Card, CardContent } from "@/components/ui/card"
-import { topWordsFromComments } from "@/lib/top-words"
 import { formatNumber } from "@/lib/format"
-import type { Comment } from "@/lib/types"
+import type { WordCount } from "@/lib/top-words"
+import type { ExtractTier } from "@/components/tubemine"
 
-export function TopWordsPanel({ comments }: { comments: Comment[] }) {
-  const words = useMemo(
-    () => topWordsFromComments(comments.map((c) => c.text), 20),
-    [comments],
-  )
+export function TopWordsPanel({
+  tier,
+  items,
+  totalUnique,
+  commentsAnalyzed,
+}: {
+  tier: ExtractTier
+  items: WordCount[]
+  totalUnique: number
+  commentsAnalyzed: number
+}) {
+  if (items.length === 0) return null
 
-  if (words.length === 0) return null
-
-  const max = words[0].count
+  const max = items[0].count
+  const remaining = Math.max(0, totalUnique - items.length)
+  const cta = upgradeCta(tier, remaining)
 
   return (
     <Card className="mt-6 border-border/60">
       <CardContent className="flex flex-col gap-4 p-6 sm:p-7">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Sparkles className="size-4 text-foreground/70" />
           <h2 className="text-sm font-medium">Top words</h2>
           <span className="text-xs text-muted-foreground">
-            across {formatNumber(comments.length)} comments
+            across {formatNumber(commentsAnalyzed)} comments
+          </span>
+          <span className="ml-auto text-xs text-muted-foreground">
+            {formatNumber(totalUnique)} unique, top {formatNumber(items.length)}{" "}
+            shown
           </span>
         </div>
         <div className="grid gap-1.5 sm:grid-cols-2">
-          {words.map(({ word, count }) => {
+          {items.map(({ word, count }) => {
             const pct = Math.max(4, Math.round((count / max) * 100))
             return (
               <div
@@ -51,6 +62,15 @@ export function TopWordsPanel({ comments }: { comments: Comment[] }) {
             )
           })}
         </div>
+        {cta ? (
+          <Link
+            href={cta.href}
+            className="inline-flex w-fit items-center gap-1.5 text-xs text-foreground/80 underline-offset-4 hover:underline"
+          >
+            <Lock className="size-3" />
+            {cta.label}
+          </Link>
+        ) : null}
         <p className="text-[11px] leading-relaxed text-muted-foreground">
           Frequency-based, after stripping common stopwords, URLs, and mentions.
           Multi-language aware. Use this to spot recurring themes at a glance.
@@ -58,4 +78,24 @@ export function TopWordsPanel({ comments }: { comments: Comment[] }) {
       </CardContent>
     </Card>
   )
+}
+
+function upgradeCta(
+  tier: ExtractTier,
+  remaining: number,
+): { href: string; label: string } | null {
+  if (remaining <= 0) return null
+  if (tier === "anonymous") {
+    return {
+      href: "/login?redirect=/",
+      label: `${formatNumber(remaining)} more words available with a free account`,
+    }
+  }
+  if (tier === "free") {
+    return {
+      href: "/pricing",
+      label: `${formatNumber(remaining)} more words available in Pro`,
+    }
+  }
+  return null
 }

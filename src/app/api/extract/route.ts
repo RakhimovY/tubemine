@@ -8,7 +8,7 @@ import {
   nextMonthFirstIso,
   recordUsage,
 } from "@/lib/budget"
-import { topEmojisFromComments } from "@/lib/emoji-frequency"
+import { analyzeTopEmojis, type EmojiCount } from "@/lib/emoji-frequency"
 import { createClient } from "@/lib/supabase/server"
 import {
   PRO_MONTHLY_CAP,
@@ -16,9 +16,60 @@ import {
   getUserQuota,
 } from "@/lib/quota"
 import { scoreCommentsSentiment, type SentimentAggregate } from "@/lib/sentiment"
-import { topWordsFromComments } from "@/lib/top-words"
+import { analyzeTopWords, type WordCount } from "@/lib/top-words"
 import type { Comment } from "@/lib/types"
 import { ytClient } from "@/lib/youtube"
+
+type ExtractTier = "anonymous" | "free" | "pro"
+
+type SentimentDistribution = {
+  positive: number
+  neutral: number
+  negative: number
+}
+
+const TOP_WORDS_LIMIT_BY_TIER: Record<ExtractTier, number> = {
+  anonymous: 5,
+  free: 15,
+  pro: Number.POSITIVE_INFINITY,
+}
+
+const TOP_EMOJI_LIMIT_BY_TIER: Record<ExtractTier, number> = {
+  anonymous: 5,
+  free: 15,
+  pro: Number.POSITIVE_INFINITY,
+}
+
+// Storage cap is independent of presentation tier limits. SPEC §3.1.
+const STORAGE_TOP_WORDS = 50
+const STORAGE_TOP_EMOJIS = 20
+
+function sentimentDistribution(
+  agg: SentimentAggregate | null,
+): SentimentDistribution | null {
+  if (!agg) return null
+  const total = agg.positive + agg.neutral + agg.negative
+  if (total === 0) return null
+  return {
+    positive: agg.positive / total,
+    neutral: agg.neutral / total,
+    negative: agg.negative / total,
+  }
+}
+
+function takeTopWords(items: WordCount[], tier: ExtractTier): WordCount[] {
+  const limit = TOP_WORDS_LIMIT_BY_TIER[tier]
+  return Number.isFinite(limit) && limit < items.length
+    ? items.slice(0, limit)
+    : items
+}
+
+function takeTopEmojis(items: EmojiCount[], tier: ExtractTier): EmojiCount[] {
+  const limit = TOP_EMOJI_LIMIT_BY_TIER[tier]
+  return Number.isFinite(limit) && limit < items.length
+    ? items.slice(0, limit)
+    : items
+}
 
 export const runtime = "nodejs"
 export const maxDuration = 60
@@ -199,21 +250,30 @@ export async function POST(req: NextRequest) {
     console.error("[sentiment] scoring failed:", err)
   }
 
+  // Single full ranking pass. Slice per tier for response, slice STORAGE_* for persistence.
+  const texts = comments.map((c) => c.text)
+  const wordsAnalysis = analyzeTopWords(texts, Number.POSITIVE_INFINITY)
+  const emojiAnalysis = analyzeTopEmojis(texts, Number.POSITIVE_INFINITY)
+
+  const tier: ExtractTier =
+    mode === "user" && userQuota ? userQuota.tier : "anonymous"
+
+  const topWordsForTier = takeTopWords(wordsAnalysis.items, tier)
+  const topEmojisForTier = takeTopEmojis(emojiAnalysis.items, tier)
+  const distribution = sentimentDistribution(sentimentAggregate)
+
   // Record actual usage (atomic). Surface fresh totals to the client.
   if (mode === "user" && userId && userQuota) {
     const newUsed = await bumpUserUsage(userId, comments.length)
 
     // Best-effort persistence: never blocks the response.
-    // Top-50 words and top-20 emoji aggregates per SPEC §3.1 storage cap.
     try {
-      const topWords = topWordsFromComments(
-        comments.map((c) => c.text),
-        50,
-      ).map((w) => ({ token: w.word, count: w.count }))
-      const emojiFrequency = topEmojisFromComments(
-        comments.map((c) => c.text),
-        20,
-      ).map((e) => ({ emoji: e.emoji, count: e.count, percent: e.share * 100 }))
+      const topWordsStored = wordsAnalysis.items
+        .slice(0, STORAGE_TOP_WORDS)
+        .map((w) => ({ token: w.word, count: w.count }))
+      const emojiStored = emojiAnalysis.items
+        .slice(0, STORAGE_TOP_EMOJIS)
+        .map((e) => ({ emoji: e.emoji, count: e.count, percent: e.share * 100 }))
 
       await saveAnalysis({
         userId,
@@ -223,8 +283,8 @@ export async function POST(req: NextRequest) {
         thumbnailUrl: null,
         commentCount: comments.length,
         sentiment: sentimentAggregate,
-        topWords,
-        emojiFrequency,
+        topWords: topWordsStored,
+        emojiFrequency: emojiStored,
       })
     } catch (e) {
       console.warn("[analyses] save threw (extract continues)", {
@@ -237,7 +297,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       comments,
       extracted: comments.length,
-      tier: userQuota.tier,
+      tier,
       used: newUsed || userQuota.used + comments.length,
       remaining: Math.max(0, userQuota.cap - (newUsed || userQuota.used + comments.length)),
       cap: userQuota.cap,
@@ -245,6 +305,11 @@ export async function POST(req: NextRequest) {
       budget: userQuota.cap,
       resetAt: userQuota.resetAt,
       sentiment: sentimentAggregate,
+      sentiment_distribution: distribution,
+      top_words: topWordsForTier,
+      top_emoji: topEmojisForTier,
+      unique_words_total: wordsAnalysis.totalUnique,
+      unique_emoji_total: emojiAnalysis.totalUnique,
     })
   }
 
@@ -253,18 +318,27 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       comments,
       extracted: comments.length,
+      tier,
       used: ipStatus.used + comments.length,
       remaining: Math.max(0, ipStatus.remaining - comments.length),
       budget: ipStatus.budget,
       resetAt: ipStatus.resetAt,
-      sentiment: sentimentAggregate,
+      // Anonymous: sentiment + sentiment_distribution intentionally omitted (curiosity-gap floor).
+      top_words: topWordsForTier,
+      top_emoji: topEmojisForTier,
+      unique_words_total: wordsAnalysis.totalUnique,
+      unique_emoji_total: emojiAnalysis.totalUnique,
     })
   }
 
   return NextResponse.json({
     comments,
     extracted: comments.length,
-    sentiment: sentimentAggregate,
+    tier,
+    top_words: topWordsForTier,
+    top_emoji: topEmojisForTier,
+    unique_words_total: wordsAnalysis.totalUnique,
+    unique_emoji_total: emojiAnalysis.totalUnique,
   })
 }
 
@@ -283,5 +357,9 @@ export async function GET(req: NextRequest) {
   }
   const ip = getClientIp(req)
   const status = await getBudgetStatus(ip)
-  return NextResponse.json({ ...status, resetAt: nextMonthFirstIso() })
+  return NextResponse.json({
+    tier: "anonymous" as ExtractTier,
+    ...status,
+    resetAt: nextMonthFirstIso(),
+  })
 }

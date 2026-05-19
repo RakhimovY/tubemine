@@ -14,13 +14,13 @@ For creators, marketing analysts, ML researchers, indie devs, and anyone who wan
 
 ## Plans
 
-| | Free | Pro |
-| --- | --- | --- |
-| Comments per month | 1,000 | 100,000 |
-| Account | Optional | Required |
-| Price | $0 | $19 |
+| | Anonymous | Free | Pro |
+| --- | --- | --- | --- |
+| Comments per month | 1,000 | 5,000 | 100,000 |
+| Account | No | Free signup | Required |
+| Price | $0 | $0 | $19 |
 
-Anonymous users get 1,000 comments per month per IP. Signed-in users get a per-account budget instead.
+Anonymous visitors get 1,000 comments per month per IP. Signed-in free users get 5,000 per account. Pro is 100,000 per month for $19.
 
 ## How it works
 
