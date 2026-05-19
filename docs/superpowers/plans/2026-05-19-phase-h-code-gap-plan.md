@@ -17,10 +17,10 @@
 ## File map
 
 **New files (3):**
-- `src/lib/auth.ts` — lifted `authUserId` helper
-- `src/lib/sentiment-summary.ts` — pure `qualitativeSummary` + `deriveDistribution`
-- `src/app/api/export/route.ts` — POST endpoint
-- `src/app/api/export/__tests__/route.test.ts` — 401/403/400/200 tests
+- `src/lib/auth.ts`: lifted `authUserId` helper
+- `src/lib/sentiment-summary.ts`: pure `qualitativeSummary` + `deriveDistribution`
+- `src/app/api/export/route.ts`: POST endpoint
+- `src/app/api/export/__tests__/route.test.ts`: 401/403/400/200 tests
 
 **Renamed (1):**
 - `src/components/csv-gate.tsx` → `src/components/export-bar.tsx`
@@ -248,7 +248,7 @@ Inside the `"history"` object (after the existing `"retry": "Retry"`), add:
     "cap_label_pro": "Last 100 analyses",
 ```
 
-(Note: be careful with trailing commas — JSON requires the comma BETWEEN entries; the last entry of an object has no trailing comma. Either reorder so new keys are NOT last, or add a comma to the previous-last entry.)
+(Note: be careful with trailing commas. JSON requires the comma BETWEEN entries; the last entry of an object has no trailing comma. Either reorder so new keys are NOT last, or add a comma to the previous-last entry.)
 
 - [ ] **Step 6.2: Add the same 5 keys to `messages/ru.json`**
 
@@ -1293,7 +1293,7 @@ grep -rP '[\x{2013}\x{2014}]' \
   messages/ru.json
 ```
 
-Expected: no output. If any line matches, replace `—` / `–` with `,` `.` `()` `:` or `-` per `~/vault/feedback/no-em-dash.md` rules.
+Expected: no output. If any line matches, replace the offending dash chars with regular punctuation (`,` / `.` / `()` / `:` / `-`) per `~/vault/feedback/no-em-dash.md` rules.
 
 - [ ] **Step 15.7: No Polar-banned verbs in new UI strings**
 
