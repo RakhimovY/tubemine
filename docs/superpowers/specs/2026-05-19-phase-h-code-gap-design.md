@@ -3,7 +3,7 @@
 **Date:** 2026-05-19
 **Spec author:** Claude (turbo-pipeline brainstorming)
 **Predecessor:** Phase G backend (commit `f381746`), Phase H design ship (Claude Design `tubemine-v3-ux`)
-**Status:** draft v4 (post round-3 review)
+**Status:** draft v5 (post round-4 review)
 **Risk surface:** small
 
 ## Mission
@@ -30,7 +30,7 @@ The Phase H design (Claude Design) advertises Pro features that the code does no
 14. **CSV filename parity (locked)**: existing `downloadCsv()` in `tubemine.tsx` is updated to use `tubemine-${preview.videoId}-${YYYY-MM-DD}.csv` (videoId only, no title slug, UTC date). Brings all three formats into the same naming convention.
 15. **No server-side tier clamp on `/api/analyses`**: per locked decision 2 (display-only cap), the server does NOT enforce a per-tier limit on the GET endpoint. A Free user requesting `limit: 100` would still get up to 100 rows; the cap is a UI promise, not a security boundary. `history-client.tsx` enforces the cap via tier-aware initial limit (10 vs 20) plus discarding `nextCursor` for Free.
 16. **Tier prop type narrowing (locked)**: `recent-analyses.tsx` and `history-client.tsx` accept tier as `"free" | "pro"` (narrower than `ExtractTier`). `ExportBar` keeps the full `ExtractTier` union (it handles the anonymous case for the home page).
-17. **Dashboard "Last N saved" subtitle ships Pro-only, reusing `history.cap_label_pro` key**: per Phase H design (which only added the line to the Pro card), the Free Dashboard does NOT render a "Last 10 analyses saved" subtitle. The Pro Dashboard subtitle reuses `history.cap_label_pro` ("Last 100 analyses" / "Последние 100 анализов") instead of a dedicated dashboard key. Same translation, two render sites, one source of truth (no string drift between Dashboard subtitle and /history page heading). The translation text is intentionally short and works in both contexts.
+17. **Dashboard "Last N saved" subtitle ships Pro-only with dedicated key**: per Phase H design (which only added the line to the Pro card), the Free Dashboard does NOT render a subtitle. The Pro Dashboard subtitle uses a dedicated key `dashboard.last_100_saved` = "Last 100 analyses saved" / "Сохраняются последние 100 анализов" because the rhetorical context differs from `/history` (a save promise vs a page-content heading). Two keys is a small duplication trade-off accepted for copy fidelity with the Phase H marketing string.
 18. **Hard-cap Pro history at 100 cumulative items (client-side)**: `history-client.tsx` tracks `items.length` after each pagination merge and hides the "Load more" button once the count reaches 100. Rationale: the page heading shows `history.cap_label_pro` = "Last 100 analyses"; if a power user paginates past 100 the heading becomes a lie. This is a marketing-consistency decision, not a defense-in-depth one. Rows beyond 100 remain in DB; v1 simply does not expose them through the UI. Phase H+1 can revisit (paginated view of all rows, no marketing string).
 19. **`qualitativeSummary()` strings render as plain JSX**, NOT wrapped in `t()`. They are English-only by locked decision 7; an implementer must not invent translation keys for them.
 20. **exceljs Buffer return uses `new Response(buffer as unknown as BodyInit, { headers })`** (or equivalent: `new Response(new Uint8Array(buffer), ...)`). Node Buffer extends Uint8Array at runtime, but Web-spec `Response` typing in Next.js 16 may require the cast. Lock the pattern explicitly.
@@ -72,7 +72,7 @@ Anonymous tier is impossible on these pages (both pages redirect unauthenticated
 - `/history` page initial fetch: `limit: tier === "pro" ? 20 : 10`.
 - For Free tier, `history-client.tsx` must **discard the `nextCursor`** returned by the server on initial render when `tier === "free"`. The server fetches `limit + 1` to detect "has more", but for Free the next-page button is not rendered regardless of cursor presence. (No server-side clamp on `/api/analyses` GET; cap is display-only, not a security boundary. See locked decision 15.)
 - Pro users can paginate through all their saved analyses via `/api/analyses` (no hard 100 server cap). The UI promise "Last 100 analyses saved" is satisfied for the typical case because `saveAnalysis` upserts on `(user_id, video_id)`, so the row count grows by unique video only. Most users will not exceed 100 unique videos. If a power user does exceed 100, they can still scroll past via "Load more"; that is acceptable v1 framing (display promise, not hard limit).
-- Dashboard "Recent analyses" widget keeps its hardcoded `limit: 5` preview. On Pro tier ONLY, render a small subtitle line under the heading: `t("history.cap_label_pro")` = "Last 100 analyses" (reused key per locked decision 17). Free tier renders no subtitle (Phase H design did not add one to Free).
+- Dashboard "Recent analyses" widget keeps its hardcoded `limit: 5` preview. On Pro tier ONLY, render a small subtitle line under the heading: `t("dashboard.last_100_saved")` = "Last 100 analyses saved" (dedicated key per locked decision 17). Free tier renders no subtitle (Phase H design did not add one to Free).
 - Known behavior documented in the launch note: `saveAnalysis` upserts on `(user_id, video_id)`, so the count is "last 100 unique videos analyzed", not "last 100 extract operations".
 
 ### 3. JSON + Excel export via new `/api/export` endpoint
@@ -183,10 +183,11 @@ Append to `messages/en.json` and `messages/ru.json` (RU uses Cyrillic):
 |------|------|------|
 | `common.export_json` | "Export JSON" | "Экспорт JSON" |
 | `common.export_excel` | "Export Excel" | "Экспорт Excel" |
+| `dashboard.last_100_saved` | "Last 100 analyses saved" | "Сохраняются последние 100 анализов" |
 | `history.cap_label_free` | "Last 10 analyses" | "Последние 10 анализов" |
 | `history.cap_label_pro` | "Last 100 analyses" | "Последние 100 анализов" |
 
-(`history.cap_label_*` rendered both as `/history` page heading subtitle (both tiers) AND as Pro-only subtitle inside `recent-analyses.tsx` on Dashboard. Reuse keeps marketing copy in one source of truth per locked decision 17.)
+(`dashboard.last_100_saved` rendered Pro-only as Dashboard subtitle in `recent-analyses.tsx`; `history.cap_label_*` rendered as `/history` page heading subtitle for both tiers. Two keys: one save promise (Dashboard) + two page-content headings (History).)
 
 No new key for the sentiment label itself (English-only v1 per locked decision 7).
 No new key for 403 / 401 / 400 responses (server returns English error strings; the button is not rendered for non-Pro so the response is a developer-grade error message).
@@ -221,13 +222,13 @@ No `dominantSentimentLabel` helper. Pro "{pct}% positive" rendering is inlined a
 **Modified:**
 - `src/lib/analyses.ts` (`ANALYSES_LIST_MAX` 50 → 100; no other changes)
 - `src/components/sentiment.tsx` (import `qualitativeSummary` + `deriveDistribution` from lib; re-export `SentimentDistribution` type)
-- `src/components/recent-analyses.tsx` (accept `tier: "free" | "pro"` prop; render tier-aware sentiment label per row; on Pro, render `history.cap_label_pro` subtitle under heading per locked decision 17)
+- `src/components/recent-analyses.tsx` (accept `tier: "free" | "pro"` prop; render tier-aware sentiment label per row; on Pro, render `dashboard.last_100_saved` subtitle under heading per locked decision 17)
 - `src/app/[locale]/dashboard/page.tsx` (pass `quota.tier` into `<RecentAnalyses tier={...} />`)
 - `src/app/[locale]/history/page.tsx` (add `export const dynamic = "force-dynamic"`; compute tier via `getUserQuota` inside try/catch with `"free"` fallback; pass tier into `HistoryClient`; choose initial limit `tier === "pro" ? 20 : 10`; render tier-aware subtitle from `history.cap_label_*`)
-- `src/app/[locale]/history/history-client.tsx` (accept `tier: "free" | "pro"` prop; render per-row sentiment label; for Free tier, do not render the "Load more" button regardless of cursor presence; for Pro tier, hide the "Load more" button once `items.length >= 100` per locked decision 18)
+- `src/app/[locale]/history/history-client.tsx` (accept `tier: "free" | "pro"` prop; render per-row sentiment label; for Free tier, do not render the "Load more" button regardless of cursor presence; for Pro tier, cap items via `slice(0, 100)` on merge and hide the "Load more" button once `items.length >= 100` per locked decision 18 + edge case 24)
 - `src/app/api/extract/route.ts` (import `authUserId` from new `src/lib/auth.ts`; delete inline copy)
 - `src/components/tubemine.tsx` (`downloadJson` + `downloadExcel` handlers wrapped in try/catch with `toast.error` outer; update existing `downloadCsv` filename to videoId+date convention; swap `<CsvGate>` import to `<ExportBar>`; pass 3 download handlers; rename `ResultsPanel`'s `onDownload` prop to `onDownloadCsv`; `ResultsPanel` gains `onDownloadJson` + `onDownloadExcel` props forwarded to `ExportBar`)
-- `messages/en.json`, `messages/ru.json` (5 new keys)
+- `messages/en.json`, `messages/ru.json` (5 new keys per §5 table)
 - `package.json` + lockfile (add `exceljs`)
 
 **Renamed (single rename, no duplicate):**
@@ -265,7 +266,9 @@ No `dominantSentimentLabel` helper. Pro "{pct}% positive" rendering is inlined a
 19. **Round-trip percent on Pro**: `Math.round(dist[dominant] * 100)` can produce "33% positive" + "33% neutral" + "33% negative" displays in different views; consistency is locked by always picking the dominant first, rendering only that.
 20. **Single-class 100% rendering**: when one class is 100% (e.g., all-positive scoring), `Math.round` yields exactly 100. UI renders "100% positive" as a plain string; no width overflow risk in card text layout.
 21. **`getUserQuota` failure on `/history`**: wrapped in try/catch that defaults to `tier = "free"` and logs a `console.warn`. User sees a Free-tier history view rather than a Next.js error page.
-22. **xlsx Cyrillic / multi-line / tab text in comments**: `exceljs` writes UTF-8 (xlsx spec is XML). Cyrillic renders correctly. Multi-line text uses `wrapText: true` on the Comment column data cells per §3 step 8 so newlines render readably in Excel/Numbers without manual row-height adjustment.
+22. **xlsx Cyrillic / multi-line / tab text in comments**: `exceljs` writes UTF-8 (xlsx spec is XML). Cyrillic renders correctly. Multi-line text keeps embedded `\n` as part of the cell value (no `wrapText` formatting per locked decision 1); Excel/Numbers can enable wrap manually if a user wants the rendered view. Acceptable v1.
+23. **Navigate-away-and-back to `/history` resets pagination state**: `history-client.tsx` keeps `items` in component-local `useState`. `force-dynamic` on the page means a full remount with fresh server fetch of `limit: 20`. The 100-cap state does NOT persist; a Pro user who paged to 100, navigates away, and returns sees 20 + "Load more" again. Acceptable v1 (no localStorage / session-storage persistence layer).
+24. **Pagination merge boundary at 81+ rows (Pro)**: starting at 81 items, "Load more" fetches up to 20 and the naive `[...prev, ...next]` merge yields 101 (one row past the cap). Locked behavior: cap the merge via `setItems(prev => [...prev, ...next].slice(0, 100))` so the rendered count never exceeds 100. "Load more" then hides via the existing `items.length >= 100` check. No flicker, no orphan row.
 
 ## Out of scope (Phase H+1 or never)
 
