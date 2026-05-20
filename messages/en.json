@@ -602,5 +602,88 @@
     "footer_terms": "Terms",
     "footer_contact": "Contact",
     "error_interrupted": "Sign-in was interrupted. Try again."
+  },
+  "privacy": {
+    "meta": {
+      "title": "Privacy · TubeMine",
+      "description": "Plain English about what TubeMine collects, why, and what we never do."
+    },
+    "hero": {
+      "badge": "Privacy",
+      "title": "Privacy.",
+      "sub": "Plain English about what we collect, why, and what we never do.",
+      "updated_label": "Last updated"
+    },
+    "toc": {
+      "aria": "Sections",
+      "heading": "On this page"
+    },
+    "sections": {
+      "collect": {
+        "toc_label": "What we collect",
+        "title": "What we collect",
+        "p1": "TubeMine collects the minimum needed to run the product. There are no marketing trackers, no enrichment pipelines, no behavioral profiles.",
+        "b1_strong": "Google OAuth basic profile.",
+        "b1_text": "Your email address and display name when you sign in with Google. Nothing more.",
+        "b2_strong": "Usage records.",
+        "b2_text": "Timestamps and comment counts per analysis. We use these to enforce your monthly cap and show your history.",
+        "b3_strong": "IP address.",
+        "b3_text": "Only at request time, only for rate limiting and abuse detection. Not stored beyond 24 hours.",
+        "callout_strong": "What we never store:",
+        "callout_text": "the comment text itself, beyond a 30 day analysis cache that is purged automatically. The cache is needed so we can re-render your past results without re-querying YouTube."
+      },
+      "never": {
+        "toc_label": "What we never do",
+        "title": "What we never do",
+        "p1": "This list is short on purpose. These promises are part of why TubeMine exists.",
+        "b1_strong": "No selling.",
+        "b1_text": "We do not sell, rent, or share your data with any third party.",
+        "b2_strong": "No third-party trackers.",
+        "b2_text": "The only analytics we use is Vercel Analytics, which is server-side, IP-anonymized, and cookie-free.",
+        "b3_strong": "No Google Ads pixels.",
+        "b3_text": "No conversion tags, no remarketing audiences, no cross-site identifiers.",
+        "b4_strong": "No fingerprinting.",
+        "b4_text": "We do not run canvas, font, or device-class fingerprinting."
+      },
+      "youtube": {
+        "toc_label": "YouTube data",
+        "title": "YouTube data",
+        "p1": "TubeMine queries the official YouTube Data API v3 server-side with our own API key. When you paste a YouTube URL, your browser sends that URL to TubeMine, then our server makes the API call to Google.",
+        "p2_strong": "Your IP address is not sent to Google for analysis calls.",
+        "p2_text": "Google sees our server's IP, not yours.",
+        "p3": "Comments are public data, the same data anyone scrolling a YouTube video can see. TubeMine never accesses private channels, unlisted videos, or anything that requires owner authentication."
+      },
+      "cookies": {
+        "toc_label": "Cookies",
+        "title": "Cookies",
+        "p1": "TubeMine sets exactly one cookie:",
+        "b1_prefix": "The",
+        "b1_strong": "Supabase Auth session cookie",
+        "b1_mid": ". It is",
+        "b1_and": "and",
+        "b1_tail": "It is required to keep you signed in.",
+        "p2": "That is the entire cookie inventory. No tracking cookies, no marketing cookies, no consent banner because there is nothing to consent to."
+      },
+      "rights": {
+        "toc_label": "Your rights",
+        "title": "Your rights",
+        "p1_prefix": "You can ask us to delete all the data we hold about you at any time. Email",
+        "p1_tail": "from the address on your account and we will purge within 7 days. You will receive a confirmation when the purge is complete.",
+        "p2": "If you are a resident of the EU, UK, or California, the rights granted by GDPR, UK GDPR, and CCPA apply. The mechanism is the same: one email."
+      },
+      "changes": {
+        "toc_label": "Changes to this policy",
+        "title": "Changes to this policy",
+        "p1_prefix": "If we change this policy in a way that affects what we collect or what we do with it, we will email every existing user at least",
+        "p1_strong": "30 days before",
+        "p1_tail": "the change applies. Non-material edits (typo fixes, link updates) are not announced but the \"Last updated\" date at the top of this page will change."
+      },
+      "contact": {
+        "toc_label": "Contact",
+        "title": "Contact",
+        "p1_prefix": "Questions, requests, or anything that does not fit a bug report:",
+        "p1_tail": "One human reads every message."
+      }
+    }
   }
 }
