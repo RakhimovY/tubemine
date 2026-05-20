@@ -1,5 +1,8 @@
 import { Suspense } from "react"
+import { redirect } from "next/navigation"
 import { setRequestLocale, getTranslations } from "next-intl/server"
+import { createClient } from "@/lib/supabase/server"
+import { safeNext } from "@/app/auth/callback/safe-next"
 import { LoginClient } from "./login-client"
 
 export const metadata = {
@@ -18,11 +21,26 @@ export const metadata = {
 
 export default async function LoginPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ locale: string }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   const { locale } = await params
   setRequestLocale(locale)
+
+  // Authed users do not see /login. Forward to ?next (allow-listed) or dashboard.
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (user) {
+    const sp = await searchParams
+    const nextRaw = typeof sp?.next === "string" ? sp.next : null
+    const safe = safeNext(nextRaw)
+    redirect(safe !== "/" ? safe : `/${locale}/dashboard`)
+  }
+
   const t = await getTranslations("login")
   return (
     <Suspense

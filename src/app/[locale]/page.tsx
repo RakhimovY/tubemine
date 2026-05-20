@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation"
 import { getTranslations, setRequestLocale } from "next-intl/server"
 import { Link as IntlLink } from "@/i18n/navigation"
 import { TubeMine, type ExtractTier } from "@/components/tubemine"
@@ -55,6 +56,11 @@ export default async function HomePage({
   const { locale } = await params
   setRequestLocale(locale)
   const { tier, isAnonymous } = await resolveHomeAuthState()
+  // Authed users do not see the landing. Public marketing page lives behind
+  // an anonymous gate; signed-in users go straight to the app.
+  if (!isAnonymous) {
+    redirect(`/${locale}/dashboard`)
+  }
   const t = await getTranslations("landing")
 
   const faqItems = [
