@@ -943,3 +943,319 @@ body.no-scroll { overflow: hidden; }
 @media (min-width: 720px) {
   .tm-design .tm-extractor-host { padding: var(--space-7); }
 }
+
+/* ===========================================================
+   Pricing page (verbatim port of TubeMine Pricing.html)
+   Scoped under .tm-design .pricing-page so the landing teaser
+   selectors above keep their compact dimensions, and these
+   selectors only kick in on /pricing.
+   =========================================================== */
+.tm-design .pricing-page .hero { padding: clamp(56px, 12vw, 112px) 0 clamp(32px, 6vw, 56px); text-align: center; }
+.tm-design .pricing-page .hero-badge {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  padding: 4px 12px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-6);
+  letter-spacing: 0.04em;
+}
+.tm-design .pricing-page .hero-badge::before {
+  content: "";
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--color-text-tertiary);
+}
+.tm-design .pricing-page .hero-title {
+  font-size: clamp(36px, 6.5vw, 60px);
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  margin: 0 0 var(--space-6);
+  font-weight: var(--font-weight-semibold);
+  text-wrap: balance;
+}
+.tm-design .pricing-page .hero-sub {
+  color: var(--color-text-secondary);
+  font-size: clamp(16px, 2.3vw, 19px);
+  line-height: 1.55;
+  margin: 0 auto;
+  max-width: 56ch;
+  text-wrap: pretty;
+}
+
+/* Pricing grid + card overrides for the full pricing page */
+.tm-design .pricing-page .pricing-section { padding: clamp(40px, 6vw, 64px) 0 clamp(48px, 8vw, 80px); }
+.tm-design .pricing-page .pricing-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-7);
+  max-width: 880px;
+  margin: 0 auto;
+}
+@media (min-width: 760px) {
+  .tm-design .pricing-page .pricing-grid {
+    grid-template-columns: 1fr 1fr;
+    align-items: stretch;
+    gap: var(--space-7);
+  }
+}
+.tm-design .pricing-page .price-card {
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  padding: clamp(24px, 4vw, 32px);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+.tm-design .pricing-page .price-card.is-popular {
+  border-color: var(--color-border-focus);
+  background: linear-gradient(180deg, #18181b 0%, var(--color-surface-raised) 60%);
+  box-shadow: var(--shadow-2);
+}
+.tm-design .pricing-page .price-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+.tm-design .pricing-page .price-name {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.005em;
+}
+.tm-design .pricing-page .price-num {
+  font-size: clamp(38px, 5.5vw, 52px);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.025em;
+  line-height: 1;
+  margin: 0 0 var(--space-3);
+}
+.tm-design .pricing-page .price-num .currency {
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-base);
+  margin-right: 4px;
+}
+.tm-design .pricing-page .price-num .unit {
+  font-size: var(--font-size-lg);
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-base);
+  margin-left: var(--space-2);
+  letter-spacing: 0;
+}
+.tm-design .pricing-page .price-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--space-8);
+  display: grid;
+  gap: var(--space-4);
+}
+.tm-design .pricing-page .price-list li {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: var(--space-4);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-md);
+  line-height: 1.5;
+  align-items: start;
+}
+.tm-design .pricing-page .price-check {
+  width: 18px; height: 18px;
+  border-radius: var(--radius-lg);
+  background: rgba(245,245,247,0.08);
+  color: var(--color-text-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 3px;
+}
+.tm-design .pricing-page .price-check svg {
+  width: 11px; height: 11px;
+  stroke-width: 2.5;
+  fill: none;
+  stroke: currentColor;
+}
+.tm-design .pricing-page .price-foot {
+  margin-top: auto;
+  display: grid;
+  gap: var(--space-4);
+}
+.tm-design .pricing-page .price-foot .btn { width: 100%; }
+.tm-design .pricing-page .price-note {
+  font-family: var(--font-family-mono);
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  text-align: center;
+  margin: 0;
+}
+
+/* Trust line under pricing grid */
+.tm-design .pricing-page .trust-line {
+  text-align: center;
+  margin-top: var(--space-8);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+  display: flex; gap: var(--space-3);
+  align-items: center; justify-content: center;
+  flex-wrap: wrap;
+}
+.tm-design .pricing-page .trust-line .dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--color-feedback-success);
+  display: inline-block;
+}
+
+/* Comparison table + mobile cards */
+.tm-design .pricing-page .compare-wrap { max-width: 880px; margin: clamp(48px, 7vw, 72px) auto 0; }
+.tm-design .pricing-page .compare-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: var(--space-5);
+  margin: 0 0 var(--space-5);
+}
+.tm-design .pricing-page .compare-eyebrow {
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-family: var(--font-family-mono);
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+.tm-design .pricing-page .compare-note {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+  font-family: var(--font-family-mono);
+  margin: 0;
+}
+.tm-design .pricing-page .compare-table {
+  width: 100%;
+  border-collapse: separate; border-spacing: 0;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  font-size: var(--font-size-sm);
+}
+.tm-design .pricing-page .compare-table th,
+.tm-design .pricing-page .compare-table td {
+  text-align: left;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--color-border-subtle);
+  vertical-align: middle;
+  color: var(--color-text-secondary);
+}
+.tm-design .pricing-page .compare-table thead th {
+  background: rgba(245,245,247,0.04);
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-sm);
+  letter-spacing: -0.005em;
+}
+.tm-design .pricing-page .compare-table thead th .col-sub {
+  display: block;
+  font-weight: var(--font-weight-base);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+  font-family: var(--font-family-mono);
+  margin-top: 2px;
+}
+.tm-design .pricing-page .compare-table tbody tr:last-child th,
+.tm-design .pricing-page .compare-table tbody tr:last-child td { border-bottom: 0; }
+.tm-design .pricing-page .compare-table tbody th {
+  font-weight: var(--font-weight-base);
+  color: var(--color-text-primary);
+  background: transparent;
+}
+.tm-design .pricing-page .compare-table .col-pro { background: rgba(245,245,247,0.025); }
+.tm-design .pricing-page .compare-table thead .col-pro { background: rgba(245,245,247,0.06); }
+.tm-design .pricing-page .compare-table tbody tr:hover td,
+.tm-design .pricing-page .compare-table tbody tr:hover th { background: rgba(245,245,247,0.02); }
+.tm-design .pricing-page .compare-table tbody tr:hover .col-pro { background: rgba(245,245,247,0.045); }
+.tm-design .pricing-page .compare-val {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  letter-spacing: -0.005em;
+}
+.tm-design .pricing-page .compare-val.is-pos { color: var(--color-text-primary); }
+.tm-design .pricing-page .compare-val.is-neg { color: var(--color-text-tertiary); }
+.tm-design .pricing-page .compare-val .dotmark {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.tm-design .pricing-page .compare-val.is-pos .dotmark { background: var(--color-feedback-success); }
+.tm-design .pricing-page .compare-val.is-neg .dotmark { background: var(--color-border-strong); }
+
+.tm-design .pricing-page .compare-cards { display: none; }
+@media (max-width: 767px) {
+  .tm-design .pricing-page .compare-table { display: none; }
+  .tm-design .pricing-page .compare-cards { display: grid; gap: var(--space-5); }
+  .tm-design .pricing-page .compare-card {
+    background: var(--color-surface-raised);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-md);
+    padding: var(--space-5) var(--space-5) var(--space-4);
+  }
+  .tm-design .pricing-page .compare-card.is-pro {
+    border-color: var(--color-border-strong);
+    background: linear-gradient(180deg, #18181b 0%, var(--color-surface-raised) 60%);
+  }
+  .tm-design .pricing-page .compare-card-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+    padding-bottom: var(--space-4);
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+  .tm-design .pricing-page .compare-card-head .name {
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+  }
+  .tm-design .pricing-page .compare-card-head .who {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-tertiary);
+    font-family: var(--font-family-mono);
+  }
+  .tm-design .pricing-page .compare-card dl { margin: 0; display: grid; gap: var(--space-3); }
+  .tm-design .pricing-page .compare-card .row {
+    display: grid; grid-template-columns: 1fr auto;
+    gap: var(--space-4);
+    align-items: baseline;
+    padding: var(--space-2) 0;
+  }
+  .tm-design .pricing-page .compare-card .row dt {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+  }
+  .tm-design .pricing-page .compare-card .row dd { margin: 0; }
+}
+
+/* FAQ section wrapper (the .accordion itself is already in globals) */
+.tm-design .pricing-page .faq-section {
+  padding: clamp(56px, 10vw, 96px) 0;
+  border-top: 1px solid var(--color-border-subtle);
+}
+.tm-design .pricing-page .section-head {
+  text-align: center;
+  max-width: 640px;
+  margin: 0 auto var(--space-8);
+}
+
+/* Pricing-page mobile fixes */
+@media (max-width: 767px) {
+  .tm-design .pricing-page .pricing-section {
+    padding-left: var(--space-6);
+    padding-right: var(--space-6);
+  }
+  .tm-design .pricing-page .pricing-grid { padding: 0; }
+  .tm-design .pricing-page .price-card { padding: var(--space-7) !important; }
+  .tm-design .pricing-page .price-foot .btn {
+    width: 100%;
+    min-height: 48px;
+    white-space: nowrap;
+  }
+}
