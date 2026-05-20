@@ -1,9 +1,11 @@
 import { ImageResponse } from "next/og"
 
-export const runtime = "edge"
 export const alt = "TubeMine, YouTube Audience Analytics. Free. No Setup."
 export const size = { width: 1200, height: 630 }
 export const contentType = "image/png"
+
+const BRAND_MARK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#18181b"/><stop offset="100%" stop-color="#2a2a2e"/></linearGradient></defs><rect width="64" height="64" rx="15" ry="15" fill="url(#g)" stroke="rgba(245,245,247,0.12)" stroke-width="1"/><path d="M26 20 L26 44 L43 32 Z" fill="#f5f5f7" fill-opacity="0.95"/></svg>`
+const BRAND_MARK_DATA_URI = `data:image/svg+xml;utf8,${encodeURIComponent(BRAND_MARK_SVG)}`
 
 async function loadFont(url: string): Promise<ArrayBuffer | null> {
   try {
@@ -57,18 +59,28 @@ export default async function OpenGraphImage() {
           style={{
             display: "flex",
             alignItems: "center",
-            padding: "10px 22px",
-            borderRadius: "999px",
-            border: "1px solid rgba(99, 102, 241, 0.45)",
-            color: "#a5b4fc",
-            fontSize: "22px",
-            fontWeight: 500,
-            background: "rgba(15, 23, 42, 0.7)",
+            gap: "20px",
             alignSelf: "flex-start",
             marginBottom: "auto",
           }}
         >
-          TubeMine
+          <img
+            src={BRAND_MARK_DATA_URI}
+            width={64}
+            height={64}
+            alt=""
+            style={{ display: "block" }}
+          />
+          <div
+            style={{
+              color: "#f5f5f7",
+              fontSize: "38px",
+              fontWeight: 700,
+              letterSpacing: "-0.02em",
+            }}
+          >
+            TubeMine
+          </div>
         </div>
 
         <div

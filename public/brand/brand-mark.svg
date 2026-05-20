@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="TubeMine">
+  <title>TubeMine</title>
+  <defs>
+    <linearGradient id="tm-mark-bg" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#18181b"/>
+      <stop offset="100%" stop-color="#2a2a2e"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="15" ry="15" fill="url(#tm-mark-bg)"/>
+  <path d="M26 20 L26 44 L43 32 Z" fill="#f5f5f7" fill-opacity="0.95"/>
+</svg>

@@ -32,6 +32,7 @@ export async function generateMetadata({
     description:
       "Paste a YouTube URL. Get sentiment, top words, and audience themes in seconds. Free up to 5,000 comments per month with a free account.",
     metadataBase: new URL(base),
+    manifest: "/site.webmanifest",
     openGraph: {
       title: "TubeMine, YouTube Audience Analytics",
       description:
