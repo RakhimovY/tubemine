@@ -16,9 +16,10 @@
   "landing": {
     "hero_title_a": "Understand any",
     "hero_title_b": "YouTube video's audience.",
-    "hero_subtitle": "Sentiment, top words, and the emojis your audience leans on, in seconds. Free up to 5,000 comments per month with a free account, no credit card required.",
+    "hero_subtitle": "Sentiment, top words, and the emojis your audience leans on, in seconds. Try 1,000 comments instantly, no signup. Sign in for 5,000.",
     "cta_analyze": "Analyze a video",
-    "cta_pricing": "See pricing"
+    "cta_pricing": "See pricing",
+    "sample_label": "Free without sign-in. 1,000 comments per video. Sign in for 5,000/month."
   },
   "dashboard": {
     "title": "Dashboard",

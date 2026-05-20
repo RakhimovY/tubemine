@@ -38,6 +38,7 @@ export default async function HomePage({
   const { locale } = await params
   setRequestLocale(locale)
   const { tier, isAnonymous } = await resolveHomeAuthState()
+  const t = await getTranslations("landing")
   return (
     <div className="flex flex-1 flex-col">
       {isAnonymous && <Hero />}
@@ -48,6 +49,11 @@ export default async function HomePage({
             : "relative z-10 flex flex-1 flex-col items-center pt-24 sm:pt-28"
         }
       >
+        {isAnonymous ? (
+          <p className="mb-4 text-center text-xs text-muted-foreground">
+            {t("sample_label")}
+          </p>
+        ) : null}
         <TubeMine tier={tier} />
       </main>
       <Footer />

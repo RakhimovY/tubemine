@@ -358,6 +358,16 @@ export function TubeMine({ tier: initialTier }: { tier: ExtractTier }) {
                 disabled={previewLoading || extractLoading}
                 autoComplete="off"
                 spellCheck={false}
+                onFocus={(e) => {
+                  // iOS Safari keyboard occludes the Analyze button on 375px viewports.
+                  // Scroll the input to center so the button stays visible above the keyboard.
+                  requestAnimationFrame(() => {
+                    e.target.scrollIntoView({
+                      block: "center",
+                      behavior: "smooth",
+                    })
+                  })
+                }}
               />
             </div>
             <Button
