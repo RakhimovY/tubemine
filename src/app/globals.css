@@ -412,6 +412,7 @@ html {
 @media (min-width: 768px) { .tm-design .nav-links { display: inline-flex; } }
 .tm-design .nav-link { padding: 8px 12px; color: var(--color-text-secondary); font-size: var(--font-size-sm); border-radius: var(--radius-xs); transition: color var(--motion-duration-fast) var(--motion-ease), background var(--motion-duration-fast) var(--motion-ease); }
 .tm-design .nav-link:hover { color: var(--color-text-primary); background: rgba(245,245,247,0.04); }
+.tm-design .nav-link.is-active { color: var(--color-text-primary); background: rgba(245,245,247,0.06); }
 .tm-design .nav-link:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-border-focus); }
 .tm-design .nav-actions { display: inline-flex; align-items: center; gap: var(--space-3); }
 .tm-design .nav-ghost-icon { width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--radius-xs); color: var(--color-text-secondary); transition: color var(--motion-duration-fast) var(--motion-ease), background var(--motion-duration-fast) var(--motion-ease); }
@@ -847,6 +848,7 @@ html {
   transition: color var(--motion-duration-fast) var(--motion-ease), background-color var(--motion-duration-fast) var(--motion-ease);
 }
 .tm-design .mobile-drawer-nav a:hover { color: var(--color-text-primary); background: rgba(245,245,247,0.04); }
+.tm-design .mobile-drawer-nav a.is-active { color: var(--color-text-primary); background: rgba(245,245,247,0.08); }
 
 .tm-design .mobile-drawer-meta {
   padding: var(--space-5) 0;

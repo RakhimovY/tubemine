@@ -76,6 +76,13 @@ export function SiteHeaderClient({
   }, [])
 
   const closeDrawer = useCallback(() => setDrawerOpen(false), [])
+  const pathname = usePathname()
+  const isActive = (href: string) => pathname === href
+  const linkClass = (href: string) =>
+    isActive(href) ? "nav-link is-active" : "nav-link"
+  const linkAria = (href: string): "page" | undefined =>
+    isActive(href) ? "page" : undefined
+  const drawerLinkClass = (href: string) => (isActive(href) ? "is-active" : undefined)
 
   return (
     <>
@@ -93,13 +100,25 @@ export function SiteHeaderClient({
             <Link href="/#features" className="nav-link">
               {labels.features}
             </Link>
-            <Link href="/pricing" className="nav-link">
+            <Link
+              href="/pricing"
+              className={linkClass("/pricing")}
+              aria-current={linkAria("/pricing")}
+            >
               {labels.pricing}
             </Link>
-            <Link href="/docs" className="nav-link">
+            <Link
+              href="/docs"
+              className={linkClass("/docs")}
+              aria-current={linkAria("/docs")}
+            >
               {labels.docs}
             </Link>
-            <Link href="/changelog" className="nav-link">
+            <Link
+              href="/changelog"
+              className={linkClass("/changelog")}
+              aria-current={linkAria("/changelog")}
+            >
               {labels.changelog}
             </Link>
           </div>
@@ -220,13 +239,28 @@ export function SiteHeaderClient({
           <Link href="/#features" onClick={closeDrawer}>
             {labels.features}
           </Link>
-          <Link href="/pricing" onClick={closeDrawer}>
+          <Link
+            href="/pricing"
+            className={drawerLinkClass("/pricing")}
+            aria-current={linkAria("/pricing")}
+            onClick={closeDrawer}
+          >
             {labels.pricing}
           </Link>
-          <Link href="/docs" onClick={closeDrawer}>
+          <Link
+            href="/docs"
+            className={drawerLinkClass("/docs")}
+            aria-current={linkAria("/docs")}
+            onClick={closeDrawer}
+          >
             {labels.docs}
           </Link>
-          <Link href="/changelog" onClick={closeDrawer}>
+          <Link
+            href="/changelog"
+            className={drawerLinkClass("/changelog")}
+            aria-current={linkAria("/changelog")}
+            onClick={closeDrawer}
+          >
             {labels.changelog}
           </Link>
         </nav>
