@@ -531,7 +531,6 @@
     "polarized": "Polarized audience",
     "mostly_neutral": "Mostly neutral"
   },
-  "legal_disclaimer_ru": "",
   "legal_disclaimer_ru_changelog": "",
   "footer": {
     "product": "Product",
@@ -677,6 +676,82 @@
         "p1_prefix": "If we change this policy in a way that affects what we collect or what we do with it, we will email every existing user at least",
         "p1_strong": "30 days before",
         "p1_tail": "the change applies. Non-material edits (typo fixes, link updates) are not announced but the \"Last updated\" date at the top of this page will change."
+      },
+      "contact": {
+        "toc_label": "Contact",
+        "title": "Contact",
+        "p1_prefix": "Questions, requests, or anything that does not fit a bug report:",
+        "p1_tail": "One human reads every message."
+      }
+    }
+  },
+  "terms": {
+    "meta": {
+      "title": "Terms of service · TubeMine",
+      "description": "What you agree to by using TubeMine."
+    },
+    "hero": {
+      "badge": "Terms",
+      "title": "Terms of service.",
+      "sub": "What you agree to by using TubeMine.",
+      "updated_label": "Last updated"
+    },
+    "toc": {
+      "aria": "Sections",
+      "heading": "On this page"
+    },
+    "sections": {
+      "asis": {
+        "toc_label": "Provided as-is",
+        "title": "Provided as-is",
+        "p1_prefix": "TubeMine is provided",
+        "p1_strong": "as-is",
+        "p1_tail": ", without warranty of any kind, express or implied. We work hard to keep the service running, but we cannot guarantee 100 percent uptime, error-free analysis, or that any specific feature will keep working forever.",
+        "p2": "Use TubeMine to inform decisions, not to make irreversible ones. Sentiment models can be wrong. Comment counts can lag behind YouTube. Always sanity check before you publish a number."
+      },
+      "youtube": {
+        "toc_label": "YouTube data",
+        "title": "YouTube data",
+        "p1_prefix": "TubeMine uses the YouTube Data API v3 under",
+        "p1_link": "Google's YouTube API Services Terms of Service",
+        "p1_tail": ". By using TubeMine you are also bound by those terms with respect to YouTube data you see through the product.",
+        "p2": "We access only public comment data via the official API. No unauthorized fetching, no private endpoints, no owner-only data."
+      },
+      "use": {
+        "toc_label": "Acceptable use",
+        "title": "Acceptable use",
+        "p1": "A few non-negotiable rules. They exist to keep the service usable for everyone on a shared API quota.",
+        "b1_strong": "No abuse of the shared API key.",
+        "b1_text": "Do not script TubeMine to burn through quota for other users. Rate limits are enforced.",
+        "b2_strong": "No automated harvesting behind our API.",
+        "b2_text": "The product is for humans analyzing videos. Mass programmatic pipelines are not what this is for.",
+        "b3_strong": "No reselling raw data.",
+        "b3_text": "You may use analysis results in your own reports, decks, and content. You may not repackage the underlying comment data and sell it.",
+        "b4_strong": "Comments are public data.",
+        "b4_text": "Your downstream use of insights from TubeMine, including any decisions based on them, is your responsibility."
+      },
+      "suspension": {
+        "toc_label": "Account suspension",
+        "title": "Account suspension",
+        "p1": "We can suspend accounts that abuse the service in any of the ways listed above, or that put the platform's stability or quota at risk. Suspension is not our first move.",
+        "p2_strong": "We will email you before suspending",
+        "p2_tail": ", explain what we observed, and give you a reasonable window to respond. Egregious cases (active exploitation, repeated quota exhaustion after a warning) may skip the warning."
+      },
+      "pricing": {
+        "toc_label": "Pricing changes",
+        "title": "Pricing changes",
+        "p1_prefix": "If we change pricing or what is included at each tier, existing Pro subscribers get",
+        "p1_strong": "at least 30 days notice by email",
+        "p1_tail": "before the change applies to their billing. You can cancel any time in that window through the customer portal and pay the old rate for any remaining cycle."
+      },
+      "law": {
+        "toc_label": "Governing law",
+        "title": "Governing law",
+        "p1_prefix": "These terms are governed by the laws of the",
+        "p1_strong": "Republic of Kazakhstan",
+        "p1_mid": ". Any disputes that cannot be resolved by emailing",
+        "p1_tail": "first will be brought before the courts of Almaty.",
+        "p2": "If a clause in these terms is found unenforceable in your jurisdiction, only that clause falls away. The rest still applies."
       },
       "contact": {
         "toc_label": "Contact",
