@@ -6,6 +6,7 @@ import { setRequestLocale } from "next-intl/server"
 import { notFound } from "next/navigation"
 import { Toaster } from "@/components/ui/sonner"
 import { SiteHeader } from "@/components/site-header"
+import { SiteHeaderGate } from "@/components/site-header-gate"
 import { routing } from "@/i18n/routing"
 import "../globals.css"
 
@@ -118,7 +119,9 @@ export default async function LocaleLayout({
           }}
         />
         <NextIntlClientProvider>
-          <SiteHeader />
+          <SiteHeaderGate>
+            <SiteHeader />
+          </SiteHeaderGate>
           {children}
           <Toaster richColors position="top-center" />
         </NextIntlClientProvider>

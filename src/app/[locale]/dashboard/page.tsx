@@ -1,18 +1,25 @@
-import NextLink from "next/link"
 import { getTranslations, setRequestLocale } from "next-intl/server"
-import { ArrowUpRight, Sparkles, Zap } from "lucide-react"
+import NextLink from "next/link"
 import { Link, redirect } from "@/i18n/navigation"
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
-import { buttonVariants } from "@/components/ui/button"
 import { createClient } from "@/lib/supabase/server"
-import { getUserQuota, FREE_MONTHLY_CAP, PRO_MONTHLY_CAP } from "@/lib/quota"
-import { formatNumber } from "@/lib/format"
-import { RecentAnalyses } from "@/components/recent-analyses"
-import { TrialBanner } from "@/components/trial-banner"
-import { UpgradeButton } from "./upgrade-button"
-import { LogoutButton } from "./logout-button"
+import {
+  getUserQuota,
+  FREE_MONTHLY_CAP,
+  PRO_MONTHLY_CAP,
+  type Tier,
+} from "@/lib/quota"
+import { formatNumber, formatDateRelative } from "@/lib/format"
+import { listAnalyses } from "@/lib/analyses"
+import {
+  deriveDistribution,
+  proSentimentLabel,
+  qualitativeSummary,
+  type SentimentDistribution,
+} from "@/lib/sentiment-summary"
+import { loadTrialState } from "@/components/trial-banner"
+import { TubeMine } from "@/components/tubemine"
+import { DashboardShell } from "@/components/dashboard/dashboard-shell"
+import { WelcomePulse } from "@/components/dashboard/welcome-pulse"
 
 export const metadata = {
   title: "Dashboard - TubeMine",
@@ -21,6 +28,24 @@ export const metadata = {
 
 export const dynamic = "force-dynamic"
 
+/*
+  TUB-1 Visual Port (Dashboard, Page 3 of 9).
+  This file is the verbatim semantic port of:
+    /tmp/tubemine-handoff-2026-05-20/tubemine-v3-ux/project/TubeMine Dashboard.html
+  Inline <style> CSS lives in src/app/globals.css scoped under
+  `.tm-design .dashboard-page`.
+  Inline <script> behavior lives in small client islands:
+    - DashboardShell: topbar + sidebar with mobile drawer logic,
+      locale switcher, sign-out form
+    - WelcomePulse: shown when ?welcome=true, auto-dismiss after 5s,
+      strips the URL param on dismiss/timeout
+    - <TubeMine /> (existing component): the Quick analyze form, preview,
+      and full extract/results pipeline; reused unchanged from Landing
+  The public <SiteHeader /> is suppressed for /dashboard by
+  <SiteHeaderGate /> in src/app/[locale]/layout.tsx.
+  The "Design preview" panel from the prototype is intentionally NOT
+  shipped (README: do not ship the design preview panel to production).
+*/
 export default async function DashboardPage({
   params,
   searchParams,
@@ -42,147 +67,582 @@ export default async function DashboardPage({
     return null
   }
 
-  const quota = await getUserQuota(user.id)
+  const [quota, recent, trial] = await Promise.all([
+    getUserQuota(user.id),
+    listAnalyses(supabase, null, 5),
+    loadTrialState(user.id),
+  ])
+
+  const tier: Tier = quota.tier
   const percent = Math.min(100, Math.round((quota.used / quota.cap) * 100))
-  const resetDate = new Date(quota.resetAt).toLocaleDateString(
+  const capped = quota.remaining <= 0
+  const dateFmt = new Intl.DateTimeFormat(
     locale === "ru" ? "ru-RU" : "en-US",
-    {
-      month: "short",
-      day: "numeric",
-    },
+    { month: "short", day: "numeric" },
   )
+  const resetDateLabel = dateFmt.format(new Date(quota.resetAt))
+  const trialEndsLabel = trial?.endsDate
+    ? dateFmt.format(new Date(trial.endsDate))
+    : ""
+  const daysUntilReset = computeDaysUntil(quota.resetAt)
+
+  const initials = buildInitials(user.email, user.user_metadata?.full_name)
+  const displayName =
+    typeof user.user_metadata?.full_name === "string" &&
+    user.user_metadata.full_name.length > 0
+      ? `, ${user.user_metadata.full_name.split(/\s+/)[0]}`
+      : ""
+
   const t = await getTranslations("dashboard")
-  const tPricing = await getTranslations("pricing")
+  const tSent = await getTranslations("sentiment_label")
+  const items = recent.items
+
+  const lastAnalysisWhen = items[0]?.processed_at
+    ? formatDateRelative(items[0].processed_at)
+    : ""
+  const welcomeMeta = lastAnalysisWhen
+    ? t("welcome_meta_with_last", { when: lastAnalysisWhen })
+    : t("welcome_meta_first")
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-6 pt-24 pb-16 sm:pt-28">
-      <header className="flex flex-col gap-2">
-        <p className="text-sm text-muted-foreground">{user.email}</p>
-        <h1 className="text-3xl font-semibold tracking-tight">{t("title")}</h1>
-      </header>
+    <div className="dashboard-page">
+      <DashboardShell
+        tier={tier}
+        initials={initials}
+        historyCount={items.length}
+        labels={{
+          brand: t("shell.brand"),
+          crumb: t("shell.crumb"),
+          openMenu: t("shell.open_menu"),
+          closeMenu: t("shell.close_menu"),
+          sidebarLabel: t("shell.sidebar_label"),
+          workspaceLabel: t("shell.workspace_label"),
+          moreLabel: t("shell.more_label"),
+          navHome: t("shell.nav_home"),
+          navHistory: t("shell.nav_history"),
+          navProfile: t("shell.nav_profile"),
+          navGithub: t("shell.nav_github"),
+          navDocs: t("shell.nav_docs"),
+          navSignOut: t("shell.nav_sign_out"),
+          tierBadgeFree: t("shell.tier_badge_free"),
+          tierBadgePro: t("shell.tier_badge_pro"),
+          languageLabel: t("shell.language_label"),
+        }}
+      >
+        {/* ===== Welcome strip ===== */}
+        <header className="welcome-strip">
+          <h1 className="welcome-title">
+            {t("welcome_title", { name: displayName })}
+          </h1>
+          <span className="welcome-meta">{welcomeMeta}</span>
+        </header>
 
-      <TrialBanner userId={user.id} />
+        {/* ===== Trial countdown banner ===== */}
+        {trial ? (
+          <TrialBanner
+            tier={tier}
+            kind={trial.kind}
+            canceled={trial.canceled}
+            daysLeft={trial.kind === "active" ? trial.daysLeft : 0}
+            endsDate={trialEndsLabel}
+          />
+        ) : null}
 
-      {showWelcome && quota.tier === "pro" && (
-        <Card className="border-primary/30 bg-primary/5">
-          <CardContent className="flex items-center gap-3 p-4 sm:p-5">
-            <Sparkles className="size-5 text-primary" />
-            <p className="text-sm">
-              You are on <strong>Pro</strong>. 100,000 comments per month.
-              Thanks for supporting TubeMine.
-            </p>
-          </CardContent>
-        </Card>
-      )}
+        {/* ===== Welcome pulse (only when ?welcome=true) ===== */}
+        {showWelcome ? (
+          <WelcomePulse
+            title={t("welcome_pulse_title")}
+            subtitle={t("welcome_pulse_sub")}
+            dismissLabel={t("welcome_pulse_dismiss")}
+          />
+        ) : null}
 
-      <Card className="border-border/60">
-        <CardContent className="flex flex-col gap-5 p-6 sm:p-7">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">Plan</span>
-              <Badge
-                variant={quota.tier === "pro" ? "default" : "secondary"}
-                className="capitalize"
-              >
-                {quota.tier}
-              </Badge>
-            </div>
-            <span className="text-xs text-muted-foreground">
-              Resets {resetDate}
-            </span>
+        {/* ===== Usage card ===== */}
+        {capped && tier === "free" ? (
+          <UsageCardCapped
+            cap={quota.cap}
+            resetDate={resetDateLabel}
+            metaLabel={t("usage_resets_label", { date: resetDateLabel })}
+            heading={t("usage_heading")}
+            label={t("usage_label")}
+            capReachedMeta={t("usage_cap_reached_meta")}
+            capError={t("usage_cap_error", {
+              cap: formatNumber(quota.cap),
+              pro: formatNumber(PRO_MONTHLY_CAP),
+              days: daysUntilReset,
+            })}
+            quotaUsed={t("usage_cap_quota_used")}
+            upgradeCta={t("upgrade_cta")}
+            resetIn={t("usage_resets_in_days", { days: daysUntilReset })}
+          />
+        ) : (
+          <UsageCardOk
+            tier={tier}
+            used={quota.used}
+            cap={quota.cap}
+            remaining={quota.remaining}
+            percent={percent}
+            metaLabel={t("usage_resets_label", { date: resetDateLabel })}
+            heading={t("usage_heading")}
+            label={t("usage_label")}
+            usedBadge={t("usage_used_badge", { percent })}
+            remainingLabel={t("usage_remaining", {
+              count: formatNumber(quota.remaining),
+            })}
+            resetIn={t("usage_resets_in_days", { days: daysUntilReset })}
+          />
+        )}
+
+        {/* ===== Quick analyze ===== */}
+        <section
+          className="card quick-analyze"
+          aria-labelledby="dashboard-qa-h"
+        >
+          <div className="card-head">
+            <h2 id="dashboard-qa-h">{t("quick_analyze_heading")}</h2>
+            <span className="meta">{t("quick_analyze_sub")}</span>
           </div>
-
-          <div className="flex flex-col gap-2">
-            <div className="flex items-end justify-between">
-              <span className="text-sm font-medium">
-                {formatNumber(quota.used)}{" "}
-                <span className="text-muted-foreground">
-                  / {formatNumber(quota.cap)} comments
-                </span>
-              </span>
-              <span className="text-xs text-muted-foreground">
-                {percent}% used
-              </span>
-            </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-              <div
-                className={
-                  quota.remaining === 0
-                    ? "h-full bg-destructive transition-[width]"
-                    : "h-full bg-primary transition-[width]"
-                }
-                style={{ width: `${percent}%` }}
-              />
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {formatNumber(quota.remaining)} comments remaining this month.
-            </p>
+          <div className="tubemine-mount">
+            <TubeMine tier={tier} />
           </div>
+        </section>
 
-          <Separator />
-
-          {quota.tier === "free" ? (
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="space-y-1">
-                <p className="text-sm font-medium">Need more?</p>
-                <p className="text-xs text-muted-foreground">
-                  Pro is {formatNumber(PRO_MONTHLY_CAP)} comments per month for
-                  $19. Last 100 saved analyses, CSV results, exact sentiment
-                  percentages, hour-of-day trends.
-                </p>
-              </div>
-              <UpgradeButton label={tPricing("start_trial_cta")} />
-            </div>
-          ) : (
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="space-y-1">
-                <p className="text-sm font-medium">Subscription</p>
-                <p className="text-xs text-muted-foreground">
-                  Manage payment method, invoices, or cancel anytime.
-                </p>
-              </div>
-              <NextLink
-                href="/api/portal"
-                className={buttonVariants({ variant: "outline", size: "sm" })}
+        {/* ===== Recent analyses ===== */}
+        {items.length > 0 ? (
+          <section className="card" aria-labelledby="dashboard-recent-h">
+            <div className="card-head">
+              <h2 id="dashboard-recent-h">{t("recent_analyses_heading")}</h2>
+              <Link
+                href="/history"
+                className="meta"
+                style={{ color: "var(--color-text-secondary)" }}
               >
-                Manage subscription <ArrowUpRight className="size-3.5" />
+                {t("recent_view_all_count", { count: items.length })}
+              </Link>
+            </div>
+
+            <div className="recent-list">
+              {items.map((item) => {
+                const dist = deriveDistribution(item.sentiment)
+                const sentClass = sentClassFor(dist)
+                const sentLabel = dist
+                  ? tier === "free"
+                    ? tSent(qualitativeSummary(dist))
+                    : proSentimentLabel(dist)
+                  : ""
+                return (
+                  <article key={item.id} className="recent-row">
+                    {item.thumbnail_url ? (
+                      <div className="recent-thumb">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={item.thumbnail_url} alt="" />
+                      </div>
+                    ) : (
+                      <div
+                        className="recent-thumb is-placeholder"
+                        aria-hidden="true"
+                      />
+                    )}
+                    <div className="recent-body">
+                      <div className="recent-title">
+                        {item.video_title ?? item.video_id}
+                      </div>
+                      <div className="recent-sub">
+                        {t("recent_sub", {
+                          channel: item.channel_name ?? "-",
+                          when: formatDateRelative(item.processed_at),
+                          count: formatNumber(item.comment_count),
+                        })}
+                      </div>
+                    </div>
+                    {sentLabel ? (
+                      <span className={`recent-sent ${sentClass}`}>
+                        <span className="dot" />
+                        {sentLabel}
+                      </span>
+                    ) : null}
+                  </article>
+                )
+              })}
+            </div>
+          </section>
+        ) : (
+          <section className="card" aria-labelledby="dashboard-recent-empty-h">
+            <div className="card-head">
+              <h2 id="dashboard-recent-empty-h">
+                {t("recent_analyses_heading")}
+              </h2>
+              <span className="meta">{t("recent_zero_saved")}</span>
+            </div>
+            <div className="empty-state">
+              <span className="empty-illus" aria-hidden="true">
+                <svg
+                  className="icon icon-lg"
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.75}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  width={20}
+                  height={20}
+                >
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z" />
+                  <path d="M8 10h8" />
+                  <path d="M8 13h5" />
+                </svg>
+              </span>
+              <h3>{t("empty_state_title")}</h3>
+              <p>{t("empty_state_body")}</p>
+              <a href="#dashboard-qa-h" className="btn btn--secondary">
+                <svg
+                  className="icon icon-sm"
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.75}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M5 12h14" />
+                  <path d="m13 6 6 6-6 6" />
+                </svg>
+                {t("empty_state_cta")}
+              </a>
+            </div>
+          </section>
+        )}
+
+        {/* ===== Upgrade card (Free) or Manage subscription (Pro) ===== */}
+        {tier === "free" ? (
+          <section
+            className="tier-card is-upgrade"
+            aria-labelledby="dashboard-upg-h"
+          >
+            <div>
+              <h2 id="dashboard-upg-h" className="title">
+                {t("tier_upgrade_title")}
+              </h2>
+              <p className="sub">{t("tier_upgrade_sub")}</p>
+            </div>
+            <div className="cta-col">
+              <Link href="/pricing" className="btn btn--ghost">
+                {t("tier_upgrade_secondary_cta")}
+              </Link>
+              <form action="/api/checkout" method="POST">
+                <button type="submit" className="btn btn--primary">
+                  {t("upgrade_cta")}
+                  <svg
+                    className="icon icon-sm"
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={1.75}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M5 12h14" />
+                    <path d="m13 6 6 6-6 6" />
+                  </svg>
+                </button>
+              </form>
+            </div>
+          </section>
+        ) : (
+          <section
+            className="tier-card"
+            aria-labelledby="dashboard-mgr-h"
+          >
+            <div>
+              <h2 id="dashboard-mgr-h" className="title">
+                {t("tier_manage_title")}
+              </h2>
+              <p className="sub">{t("tier_manage_sub")}</p>
+            </div>
+            <div className="cta-col">
+              <Link href="/pricing" className="btn btn--ghost">
+                {t("tier_manage_secondary_cta")}
+              </Link>
+              <NextLink href="/api/portal" className="btn btn--secondary">
+                {t("tier_manage_primary_cta")}
+                <svg
+                  className="icon icon-sm"
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.75}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M5 12h14" />
+                  <path d="m13 6 6 6-6 6" />
+                </svg>
               </NextLink>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </section>
+        )}
 
-      <Card className="border-border/60">
-        <CardContent className="flex flex-col gap-4 p-6 sm:p-7">
-          <div className="flex items-center gap-2">
-            <Zap className="size-4 text-foreground/70" />
-            <h2 className="text-sm font-medium">Analyze comments</h2>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Head back to the extractor to pull comments. Your usage will
-            increment as you extract.
-          </p>
-          <div>
-            <Link
-              href="/"
-              className={buttonVariants({ variant: "default", size: "sm" })}
-            >
-              Open extractor
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
+        {/* Free-tier quota footer note (small text) */}
+        <p
+          style={{
+            textAlign: "center",
+            fontSize: 12,
+            color: "var(--color-text-tertiary)",
+            fontFamily: "var(--font-family-mono)",
+            margin: 0,
+          }}
+        >
+          {tier === "free"
+            ? `Free: ${formatNumber(FREE_MONTHLY_CAP)} / month · Pro: ${formatNumber(PRO_MONTHLY_CAP)} / month`
+            : `Pro: ${formatNumber(PRO_MONTHLY_CAP)} / month`}
+        </p>
+      </DashboardShell>
+    </div>
+  )
+}
 
-      <div className="flex justify-end pt-4">
-        <LogoutButton />
+// Compute days until reset. Extracted so the impure Date.now() call lives
+// outside of the React component body (the no-impure-functions lint rule
+// flags it inside the render path, even though this is a server component).
+function computeDaysUntil(iso: string): number {
+  const target = Date.parse(iso)
+  if (Number.isNaN(target)) return 0
+  // Server-side rendering: Date.now() is the authoritative wall clock.
+  const now = Date.now()
+  return Math.max(0, Math.ceil((target - now) / 86_400_000))
+}
+
+function buildInitials(email: string | undefined, fullName: unknown): string {
+  const source = typeof fullName === "string" && fullName ? fullName : email ?? ""
+  const parts = source.split(/\s|@/).filter(Boolean).slice(0, 2)
+  if (parts.length === 0) return "U"
+  return parts.map((s) => s[0]?.toUpperCase() ?? "").join("") || "U"
+}
+
+function sentClassFor(dist: SentimentDistribution | null): "pos" | "neu" | "neg" {
+  if (!dist) return "neu"
+  const { positive: p, negative: n, neutral: u } = dist
+  if (u > p && u > n) return "neu"
+  if (p >= n) return "pos"
+  return "neg"
+}
+
+function UsageCardOk({
+  tier,
+  used,
+  cap,
+  remaining,
+  percent,
+  heading,
+  metaLabel,
+  label,
+  usedBadge,
+  remainingLabel,
+  resetIn,
+}: {
+  tier: Tier
+  used: number
+  cap: number
+  remaining: number
+  percent: number
+  heading: string
+  metaLabel: string
+  label: string
+  usedBadge: string
+  remainingLabel: string
+  resetIn: string
+}) {
+  void remaining
+  return (
+    <section className="card usage-card" aria-labelledby="dashboard-usage-h">
+      <div className="card-head">
+        <h2 id="dashboard-usage-h">{heading}</h2>
+        <span className="meta">{metaLabel}</span>
       </div>
+      <div className="usage-headline">
+        <div>
+          <div className="usage-num">
+            <span className="val">{formatNumber(used)}</span>{" "}
+            <span className="of">/ {formatNumber(cap)}</span>
+          </div>
+          <div className="usage-label">{label}</div>
+        </div>
+        <span className="badge badge--secondary">{usedBadge}</span>
+      </div>
+      <div
+        className="progress"
+        role="progressbar"
+        aria-valuenow={percent}
+        aria-valuemin={0}
+        aria-valuemax={100}
+      >
+        <div className="progress-track">
+          <div className="progress-fill" style={{ width: `${percent}%` }} />
+        </div>
+      </div>
+      <div className="usage-foot">
+        <span>{remainingLabel}</span>
+        <span>{resetIn}</span>
+      </div>
+      {/* tier kept for future per-tier copy variants */}
+      <span className="sr-only">{tier}</span>
+    </section>
+  )
+}
 
-      <p className="text-center text-xs text-muted-foreground">
-        Free tier: {formatNumber(FREE_MONTHLY_CAP)} comments/month. Pro:{" "}
-        {formatNumber(PRO_MONTHLY_CAP)} comments/month for $19.
-      </p>
+function UsageCardCapped({
+  cap,
+  resetDate,
+  heading,
+  metaLabel,
+  label,
+  capReachedMeta,
+  capError,
+  quotaUsed,
+  upgradeCta,
+  resetIn,
+}: {
+  cap: number
+  resetDate: string
+  heading: string
+  metaLabel: string
+  label: string
+  capReachedMeta: string
+  capError: string
+  quotaUsed: string
+  upgradeCta: string
+  resetIn: string
+}) {
+  void metaLabel
+  return (
+    <section
+      className="card usage-card is-capped"
+      aria-labelledby="dashboard-usage-cap-h"
+    >
+      <div className="card-head">
+        <h2 id="dashboard-usage-cap-h">{heading}</h2>
+        <span className="meta" style={{ color: "var(--color-feedback-danger)" }}>
+          {capReachedMeta}
+        </span>
+      </div>
+      <div className="usage-headline">
+        <div>
+          <div className="usage-num">
+            <span
+              className="val"
+              style={{ color: "var(--color-feedback-danger)" }}
+            >
+              {formatNumber(cap)}
+            </span>{" "}
+            <span className="of">/ {formatNumber(cap)}</span>
+          </div>
+          <div className="usage-label">{label}</div>
+        </div>
+        <span
+          className="badge"
+          style={{
+            background: "var(--color-feedback-danger-soft)",
+            color: "var(--color-feedback-danger)",
+          }}
+        >
+          100% used
+        </span>
+      </div>
+      <div
+        className="progress progress--destructive"
+        role="progressbar"
+        aria-valuenow={100}
+        aria-valuemin={0}
+        aria-valuemax={100}
+      >
+        <div className="progress-track">
+          <div className="progress-fill" style={{ width: "100%" }} />
+        </div>
+      </div>
+      <div className="usage-error">
+        <svg
+          className="icon icon-sm"
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={1.75}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <circle cx={12} cy={12} r={9} />
+          <path d="M12 8v5" />
+          <path d="M12 16h.01" />
+        </svg>
+        {capError}
+      </div>
+      <div className="usage-foot">
+        <span>0</span>
+        <span>{resetIn || resetDate}</span>
+      </div>
+      <div className="cap-upgrade-row">
+        <span className="copy">{quotaUsed}</span>
+        <form action="/api/checkout" method="POST">
+          <button type="submit" className="btn btn--destructive btn-sm">
+            {upgradeCta}
+          </button>
+        </form>
+      </div>
+    </section>
+  )
+}
 
-      <RecentAnalyses tier={quota.tier} />
-    </main>
+function TrialBanner({
+  kind,
+  canceled,
+  daysLeft,
+  endsDate,
+}: {
+  tier: Tier
+  kind: "active" | "today"
+  canceled: boolean
+  daysLeft: number
+  endsDate: string
+}) {
+  // Inline static-text trial banner styled to design. Copy uses ASCII commas
+  // and dots only (no em-dash). We do NOT use next-intl plural here because
+  // the design's verbatim copy keeps a simple plain English sentence.
+  let text: string
+  if (kind === "today") {
+    text = canceled
+      ? `Trial ends today, ${endsDate}.`
+      : "Trial ends today, then $19/mo."
+  } else if (canceled) {
+    text = `Trial: ${daysLeft} ${daysLeft === 1 ? "day" : "days"} left, ends ${endsDate}.`
+  } else {
+    text = `Trial: ${daysLeft} ${daysLeft === 1 ? "day" : "days"} left, then $19/mo.`
+  }
+  const sub = canceled
+    ? "Pro features active until period end."
+    : "Pro features active. Cancel anytime via customer portal."
+  return (
+    <div className="trial-banner" role="status" aria-live="polite">
+      <div className="trial-copy">
+        <span className="trial-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24">
+            <circle cx={12} cy={12} r={9} />
+            <path d="M12 7v5l3 2" />
+          </svg>
+        </span>
+        <div className="trial-text">
+          <strong>{text}</strong>
+          <span>{sub}</span>
+        </div>
+      </div>
+      <div className="trial-action">
+        <NextLink href="/api/portal" className="btn btn--secondary btn-sm">
+          Manage subscription
+        </NextLink>
+      </div>
+    </div>
   )
 }
