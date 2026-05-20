@@ -419,31 +419,69 @@
   "profile": {
     "title": "Profile",
     "section_account": "Account",
+    "section_account_sub": "Your sign-in details, sourced from Google.",
     "section_plan": "Plan",
+    "section_plan_sub": "Your monthly cap and how much of it you have used so far.",
+    "section_yt": "YouTube connection",
+    "section_yt_sub": "How TubeMine calls the YouTube API on your behalf.",
     "section_billing": "Billing",
+    "section_billing_sub": "Handled by Polar. Manage payment, invoices, and cancellation in the customer portal.",
     "section_danger": "Danger zone",
+    "section_danger_sub": "Irreversible actions. Read carefully.",
     "account": {
+      "field_profile": "Profile",
+      "field_email": "Email",
+      "field_joined": "Joined",
+      "field_account_id": "Account ID",
+      "via_google": "via Google OAuth",
       "joined": "Joined",
       "account_id": "Account ID",
-      "copy": "Copy",
-      "copied": "Copied",
-      "delete_note": "Email hello@tubemine.tech to delete your account"
+      "copy": "copy",
+      "copied": "copied",
+      "copy_aria": "Copy account ID",
+      "email_readonly": "read-only",
+      "delete_note": "Email hello@tubemine.tech to delete your account",
+      "ago_relative": "{days, plural, =0 {today} =1 {1 day ago} other {# days ago}}"
     },
     "plan": {
       "tier_free": "Free",
       "tier_pro": "Pro",
+      "free_cap": "{cap, number} comments per month",
+      "pro_cap": "{cap, number} comments per month",
       "usage": "{used, number} of {cap, number} comments this month",
-      "renews": "Renews {date}",
-      "ends": "Subscription ends {date}"
+      "used_line": "{used, number} / {cap, number} used",
+      "used_percent": "{percent}% used",
+      "open_dashboard": "Open dashboard",
+      "see_plans": "See plans",
+      "upgrade": "Upgrade to Pro",
+      "renews": "renews {date}",
+      "ends": "subscription ends {date}",
+      "resets": "resets {date}"
+    },
+    "yt": {
+      "coming_title": "YouTube connection, coming soon",
+      "coming_sub": "Beta access opens after Google verification (estimated Q3 2026). Until then, all analyses use the TubeMine shared quota.",
+      "coming_cta": "Coming soon",
+      "helper": "Once available: personal quota = 10,000 calls per day per account, free from Google. Today: every account is on TubeMine's shared daily quota."
     },
     "billing": {
-      "manage": "Manage subscription"
+      "manage": "Manage subscription",
+      "help": "Update payment, see invoices, or cancel anytime."
     },
     "danger": {
+      "sign_out_title": "Sign out of TubeMine",
+      "sign_out_sub": "Ends this session. You can sign back in any time with Google.",
       "sign_out": "Sign out",
-      "sign_out_busy": "Signing out..."
+      "sign_out_busy": "Signing out...",
+      "delete_title": "Delete your account",
+      "delete_sub_prefix": "To delete your account, email ",
+      "delete_sub_suffix": ". We will purge your data within 7 days.",
+      "delete_email_badge": "email only"
     },
-    "canceled_toast": "Subscription canceled. You keep access until the period ends."
+    "canceled_toast": "Subscription canceled. You keep access until the period ends.",
+    "canceled_toast_title": "Subscription canceled",
+    "canceled_toast_message": "You will keep Pro access until {date}. After that, you move to Free automatically.",
+    "canceled_toast_dismiss": "Dismiss"
   },
   "auth": {
     "sign_in_with_google": "Sign in with Google"

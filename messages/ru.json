@@ -419,31 +419,69 @@
   "profile": {
     "title": "Профиль",
     "section_account": "Аккаунт",
+    "section_account_sub": "Данные входа, полученные от Google.",
     "section_plan": "План",
+    "section_plan_sub": "Ваш месячный лимит и сколько вы уже использовали.",
+    "section_yt": "Подключение YouTube",
+    "section_yt_sub": "Как TubeMine обращается к YouTube API от вашего имени.",
     "section_billing": "Биллинг",
+    "section_billing_sub": "Обрабатывается Polar. Управление оплатой, счетами и отменой в портале клиента.",
     "section_danger": "Опасная зона",
+    "section_danger_sub": "Необратимые действия. Читайте внимательно.",
     "account": {
+      "field_profile": "Профиль",
+      "field_email": "Email",
+      "field_joined": "Зарегистрирован",
+      "field_account_id": "ID аккаунта",
+      "via_google": "через Google OAuth",
       "joined": "Зарегистрирован",
       "account_id": "ID аккаунта",
-      "copy": "Скопировать",
-      "copied": "Скопировано",
-      "delete_note": "Напишите на hello@tubemine.tech чтобы удалить аккаунт"
+      "copy": "копировать",
+      "copied": "скопировано",
+      "copy_aria": "Копировать ID аккаунта",
+      "email_readonly": "только чтение",
+      "delete_note": "Напишите на hello@tubemine.tech чтобы удалить аккаунт",
+      "ago_relative": "{days, plural, =0 {сегодня} one {# день назад} few {# дня назад} many {# дней назад} other {# дней назад}}"
     },
     "plan": {
       "tier_free": "Free",
       "tier_pro": "Pro",
+      "free_cap": "{cap, number} комментариев в месяц",
+      "pro_cap": "{cap, number} комментариев в месяц",
       "usage": "{used, number} из {cap, number} комментариев в этом месяце",
-      "renews": "Продлевается {date}",
-      "ends": "Подписка заканчивается {date}"
+      "used_line": "{used, number} / {cap, number} использовано",
+      "used_percent": "использовано {percent}%",
+      "open_dashboard": "Открыть дашборд",
+      "see_plans": "Посмотреть тарифы",
+      "upgrade": "Перейти на Pro",
+      "renews": "продлевается {date}",
+      "ends": "подписка заканчивается {date}",
+      "resets": "сбрасывается {date}"
+    },
+    "yt": {
+      "coming_title": "Подключение YouTube, скоро",
+      "coming_sub": "Бета откроется после верификации Google (ориентир: Q3 2026). До этого все анализы используют общую квоту TubeMine.",
+      "coming_cta": "Скоро",
+      "helper": "Когда станет доступно: персональная квота = 10 000 вызовов в день на аккаунт, бесплатно от Google. Сейчас: каждый аккаунт работает на общей дневной квоте TubeMine."
     },
     "billing": {
-      "manage": "Управлять подпиской"
+      "manage": "Управлять подпиской",
+      "help": "Обновить оплату, посмотреть счета или отменить в любой момент."
     },
     "danger": {
+      "sign_out_title": "Выйти из TubeMine",
+      "sign_out_sub": "Завершает эту сессию. Вы можете войти заново через Google.",
       "sign_out": "Выйти",
-      "sign_out_busy": "Выход..."
+      "sign_out_busy": "Выход...",
+      "delete_title": "Удалить аккаунт",
+      "delete_sub_prefix": "Чтобы удалить аккаунт, напишите на ",
+      "delete_sub_suffix": ". Мы удалим ваши данные в течение 7 дней.",
+      "delete_email_badge": "только по email"
     },
-    "canceled_toast": "Подписка отменена. Доступ сохраняется до конца периода."
+    "canceled_toast": "Подписка отменена. Доступ сохраняется до конца периода.",
+    "canceled_toast_title": "Подписка отменена",
+    "canceled_toast_message": "Pro-доступ сохранится до {date}. После этого аккаунт автоматически перейдёт на Free.",
+    "canceled_toast_dismiss": "Закрыть"
   },
   "auth": {
     "sign_in_with_google": "Войти через Google"
