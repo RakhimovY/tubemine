@@ -5,6 +5,7 @@ export default defineConfig({
   test: {
     environment: "node",
     globals: false,
+    setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
     // .test.tsx files opt into jsdom via a per-file pragma at the top:
     //   // @vitest-environment jsdom
