@@ -13,7 +13,7 @@
 
 ## TL;DR
 
-Resolve 24 mismatches (M1-M24) between current `~/projects/yt-comments` UI and Claude Design `tubemine-v3-ux`. Phased shipping in 7 atomic commits: Phase 0 (CSS token migration), Phase 1 (critical cleanup, 6 quick wins), Phase 2 (Pricing rebuild from scratch), Phase 3 (Profile rebuild from stub), Phase 4 (Landing polish, Variant D + Sample label), Phase 5 (AppShell + SideNav for signed-in pages), Phase 6 (OAuth Intro + Privacy/Terms + i18n debt + Save CSV rename + skeletons). Autonomous push per phase after 7 self-verification checks pass + Vercel deploy smoke + auto-rollback on 5xx.
+Resolve 24 audit items (M1-M24) between current `~/projects/yt-comments` UI and Claude Design `tubemine-v3-ux`. M9 is folded into M8 per LOCKED decision 1 (Variant A, no after-click state machine since code already renders real anon result inline on first click). Result: 23 unique M-ids resolved across 6 phases + M9 subsumed = 24 audit items fully covered. Phased shipping in 7 atomic commits: Phase 0 (CSS token migration), Phase 1 (critical cleanup, 6 quick wins), Phase 2 (Pricing rebuild from scratch), Phase 3 (Profile rebuild from stub), Phase 4 (Landing polish, Variant D + Sample label), Phase 5 (AppShell + SideNav for signed-in pages), Phase 6 (OAuth Intro + Privacy/Terms + i18n debt + Save CSV rename + skeletons). Autonomous push per phase after 7 self-verification checks pass + Vercel deploy smoke + auto-rollback on 5xx.
 
 ## Scope
 
@@ -52,15 +52,15 @@ Resolve 24 mismatches (M1-M24) between current `~/projects/yt-comments` UI and C
 - Polar SDK for `/api/checkout` + `/api/portal` (already wired, do NOT change webhook).
 - Vercel Analytics only (NO Sentry, NO GA, NO PostHog).
 - TypeScript strict, server components by default, client islands only where needed.
-- next-intl for EN/RU localization (already wired at routing level).
+- next-intl for EN/RU localization (already wired at routing level). Phase 0 also ensures `src/i18n/request.ts` has `onError: () => {}` + `getMessageFallback: ({ key }) => key` to prevent runtime crash on a missing translation key (Edge Case #10 from spec review).
 
 ## LOCKED decisions (no re-litigation, user pre-locked)
 
-1. **Landing architecture: Variant A.** Real extractor inline for anon on landing; NO separate marketing Live Demo block. Add small Sample label above the extractor explaining anon limits. SKIP Phase K after-click state machine (code already does right thing — anon clicks Analyze, gets real anon-tier response).
+1. **Landing architecture: Variant A.** Real extractor inline for anon on landing; NO separate marketing Live Demo block. Add small Sample label above the extractor explaining anon limits. SKIP Phase K after-click state machine (code already does right thing: anon clicks Analyze, gets real anon-tier response).
 2. **CSV button verb: "Save CSV"** everywhere. Per Claude Design brand voice rule (`components.md` line 322). Lucide `<Download>` icon import name is OK; only rendered text counts.
 3. **Anonymous CSV unlock: INCLUDED.** ExportBar branch flip (anon renders Save CSV instead of sign-in gate) + comparison table cell change (anon → CSV). Shipped in Phase 1.
 4. **Phased shipping, NOT big-bang.** Pricing → Profile → Landing → AppShell → OAuth Intro + Privacy/Terms + polish. One atomic commit per landed page minimum. AUTONOMOUS PUSH PER PHASE after 7 checks pass + Vercel deploy smoke.
-5. **No Live Demo block** as separate marketing showcase. Code already does right thing — inline real extractor with Sample label.
+5. **No Live Demo block** as separate marketing showcase. Code already does right thing: inline real extractor with Sample label.
 6. **Domain: tubemine.tech** everywhere in metadata.
 7. **Stay on `main` branch.** No feature branches.
 8. **No new dependencies** without user gate. Autonomous-OK only if package is top-5000 weekly downloads on npm AND license MIT/Apache-2/BSD AND <100KB to client bundle.
@@ -73,7 +73,7 @@ For acceptance: each non-empty cell of this matrix must work as described on the
 
 | Persona | `isSignedIn` | `tier` (`effectiveTier`) | `subscription.status` | `subscriptionCanceled` flag | Acceptance pages |
 |---|---|---|---|---|---|
-| P1 Anonymous | false | "anonymous" (synthetic) | n/a | n/a | `/`, `/pricing`, `/login`, `/privacy`, `/terms` |
+| P1 Anonymous | false | "anonymous" (synthetic) | n/a | n/a | `/`, `/pricing`, `/login`, `/privacy`, `/terms`, `/oauth-intro` (pre-auth view, Phase 6 ship) |
 | P2 Free signed-in | true | "free" | n/a (no row) | false | `/`, `/dashboard`, `/profile`, `/history`, `/pricing` |
 | P3 Trial Pro | true | "pro" | "trialing" | false | `/dashboard` (TrialBanner), `/profile` (Pro Plan + Billing) |
 | P4 Paid Pro | true | "pro" | "active" | false | `/dashboard` (no banner), `/profile`, `/history` (Last 100), `/api/portal` |
@@ -107,8 +107,9 @@ Map token names to Tailwind utility classes via `@theme` block so existing `bg-c
 ### Phase 0: CSS tokens migration (~30-45 min, single commit, BLOCKING)
 
 - Translate `tokens.md` → `src/app/globals.css` via Tailwind v4 `@theme` block
+- Set next-intl runtime guard in `src/i18n/request.ts`: `onError: () => {}` + `getMessageFallback: ({ key }) => key` (prevents runtime crash if Phase 6 adds an EN key but forgets RU; user sees key string instead of 500)
 - Verify existing components still render (dev server smoke `/`, `/dashboard`, `/pricing`)
-- **Commit message:** `feat(tokens): port v3 design system tokens to Tailwind v4 @theme`
+- **Commit message:** `feat(tokens): port v3 design system tokens to Tailwind v4 @theme + next-intl onError guard`
 - **M-ids resolved:** none directly, but enables M1-M24
 - **Tests added:** 0
 - **Components added:** 0
@@ -121,7 +122,7 @@ User-visible improvements shippable independent of full rebuild. 6 fixes batched
 - **M3:** Pricing Pro card → remove "Priority bug fixes" bullet (line 118; leave other 4 for Phase 2 rewrite)
 - **M7:** Domain constant `tubemine.vercel.app` → `tubemine.tech` in `layout.tsx` (lines 28, 101) + grep sitemap/robots/README/`.env.example` for other occurrences
 - **M12:** Dashboard `h2` "Extract comments" → "Analyze comments" (`dashboard/page.tsx` line 158)
-- **M17:** EmojiPanel exact `%` gate by tier — only render `%` span when `tier === "pro"` (anon + free see counts only, `emoji-frequency.tsx` lines 60-62)
+- **M17:** EmojiPanel exact `%` gate by tier: only render `%` span when `tier === "pro"` (anon + free see counts only, `emoji-frequency.tsx` lines 60-62)
 - **M15:** Login redirect param unification → adopt `?next=` (login-form already reads it). Update callers: `pricing/page.tsx`, `sentiment.tsx`, `export-bar.tsx`, `top-words.tsx`, `emoji-frequency.tsx` from `?redirect=` → `?next=`
 
 - **Verify:** tsc + lint + tests pass; anon can save CSV in browser; EmojiPanel hides `%` on free; login redirect lands user on intended page after sign-in
@@ -140,7 +141,7 @@ Implementation:
   - Sentiment direction: "Total count only" / "Qualitative bar" / "Exact % and trend"
   - Sentiment exact %: "No" / "No" / "Yes"
   - Top words shown: "Top 5 + counts" / "Top 15 + counts" / "All ranked + counts"
-  - Top emoji shown: "Top 5 + counts" / "Top 15 + counts" / "All ranked + heatmap"
+  - Top emoji shown: "Top 5 + counts" / "Top 15 + counts" / "All ranked + per-emoji counts"
   - Export formats: "CSV" / "CSV" / "CSV, JSON, Excel (API coming soon)"
   - Saved analyses history: "Single session" / "Last 10" / "Last 100"
   - Monthly comments: "1,000 per video" / "5,000 / month" / "100,000 / month"
@@ -154,7 +155,7 @@ Implementation:
 - **M3: Pro card rewrite to 5 bullets** per Phase H spec + Cancel anytime footer:
   1. 100,000 comments per month
   2. Exact sentiment % + trends
-  3. All words and emoji ranked + heatmap
+  3. All words and emoji ranked, with per-item counts
   4. CSV, JSON, Excel export (API coming soon)
   5. Last 100 analyses saved
   Footer line below CTA: "Billed monthly. Cancel anytime via customer portal."
@@ -169,14 +170,14 @@ Implementation:
   - Free Pro: "Upgrade to Pro" → `/api/checkout` (UpgradeButton component)
   - Pro Free: "Open dashboard" → `/dashboard`
   - Pro Pro: "Manage subscription" → `/api/portal`
-- Implement `?intent=signup&plan=pro` flow: after sign-in, if these params present in `next`, auto-redirect to `/api/checkout` (extend auth callback logic in `/auth/callback/route.ts` or login-form.tsx post-OAuth)
+- Implement `?intent=signup&plan=pro` flow CLIENT-SIDE ONLY (no backend change to `/auth/callback/route.ts`, keeping it out of scope): after sign-in the login flow lands the user at `next` URL with the intent params preserved. `pricing/page.tsx` reads `searchParams.intent` server-side; if `intent === "signup"` AND user is signed in AND `tier !== "pro"`, the page renders a small client island (`pricing-intent-redirect.tsx`) that triggers `window.location.assign("/api/checkout")` on mount. Single round-trip, no auth-callback edit.
 - All new strings in EN + RU i18n: extend `messages/en.json` + `messages/ru.json` with `pricing.compare_table.*` keys + `pricing.faq.*` keys
 
-- **Verify:** visual parity with `Pricing.html` viewport screenshots at 1280 + 375; EN + RU render correct; all CTAs link to right destinations per matrix; mobile `.compare-cards` readable; FAQ accordion opens/closes; auth callback intent flow works (test signed-out → click "Sign in to upgrade" → sign in → land on `/api/checkout`)
+- **Verify:** visual parity with `Pricing.html` viewport screenshots at 1280 + 375; EN + RU render correct; all CTAs link to right destinations per matrix; mobile `.compare-cards` readable; FAQ accordion opens/closes; intent flow smoke: signed-out user clicks "Sign in to upgrade" → `/login?next=/pricing&intent=signup&plan=pro` → Continue with Google → after OAuth lands on `/pricing` with intent params → `pricing-intent-redirect.tsx` client island fires `window.location.assign("/api/checkout")`. If the redirect silently fails (stays on `/pricing` for >2s with intent param still in URL), that is a Phase 2 ship-blocker; AskUserQuestion before continuing to Phase 3.
 - **Commit message:** `feat(pricing): full Phase F-K design port, comparison table + bullet alignment + FAQ rewrite + auth-aware CTAs`
 - **M-ids resolved:** M1, M2, M3 (continuation), M4 (4 items)
 - **Tests added:** 5+ (ComparisonTable render snapshot, Free/Pro card bullets text content, FAQ accordion behavior, CTA href matrix per persona, intent=signup flow)
-- **Components added:** `comparison-table.tsx`, `trust-line.tsx`, `faq-accordion.tsx` (if not already exists), `upgrade-button.tsx` extension for intent flow
+- **Components added:** `comparison-table.tsx`, `trust-line.tsx`, `faq-accordion.tsx` (built here, REUSED in Phase 4 Landing FAQ, not rebuilt), `pricing-intent-redirect.tsx` (client island for intent flow). `upgrade-button.tsx` already exists from Phase J.
 
 ### Phase 3: Profile page full rebuild (~2-3h, atomic commit)
 
@@ -185,11 +186,12 @@ Reference: `TubeMine Profile.html` + `components.md` for `profile-section.tsx`, 
 Build 4 new components in `src/components/`:
 
 - **`account-fields.tsx`** (client island for clipboard copy): avatar (from `profiles.avatar_url`), email, joined date (from `profiles.created_at` or `auth.users.created_at`), account ID with click-to-copy. Use `navigator.clipboard.writeText` with `textarea` fallback per Profile.html reference
-- **`plan-card.tsx`** (server component): tier badge, quota progress bar, renews/ends date (from `subscriptions.current_period_end`). When `subscriptionCanceled === true`, swap "renews Jun 18" for "subscription ends Jun 18"
+- **`plan-card.tsx`** (server component): tier badge, quota progress bar, renews/ends date (from `subscriptions.current_period_end`). Derive `subscriptionCanceled` inline as `subscription?.status === 'revoked' || subscription?.cancel_at_period_end === true` (no new flag added to schema, no Polar webhook change required, both fields already exist on the row). When derived true, swap "renews Jun 18" for "subscription ends Jun 18"
+- **TrialBanner gating refinement** (existing component from Phase J, light amendment): hide when `period_end <= now` (handles Polar webhook delay race where status is still `trialing` but the period has actually expired). Additionally, when `cancel_at_period_end === true`, swap copy from "...then $19/mo" to "...trial ends [date]" (user already canceled during trial, no charge coming). These are 5-10 LOC edits to the existing `src/components/trial-banner.tsx`
 - **`billing-card.tsx`** (server component, Pro-only): mount only when `tier === "pro"`. CTA → `/api/portal`. Last 4 of card optional (omit if Polar API doesn't expose it, under-promise rule)
-- **`danger-zone.tsx`** (client island for Sign out): Sign out destructive button using Supabase `signOut()` helper. Delete account: text-only note "Email hello@tubemine.app to delete your account" (no in-product delete)
+- **`danger-zone.tsx`** (client island for Sign out): Sign out destructive button using Supabase `signOut()` helper. Delete account: text-only note "Email hello@tubemine.tech to delete your account" (no in-product delete)
 
-Refactor `src/app/[locale]/profile/page.tsx` (remove stub "land here via Track A" line) to compose these 4 sections via `profile-section.tsx` wrapper. Handle `?canceled=true` URL param: show Sonner toast "Subscription canceled. You keep access until the period ends."
+Refactor `src/app/[locale]/profile/page.tsx` (remove stub "land here via Track A" line) to compose these 4 sections via `profile-section.tsx` wrapper. Handle `?canceled=true` URL param: show Sonner toast "Subscription canceled. You keep access until the period ends." On toast mount, the client island calls `router.replace('/{locale}/profile')` to strip the `?canceled=true` param so the toast does NOT re-fire on subsequent refreshes.
 
 - **Verify:** anon visits `/profile` → redirect to `/login?next=/{locale}/profile`. Free signed-in → 3 sections (account, plan, danger zone), NO billing. Pro signed-in → 4 sections (all). Canceled Pro → plan card shows "ends" date instead of "renews". `?canceled=true` triggers toast.
 - **Commit message:** `feat(profile): full account/plan/billing/danger sections per design`
@@ -205,24 +207,25 @@ Reference: `TubeMine Landing.html` for Phase J Variant D hero + trust row + feat
   - EN: "Sentiment, top words, and the emojis your audience leans on, in seconds. Try 1,000 comments instantly, no signup. Sign in for 5,000."
   - RU: "Тональность, ключевые слова и эмодзи, которые использует ваша аудитория, за секунды. Попробуйте 1000 комментариев сразу, без регистрации. Войдите для 5000."
   - Update `messages/en.json` + `messages/ru.json` `landing.hero_subtitle` keys
+- **Mobile keyboard occlusion side-fix** (Edge Case #7 from spec review; not catalogued M-id but cheap to ship in Phase 4 since we are already in the file): add `onFocus={(e) => requestAnimationFrame(() => e.target.scrollIntoView({ block: 'center', behavior: 'smooth' }))}` to the URL input element in `tubemine.tsx`. Fixes iOS Safari keyboard hiding the Analyze button at 375px. Confirm during 375 viewport screenshot capture.
 - **M8: Sample label above extractor** (only renders for anon, hide for signed-in):
   - EN: "Free without sign-in. 1,000 comments per video. Sign in for 5,000/month."
   - RU: "Бесплатно без входа. 1000 комментариев на видео. Войдите для 5000/мес."
   - i18n keys: `landing.sample_label.*`
-- Build **TrustRow component** (3 mono-font tags per design, hardcoded EN — OK per spec since these are technical labels):
+- Build **TrustRow component** (3 mono-font tags per design, hardcoded EN since these are technical labels, OK per spec):
   - "Built on the YouTube Data API v3"
   - "Free 5,000 comments / month, signed in"
   - "GitHub stars + MIT"
 - **FeatureBlocks ×3** (alternating reverse layout): Sentiment, Top Words, Emoji Frequency. Use `feature-block.tsx` component per `components.md` spec (eyebrow, title, body, optional reverse prop, children for visual). Reuse mini-widgets from SentimentPanel / TopWordsPanel / EmojiPanel
 - **Final CTA section:** large `h2` + sub + single primary button ("Sign up free" → `/login?next=/dashboard`)
 - **FaqAccordion at bottom:** client island, single-open, animated `max-height` per design tokens. 4-6 items per Landing.html FAQ section
-- **DashboardPreview** 3D-skewed mockup: BUILD ONLY if Phase 4 elapsed time is under 1h. Otherwise mark as Phase 4+1 follow-up. Per README: "Build with the same primitives as the real dashboard. Apply `transform: perspective(1800px) rotateY(-9deg) rotateX(4deg);` on desktop. Mobile: flat. `prefers-reduced-motion`: no skew."
+- **DashboardPreview** 3D-skewed mockup is SKIPPED in TUB-1 scope. No M-id maps to it (pure decoration). The 3D trust-contract feature is deferred to a follow-up TUB if the user wants it shipped later. Phase 4 does NOT build a dashboard preview component.
 
 - **Verify:** anon visits `/` → sees hero + trust row + extractor + Sample label + feature blocks + dashboard preview (if shipped) + final CTA + FAQ. Mobile 375 + desktop 1280 screenshots captured. EN + RU render. Signed-in visits `/` → sees only extractor (Variant D anon-only hero hidden)
 - **Commit message:** `feat(landing): Phase J Variant D hero + Sample label + trust row + feature blocks + final CTA + FAQ accordion`
 - **M-ids resolved:** M8, M9 (folded into M8 per LOCKED decision 1), M10 (3 items)
 - **Tests added:** 3+ (Sample label anon-only render gate, signed-in hero hidden, FAQ accordion behavior)
-- **Components added:** `trust-row.tsx`, `feature-block.tsx`, `final-cta.tsx`, `dashboard-preview.tsx` (if time allows)
+- **Components added:** `trust-row.tsx`, `feature-block.tsx`, `final-cta.tsx`. `faq-accordion.tsx` is built in Phase 2 and REUSED here, NOT rebuilt. No `dashboard-preview.tsx` (explicitly cut from scope).
 
 ### Phase 5: AppShell + SideNav for signed-in pages (~2h, atomic commit)
 
@@ -235,7 +238,7 @@ Reference: `components.md` for `app-shell.tsx` + `side-nav.tsx`. Reference HTML:
   - Sign out at bottom (separate from groups), uses Supabase `signOut`
 - Apply AppShell to `/dashboard`, `/profile`, `/history` layouts via shared layout file or per-page composition. Public pages (`/`, `/pricing`, `/privacy`, `/terms`, `/login`) keep current minimal layout (SiteHeader + footer, NO AppShell)
 
-- **Verify:** navigation between `/dashboard` ↔ `/history` ↔ `/profile` via sidebar clicks works. Current-page highlighted. Mobile 375 hamburger toggles drawer. Drawer scrim closes on tap outside. Sign out button works
+- **Verify:** navigation between `/dashboard` ↔ `/history` ↔ `/profile` via sidebar clicks works. Current-page highlighted. Mobile 375 hamburger toggles drawer. Drawer scrim closes on tap outside. Sign out button works. **Double-shell check (Edge Case #9 from spec review):** visually inspect each AppShell-wrapped page renders EXACTLY ONE topbar + ONE sidebar at the correct 60+240 dimensions. If any existing per-page composition wraps a child page with shell-like layout, remove the inner wrapper as part of this commit; double-mount is a Phase 5 ship-blocker.
 - **Commit message:** `feat(shell): AppShell + SideNav for signed-in pages, mobile drawer behavior`
 - **M-ids resolved:** M23 (1 item)
 - **Tests added:** 3+ (current-page highlight per route, mobile drawer toggle, sign-out behavior)
@@ -253,14 +256,14 @@ Reference: `components.md` for `app-shell.tsx` + `side-nav.tsx`. Reference HTML:
 - **M18:** Privacy + Terms extended for Google data handling (TUB-10 prerequisite):
   - Section "Google user data we access" listing `youtube.readonly` scope, retention, deletion path
   - Section "Third-party sharing" stating none
-  - Contact email `hello@tubemine.app`
+  - Contact email `hello@tubemine.tech`
 - **M11:** Dashboard "Need more?" copy extended per Phase J spec: "Pro is 100,000 comments per month for $19. Last 100 saved analyses, CSV results, exact sentiment percentages, hour-of-day trends."
 - **M13:** All "Export CSV" → "Save CSV" rename. Find/replace across `export-bar.tsx` + i18n keys + comparison table cell + any other mentions
 - **M14:** ExportBar full i18n. Extract all hardcoded strings (anon button label, free button label, pro 3 button labels) to EN + RU keys
 - **M19:** TopWordsPanel + EmojiPanel headings to i18n ("Top words" + "Top emojis" + sub-text)
 - **M20:** RecentAnalyses item meta to i18n (channel · `{N}` comments format)
 - **M21:** Sentiment Anon copy to i18n
-- **M22:** TubeMine main extractor all hardcoded EN strings to i18n. This includes form labels, button labels, error messages, toast messages, table headers. Significant i18n debt cleanup, plan ~45-60 min
+- **M22:** TubeMine main extractor all hardcoded EN strings to i18n. This includes form labels, button labels, error messages, toast messages, table headers. **Plan creation phase MUST enumerate exact strings + files via grep BEFORE estimating** (e.g., `grep -rPn '[">][A-Z][a-z][a-z]+' src/components/tubemine.tsx` or similar JSX-text-content regex). If enumeration reveals >30 unique strings, AskUserQuestion to split Phase 6 into Phase 6a (i18n debt) + Phase 6b (remaining polish). Current estimate ~45-60 min assumes string count <30
 - **M24:** Skeleton states for sentiment/top-words/emoji panels per [[references/skeleton-screens-design-rule]]. Render skeleton when `extractLoading === true`, fade to real content when ready
 
 - **Verify:** `/oauth-intro` renders correctly with disabled "Coming soon" button; Privacy + Terms include Google data section; dashboard upgrade card copy reflects Phase J; all "Save CSV" labels consistent across surfaces; RU users see RU everywhere on TubeMine extractor; skeletons appear during async loads
@@ -273,7 +276,7 @@ Reference: `components.md` for `app-shell.tsx` + `side-nav.tsx`. Reference HTML:
 
 End-of-sprint check: when this list is fully green, TUB-1 ships.
 
-- [ ] All 13 design pages have matching production routes (Landing, Pricing, Dashboard, Profile, Login, OAuth Intro, History, Privacy, Terms, Changelog if exists, Docs if exists). Sprint scope adds at minimum: `/profile` (rebuild), `/oauth-intro` (new), `/privacy` + `/terms` (extend)
+- [ ] All 11 public-facing design pages have matching production routes: Landing, Pricing, Dashboard, Profile, Login, OAuth Intro, History, Privacy, Terms, Changelog, Docs. (The two dev-facing references, Design System + Flows HTML, are NOT shipped as routes per handoff README.) Sprint scope adds: `/profile` (rebuild), `/oauth-intro` (new), `/privacy` + `/terms` (extend); the other 7 routes already exist (`/`, `/pricing`, `/dashboard`, `/login`, `/history`, `/changelog`, `/docs`)
 - [ ] All 24 mismatches from `audits/2026-05-20-design-vs-code-audit.md` resolved (M1 through M24)
 - [ ] Anonymous user smoke: lands `/`, sees Hero Variant D, pastes URL, gets anon-tier response, saves CSV, sees Sample label setting expectations
 - [ ] Free signed-in smoke: signs in, lands `/dashboard` with AppShell + SideNav, correct tier-aware widgets, correct upgrade CTAs, `/history` shows Last 10
@@ -286,7 +289,6 @@ End-of-sprint check: when this list is fully green, TUB-1 ships.
 - [ ] No banned verbs in rendered UI strings: `grep -rPi '\b(extract|scrape|bulk|pull\s*data|priority|download)\b' src/components/ messages/ src/app/ | grep -vE '(test|\.md|node_modules)'` empty (icon import names like lucide `Download` are exempt)
 - [ ] All 74 existing vitest tests pass + at least 5 new tests per phase = at least 30 new tests by end
 - [ ] tsc + lint clean
-- [ ] Lighthouse score within 5 points of pre-TUB-1 baseline on Landing + Pricing + Dashboard
 - [ ] No regression in `/api/extract`, `/api/export`, `/api/checkout`, `/api/portal`, `/api/polar/webhook` (smoke test each after Phase 6 commit)
 
 ## Verification (mandatory before EVERY autonomous push)
@@ -300,8 +302,11 @@ pnpm lint                                                                       
 pnpm test                                                                              # check 3: vitest (must pass all)
 node scripts/check-message-parity.mjs                                                  # check 4: i18n parity
 grep -rP '[\x{2013}\x{2014}]' src/ messages/ app/ public/ || echo "no em/en-dash, OK" # check 5: dash purity
-grep -rPi '\b(extract|scrape|bulk|pull\s*data|priority|download)\b' src/components/ messages/ src/app/ | grep -vE '(test|\.md|node_modules)' || echo "no banned verbs in UI, OK" # check 6: banned verbs
-# check 7: screenshots (per phase, captured via chrome-devtools at 1280 + 375)
+# check 6: banned verbs in UI text (scope to i18n JSON files + JSX/TSX rendered text in components and locale routes; the api/extract route name and lucide Download icon import name are NOT banned)
+grep -rPi '\b(extract|scrape|bulk|pull\s*data|priority|download)\b' messages/ || echo "no banned verbs in i18n strings, OK"
+grep -rPi '\b(scrape|bulk|pull\s*data)\b' src/components/ src/app/\[locale\]/ --include='*.tsx' || echo "no never-allowed verbs in rendered components, OK"
+# (extract/priority/download have legitimate non-UI uses; manual per-commit smoke: visually scan changed .tsx files for hardcoded banned-verb JSX text between tags)
+# check 7: screenshots, minimum 1 desktop (1280x800) + 1 mobile (375x667) per page changed this phase, saved to .screenshots/ with naming phase-N-<page-slug>-<viewport>.png. No screenshot = check fails.
 ```
 
 **Plus per-phase smoke:**
@@ -317,7 +322,8 @@ grep -rPi '\b(extract|scrape|bulk|pull\s*data|priority|download)\b' src/componen
 - `curl -sI https://tubemine.tech/pricing` (200)
 - `curl -sI https://tubemine.tech/dashboard` (307 redirect to login for anon, OK)
 - `curl -s https://tubemine.tech/api/extract` (tier-aware JSON shape with `tier`, `top_words`, `top_emoji` fields, NOT 5xx HTML)
-- If ANY smoke check fails: AUTO-ROLLBACK `git revert HEAD --no-edit && git push origin main`. Append rollback entry to launch note with curl output + diagnosis. Move to NEXT phase with different approach
+- If ANY smoke check fails: AUTO-ROLLBACK via `git revert HEAD --no-edit && git push origin main`. **If `git revert` exits non-zero** (conflict, dirty tree, mid-rebase), STOP and AskUserQuestion with the revert error output. Do NOT run `git reset --hard` automatically; that is destructive and the user must explicitly approve. Append rollback entry to launch note with curl output + diagnosis. Move to NEXT phase with different approach
+- **If `mcp__vercel__list_deployments` returns `state=ERROR` or `state=CANCELED`** (build failure or canceled): the deploy never went live (the commit was pushed but the prod app is unchanged from before). Do NOT rollback. Read build logs via `mcp__vercel__get_deployment_build_logs`, identify the fix, address in the next commit. If the error is opaque (infra-level), AskUserQuestion
 - If 3+ consecutive auto-rollbacks: STOP, AskUserQuestion
 
 ## Hard gates (rare, AskUserQuestion only here)
@@ -361,6 +367,7 @@ After FULL TUB-1 ship (all 6 phases shipped, all acceptance criteria met):
 - **R7: Vercel deploy timing race** (push, deploy READY before smoke can run). *Mitigation:* Use `mcp__vercel__list_deployments` to poll until `status=READY`, max 5 min, before running smoke curls.
 - **R8: Server-only `exceljs` import accidentally leaks to client bundle.** *Mitigation:* `import "server-only"` guard; Vitest alias stub at `src/test/server-only-stub.ts` per runbook.
 - **R9: `redirect()` TS narrowing trap from next-intl navigation.** *Mitigation:* Explicit `return null` after redirect in auth-gated pages, per runbook addendum.
+- **R10: `Papa.unparse` client-side CSV could OOM mobile Safari at 100k comments.** *Mitigation:* Current real-user scale is well below 100k per analysis (no Pro user has hit the cap yet). Accept the risk for TUB-1. If a Pro user reports a slow or crashing CSV, file a follow-up TUB to add `/api/export?format=csv` server-side. Documented as known limit, not blocker.
 
 ## References (vault)
 
