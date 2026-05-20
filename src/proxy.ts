@@ -18,7 +18,9 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/auth") ||
     pathname.startsWith("/_next") ||
     pathname === "/sitemap.xml" ||
-    pathname === "/robots.txt"
+    pathname === "/robots.txt" ||
+    pathname === "/opengraph-image" ||
+    pathname === "/site.webmanifest"
 
   // SPEC section 4.4: bare-root redirect with cookie OR Accept-Language
   // detection. next-intl localeDetection is disabled in routing config; we
