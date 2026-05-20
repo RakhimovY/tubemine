@@ -61,17 +61,6 @@ export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }))
 }
 
-const socials = [
-  { label: "GitHub", url: "https://github.com/RakhimovY/tubemine" },
-  { label: "Threads", url: "https://www.threads.com/@ai.yerke_" },
-  { label: "X", url: "https://x.com/yerkeRakhimov" },
-  { label: "LinkedIn", url: "https://www.linkedin.com/in/rakhimov-yerkebulan/" },
-  { label: "dev.to", url: "https://dev.to/yerkerakhimov" },
-  { label: "Reddit", url: "https://www.reddit.com/user/ErkeshaA/" },
-  { label: "Instagram", url: "https://www.instagram.com/ai.yerke_/" },
-  { label: "Telegram", url: "https://t.me/ai_yerke" },
-]
-
 export default async function LocaleLayout({
   children,
   params,
@@ -86,9 +75,18 @@ export default async function LocaleLayout({
   return (
     <html
       lang={locale}
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} dark h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-background text-foreground">
+      {/*
+        TUB-1 Visual Port: <body> carries the `tm-design` class so the v3
+        design CSS tokens scoped under `.tm-design` (see globals.css) apply
+        to the shared chrome (SiteHeader, mobile drawer, locale switcher)
+        and to every page's content. The footer that previously lived in
+        this layout was removed: the Landing page ships its own design
+        footer, and other pages can opt into the shared chrome as they
+        port over.
+      */}
+      <body className="tm-design min-h-full flex flex-col">
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
@@ -122,22 +120,6 @@ export default async function LocaleLayout({
         <NextIntlClientProvider>
           <SiteHeader />
           {children}
-          <footer className="mt-auto border-t border-border/40 px-6 py-6">
-            <div className="container mx-auto flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
-              {socials.map((s) => (
-                <a
-                  key={s.url}
-                  href={s.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label={s.label}
-                  className="hover:text-foreground"
-                >
-                  {s.label}
-                </a>
-              ))}
-            </div>
-          </footer>
           <Toaster richColors position="top-center" />
         </NextIntlClientProvider>
         <Analytics />
