@@ -108,7 +108,7 @@ Manual trigger via curl (production only):
 
 ```bash
 curl -s -H "Authorization: Bearer $CRON_SECRET" \
-  https://tubemine.vercel.app/api/internal/cron/purge-analyses
+  https://tubemine.tech/api/internal/cron/purge-analyses
 # Expected: {"purged": <N>}
 ```
 
