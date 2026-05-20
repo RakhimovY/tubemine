@@ -3,9 +3,7 @@ import NextLink from "next/link"
 import { Link, redirect } from "@/i18n/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { getUserQuota, type Tier } from "@/lib/quota"
-import { listAnalyses } from "@/lib/analyses"
 import { formatNumber } from "@/lib/format"
-import { DashboardShell } from "@/components/dashboard/dashboard-shell"
 import { AccountIdCopy } from "@/components/profile/account-id-copy"
 import { CanceledToast } from "@/components/profile/canceled-toast"
 
@@ -50,19 +48,17 @@ export default async function ProfilePage({
 
   // Direct supabase query for subscription row (lib/subscription only exports
   // webhook handlers, no read helper).
-  const [{ data: subscription }, quota, recent] = await Promise.all([
+  const [{ data: subscription }, quota] = await Promise.all([
     supabase
       .from("subscriptions")
       .select("status, current_period_end, cancel_at_period_end")
       .eq("user_id", user.id)
       .maybeSingle(),
     getUserQuota(user.id),
-    listAnalyses(supabase, null, 5),
   ])
 
   const tier: Tier = quota.tier
   const tProfile = await getTranslations("profile")
-  const tShell = await getTranslations("dashboard.shell")
 
   const dateFmt = new Intl.DateTimeFormat(locale === "ru" ? "ru-RU" : "en-US", {
     year: "numeric",
@@ -96,29 +92,6 @@ export default async function ProfilePage({
 
   return (
     <div className="dashboard-page profile-page">
-      <DashboardShell
-        tier={tier}
-        initials={initials}
-        historyCount={recent.items.length}
-        labels={{
-          brand: tShell("brand"),
-          crumb: tProfile("title"),
-          openMenu: tShell("open_menu"),
-          closeMenu: tShell("close_menu"),
-          sidebarLabel: tShell("sidebar_label"),
-          workspaceLabel: tShell("workspace_label"),
-          moreLabel: tShell("more_label"),
-          navHome: tShell("nav_home"),
-          navHistory: tShell("nav_history"),
-          navProfile: tShell("nav_profile"),
-          navGithub: tShell("nav_github"),
-          navDocs: tShell("nav_docs"),
-          navSignOut: tShell("nav_sign_out"),
-          tierBadgeFree: tShell("tier_badge_free"),
-          tierBadgePro: tShell("tier_badge_pro"),
-          languageLabel: tShell("language_label"),
-        }}
-      >
         {/* Toast host (transient feedback like "Subscription canceled") */}
         <div className="toast-host" aria-live="polite">
           <CanceledToast
@@ -449,7 +422,6 @@ export default async function ProfilePage({
             </div>
           </div>
         </section>
-      </DashboardShell>
     </div>
   )
 }

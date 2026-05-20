@@ -18,7 +18,6 @@ import {
 } from "@/lib/sentiment-summary"
 import { loadTrialState } from "@/components/trial-banner"
 import { TubeMine } from "@/components/tubemine"
-import { DashboardShell } from "@/components/dashboard/dashboard-shell"
 import { WelcomePulse } from "@/components/dashboard/welcome-pulse"
 
 export const metadata = {
@@ -29,22 +28,23 @@ export const metadata = {
 export const dynamic = "force-dynamic"
 
 /*
-  TUB-1 Visual Port (Dashboard, Page 3 of 9).
-  This file is the verbatim semantic port of:
+  TUB-1 Visual Port (Dashboard, Page 3 of 9). Verbatim semantic port of:
     /tmp/tubemine-handoff-2026-05-20/tubemine-v3-ux/project/TubeMine Dashboard.html
   Inline <style> CSS lives in src/app/globals.css scoped under
   `.tm-design .dashboard-page`.
-  Inline <script> behavior lives in small client islands:
-    - DashboardShell: topbar + sidebar with mobile drawer logic,
-      locale switcher, sign-out form
+
+  TUB-13 M23 update: the topbar + sidebar chrome is now rendered ONCE in
+  the shared (app) route-group layout at src/app/[locale]/(app)/layout.tsx
+  via <AppShell />. This page renders only its own content; the chrome
+  stays mounted across /dashboard ↔ /profile ↔ /history navigation.
+
+  Inline <script> behavior:
     - WelcomePulse: shown when ?welcome=true, auto-dismiss after 5s,
       strips the URL param on dismiss/timeout
     - <TubeMine /> (existing component): the Quick analyze form, preview,
       and full extract/results pipeline; reused unchanged from Landing
   The public <SiteHeader /> is suppressed for /dashboard by
   <SiteHeaderGate /> in src/app/[locale]/layout.tsx.
-  The "Design preview" panel from the prototype is intentionally NOT
-  shipped (README: do not ship the design preview panel to production).
 */
 export default async function DashboardPage({
   params,
@@ -104,31 +104,13 @@ export default async function DashboardPage({
     ? t("welcome_meta_with_last", { when: lastAnalysisWhen })
     : t("welcome_meta_first")
 
+  // initials kept for backwards compatibility (used by avatar in the shared
+  // AppShell layout via cookie/profile fetch). Suppressed locally to avoid
+  // the unused-var warning since the inner shell wrapper is gone.
+  void initials
+
   return (
     <div className="dashboard-page">
-      <DashboardShell
-        tier={tier}
-        initials={initials}
-        historyCount={items.length}
-        labels={{
-          brand: t("shell.brand"),
-          crumb: t("shell.crumb"),
-          openMenu: t("shell.open_menu"),
-          closeMenu: t("shell.close_menu"),
-          sidebarLabel: t("shell.sidebar_label"),
-          workspaceLabel: t("shell.workspace_label"),
-          moreLabel: t("shell.more_label"),
-          navHome: t("shell.nav_home"),
-          navHistory: t("shell.nav_history"),
-          navProfile: t("shell.nav_profile"),
-          navGithub: t("shell.nav_github"),
-          navDocs: t("shell.nav_docs"),
-          navSignOut: t("shell.nav_sign_out"),
-          tierBadgeFree: t("shell.tier_badge_free"),
-          tierBadgePro: t("shell.tier_badge_pro"),
-          languageLabel: t("shell.language_label"),
-        }}
-      >
         {/* ===== Welcome strip ===== */}
         <header className="welcome-strip">
           <h1 className="welcome-title">
@@ -400,7 +382,6 @@ export default async function DashboardPage({
             ? `Free: ${formatNumber(FREE_MONTHLY_CAP)} / month · Pro: ${formatNumber(PRO_MONTHLY_CAP)} / month`
             : `Pro: ${formatNumber(PRO_MONTHLY_CAP)} / month`}
         </p>
-      </DashboardShell>
     </div>
   )
 }
