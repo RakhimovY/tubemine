@@ -63,7 +63,9 @@ export function LoginClient({ labels }: { labels: LoginLabels }) {
     setLoading(true)
     try {
       const supabase = createClient()
-      const redirectTo = new URL("/auth/callback", window.location.origin)
+      const origin =
+        process.env.NEXT_PUBLIC_ORIGIN?.trim() || window.location.origin
+      const redirectTo = new URL("/auth/callback", origin)
       redirectTo.searchParams.set("next", next)
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
