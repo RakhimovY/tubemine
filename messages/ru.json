@@ -551,5 +551,36 @@
       "no_write": "Без записи",
       "revoke": "Отзыв в любое время"
     }
+  },
+  "login": {
+    "brand_aria": "TubeMine, на главную",
+    "language_label": "Язык",
+    "version": "v3.0",
+    "title": "Войдите в TubeMine",
+    "subtitle": "Вход через Google. Пароль не нужен.",
+    "google_button": "Войти через Google",
+    "google_aria": "Войти через Google",
+    "legal_lead": "Входя, вы соглашаетесь с нашими",
+    "legal_terms": "Условиями",
+    "legal_and": " и",
+    "legal_privacy": "Политикой конфиденциальности",
+    "back_to_home": "На главную",
+    "trust_oauth": "Google OAuth",
+    "trust_no_password": "Без пароля",
+    "trust_open_source": "Open source",
+    "social_label": "Социальные сети",
+    "github_aria": "GitHub",
+    "x_aria": "X",
+    "linkedin_aria": "LinkedIn",
+    "devto_aria": "dev.to",
+    "threads_aria": "Threads",
+    "instagram_aria": "Instagram",
+    "telegram_aria": "Telegram",
+    "reddit_aria": "Reddit",
+    "footer_copyright": "© 2026 TubeMine",
+    "footer_privacy": "Конфиденциальность",
+    "footer_terms": "Условия",
+    "footer_contact": "Контакты",
+    "error_interrupted": "Вход прерван. Попробуйте ещё раз."
   }
 }

@@ -551,5 +551,36 @@
       "no_write": "No write access",
       "revoke": "Revoke anytime"
     }
+  },
+  "login": {
+    "brand_aria": "TubeMine home",
+    "language_label": "Language",
+    "version": "v3.0",
+    "title": "Sign in to TubeMine",
+    "subtitle": "We use Google for sign-in. No password to remember.",
+    "google_button": "Sign in with Google",
+    "google_aria": "Sign in with Google",
+    "legal_lead": "By signing in you agree to our",
+    "legal_terms": "Terms",
+    "legal_and": " and",
+    "legal_privacy": "Privacy Policy",
+    "back_to_home": "Back to home",
+    "trust_oauth": "Google OAuth",
+    "trust_no_password": "No password",
+    "trust_open_source": "Open source",
+    "social_label": "Social links",
+    "github_aria": "GitHub",
+    "x_aria": "X",
+    "linkedin_aria": "LinkedIn",
+    "devto_aria": "dev.to",
+    "threads_aria": "Threads",
+    "instagram_aria": "Instagram",
+    "telegram_aria": "Telegram",
+    "reddit_aria": "Reddit",
+    "footer_copyright": "© 2026 TubeMine",
+    "footer_privacy": "Privacy",
+    "footer_terms": "Terms",
+    "footer_contact": "Contact",
+    "error_interrupted": "Sign-in was interrupted. Try again."
   }
 }
