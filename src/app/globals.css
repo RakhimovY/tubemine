@@ -3906,15 +3906,17 @@ body.no-scroll { overflow: hidden; }
   gap: var(--space-4);
 }
 .tm-design .legal-page .legal-article ul li {
-  display: grid; grid-template-columns: 16px 1fr; gap: var(--space-4);
+  position: relative;
+  padding-left: 24px;
   color: var(--color-text-secondary);
   font-size: var(--font-size-lg);
   line-height: 1.6;
 }
 .tm-design .legal-page .legal-article ul li::before {
-  content: ""; width: 4px; height: 4px; border-radius: 50%;
+  content: ""; position: absolute;
+  left: 6px; top: 12px;
+  width: 4px; height: 4px; border-radius: 50%;
   background: var(--color-text-tertiary);
-  margin-top: 12px; margin-left: 6px;
 }
 .tm-design .legal-page .legal-article code {
   font-family: var(--font-family-mono);
