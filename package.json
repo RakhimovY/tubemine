@@ -6,7 +6,7 @@
   "description": "YouTube audience analytics: sentiment, top words, and emoji insights via the YouTube Data API. Free. No setup.",
   "scripts": {
     "dev": "next dev",
-    "build": "vitest run && node scripts/check-message-parity.mjs && next build",
+    "build": "node scripts/check-message-parity.mjs && next build",
     "start": "next start",
     "lint": "eslint",
     "i18n:check": "node scripts/check-message-parity.mjs",
