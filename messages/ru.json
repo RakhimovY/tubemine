@@ -82,7 +82,10 @@
         "sent_pos": "позитив",
         "sent_neu": "нейтрально",
         "sent_neg": "негатив"
-      }
+      },
+      "cta": "Анализ комментариев",
+      "quota_free": "Вы вошли как Free, 5000 в месяц, осталось {remaining}",
+      "quota_pro": "Pro, 100 000 в месяц, осталось {remaining}"
     },
     "dashboard": {
       "eyebrow": "03 · Войдите",
@@ -221,7 +224,7 @@
       "terms": "Условия",
       "license": "Лицензия · MIT",
       "copyright": "© 2026 TubeMine · Не аффилирован с YouTube или Google",
-      "version": "v3.0 · tubemine.vercel.app"
+      "version": "v3.0 · tubemine.tech"
     }
   },
   "dashboard": {

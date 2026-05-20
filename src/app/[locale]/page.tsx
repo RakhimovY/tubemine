@@ -171,24 +171,7 @@ export default async function HomePage({
             </header>
 
             <div className="demo-wrap">
-              {/*
-                The real extractor lives here. It owns the URL input, the
-                Analyze submit, validation, and the actual analysis results.
-                Wrapped in .tm-extractor-host so it sits inside the design's
-                surface-raised card aesthetic.
-              */}
-              <div className="tm-extractor-host">
-                <TubeMine tier={tier} />
-              </div>
-
-              {isAnonymous ? (
-                <p
-                  className="demo-quota"
-                  style={{ marginTop: "var(--space-5)" }}
-                >
-                  <span>{t("demo.quota_anon")}</span>
-                </p>
-              ) : null}
+              <TubeMine tier={tier} />
 
               {isAnonymous ? (
                 <div

@@ -82,7 +82,10 @@
         "sent_pos": "positive",
         "sent_neu": "neutral",
         "sent_neg": "negative"
-      }
+      },
+      "cta": "Analyze comments",
+      "quota_free": "Signed in Free, 5,000 per month, {remaining} remaining",
+      "quota_pro": "Pro plan, 100,000 per month, {remaining} remaining"
     },
     "dashboard": {
       "eyebrow": "03 · Sign in",
@@ -221,7 +224,7 @@
       "terms": "Terms",
       "license": "License · MIT",
       "copyright": "© 2026 TubeMine · Not affiliated with YouTube or Google",
-      "version": "v3.0 · tubemine.vercel.app"
+      "version": "v3.0 · tubemine.tech"
     }
   },
   "dashboard": {

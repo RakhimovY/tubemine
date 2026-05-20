@@ -7,17 +7,10 @@ import { z } from "zod"
 import Papa from "papaparse"
 import { toast } from "sonner"
 import { track } from "@vercel/analytics"
-import {
-  ArrowRight,
-  Loader2,
-  Play,
-  RotateCcw,
-  Sparkles,
-} from "lucide-react"
+import { Loader2, RotateCcw, Link as LinkIcon } from "lucide-react"
+import { useTranslations } from "next-intl"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -85,6 +78,7 @@ const EMPTY_ANALYTICS: Analytics = {
 }
 
 export function TubeMine({ tier: initialTier }: { tier: ExtractTier }) {
+  const t = useTranslations("landing.demo")
   const [tier, setTier] = useState<ExtractTier>(initialTier)
   const [preview, setPreview] = useState<VideoMeta | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
@@ -311,154 +305,152 @@ export function TubeMine({ tier: initialTier }: { tier: ExtractTier }) {
     }
   }
 
-  const remainingLabel = budget
-    ? `${formatNumber(budget.remaining)} of ${formatNumber(budget.budget)} comments left this month`
-    : null
-
   const extractCount = preview
     ? Math.min(preview.commentCount, budget?.remaining ?? preview.commentCount)
     : 0
 
+  const quotaLine =
+    tier === "anonymous"
+      ? t("quota_anon")
+      : budget
+        ? t(tier === "pro" ? "quota_pro" : "quota_free", {
+            remaining: formatNumber(budget.remaining),
+          })
+        : null
+
   return (
-    <section id="demo" className="w-full max-w-3xl px-6 py-10 sm:py-16">
-      <Card className="border-border/60 shadow-2xl shadow-black/5 backdrop-blur supports-[backdrop-filter]:bg-card/95">
-        <CardContent className="p-6 sm:p-8">
-          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <Sparkles className="size-4 text-foreground/70" />
-              <span>Analyze a video</span>
-            </div>
-            {remainingLabel && (
-              <Badge variant="secondary" className="font-normal">
-                {remainingLabel}
-              </Badge>
+    <>
+      <form
+        onSubmit={form.handleSubmit(onPreview)}
+        className="demo-form"
+        noValidate
+      >
+        <div
+          className="input-wrap has-prefix"
+          style={{ flex: 1 }}
+        >
+          <span className="prefix-icon" aria-hidden="true">
+            <LinkIcon className="icon icon-sm" />
+          </span>
+          <label htmlFor="demoUrl" className="sr-only">
+            YouTube video URL
+          </label>
+          <input
+            {...form.register("url")}
+            id="demoUrl"
+            type="url"
+            inputMode="url"
+            placeholder="https://www.youtube.com/watch?v=..."
+            className="input"
+            disabled={previewLoading || extractLoading}
+            autoComplete="off"
+            spellCheck={false}
+            aria-label="YouTube video URL"
+            onPaste={(e) => {
+              const pasted = e.clipboardData.getData("text").trim()
+              const isYouTube = extractVideoId(pasted) !== null
+              track("paste_attempted", {
+                isValidYouTube: isYouTube ? "true" : "false",
+                length: pasted.length,
+              })
+            }}
+            onFocus={(e) => {
+              // iOS Safari keyboard occludes the Analyze button on 375px viewports.
+              // Scroll the input to center so the button stays visible above the keyboard.
+              requestAnimationFrame(() => {
+                e.target.scrollIntoView({
+                  block: "center",
+                  behavior: "smooth",
+                })
+              })
+            }}
+          />
+        </div>
+        <button
+          type="submit"
+          className={`btn btn--primary btn-lg${previewLoading ? " is-loading" : ""}`}
+          disabled={previewLoading || extractLoading}
+        >
+          {previewLoading ? <Loader2 className="size-4 animate-spin" /> : t("cta")}
+        </button>
+      </form>
+
+      {quotaLine && (
+        <div className="demo-quota" role="status">
+          <span>{quotaLine}</span>
+        </div>
+      )}
+
+      {form.formState.errors.url && (
+        <p className="mt-2 text-xs text-destructive">
+          {form.formState.errors.url.message}
+        </p>
+      )}
+
+      {previewLoading && <PreviewSkeleton />}
+
+      {preview && !previewLoading && (
+        <div className="mt-6 rounded-xl border border-border/60 bg-muted/30 p-4 sm:p-5">
+          <div className="flex flex-col gap-4 sm:flex-row">
+            {preview.thumbnail && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={preview.thumbnail}
+                alt=""
+                className="aspect-video w-full max-w-[180px] flex-none rounded-lg object-cover"
+              />
             )}
+            <div className="min-w-0 flex-1">
+              <h3 className="line-clamp-2 text-sm font-semibold leading-snug">
+                {preview.title}
+              </h3>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {preview.channel}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                <span>{formatNumber(preview.views)} views</span>
+                <span>{formatNumber(preview.likes)} likes</span>
+                <span>
+                  {formatNumber(preview.commentCount)} comments
+                </span>
+              </div>
+            </div>
           </div>
 
-          <form
-            onSubmit={form.handleSubmit(onPreview)}
-            className="flex flex-col gap-3 sm:flex-row"
-          >
-            <div className="relative flex-1">
-              <Play className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 fill-current text-muted-foreground/60" />
-              <Input
-                {...form.register("url")}
-                onPaste={(e) => {
-                  const pasted = e.clipboardData.getData("text").trim()
-                  const isYouTube = extractVideoId(pasted) !== null
-                  track("paste_attempted", {
-                    isValidYouTube: isYouTube ? "true" : "false",
-                    length: pasted.length,
-                  })
-                }}
-                type="url"
-                inputMode="url"
-                placeholder="https://www.youtube.com/watch?v=..."
-                className="h-11 pl-9 text-sm"
-                disabled={previewLoading || extractLoading}
-                autoComplete="off"
-                spellCheck={false}
-                onFocus={(e) => {
-                  // iOS Safari keyboard occludes the Analyze button on 375px viewports.
-                  // Scroll the input to center so the button stays visible above the keyboard.
-                  requestAnimationFrame(() => {
-                    e.target.scrollIntoView({
-                      block: "center",
-                      behavior: "smooth",
-                    })
-                  })
-                }}
-              />
-            </div>
+          <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <Button
-              type="submit"
+              onClick={onExtract}
               size="lg"
-              className="h-11 px-5"
-              disabled={previewLoading || extractLoading}
+              className="h-11"
+              disabled={
+                extractLoading ||
+                preview.commentCount === 0 ||
+                preview.commentsDisabled ||
+                (budget?.remaining ?? 1) === 0
+              }
             >
-              {previewLoading ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
+              {extractLoading ? (
                 <>
-                  Analyze <ArrowRight className="size-4" />
+                  <Loader2 className="size-4 animate-spin" />
+                  Analyzing...
                 </>
+              ) : (
+                <>Analyze {formatNumber(extractCount)} comments</>
               )}
             </Button>
-          </form>
-          {form.formState.errors.url && (
-            <p className="mt-2 text-xs text-destructive">
-              {form.formState.errors.url.message}
-            </p>
-          )}
-
-          {previewLoading && <PreviewSkeleton />}
-
-          {preview && !previewLoading && (
-            <div className="mt-6 rounded-xl border border-border/60 bg-muted/30 p-4 sm:p-5">
-              <div className="flex flex-col gap-4 sm:flex-row">
-                {preview.thumbnail && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={preview.thumbnail}
-                    alt=""
-                    className="aspect-video w-full max-w-[180px] flex-none rounded-lg object-cover"
-                  />
-                )}
-                <div className="min-w-0 flex-1">
-                  <h3 className="line-clamp-2 text-sm font-semibold leading-snug">
-                    {preview.title}
-                  </h3>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {preview.channel}
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                    <span>{formatNumber(preview.views)} views</span>
-                    <span>{formatNumber(preview.likes)} likes</span>
-                    <span>
-                      {formatNumber(preview.commentCount)} comments
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <Button
-                  onClick={onExtract}
-                  size="lg"
-                  className="h-11"
-                  disabled={
-                    extractLoading ||
-                    preview.commentCount === 0 ||
-                    preview.commentsDisabled ||
-                    (budget?.remaining ?? 1) === 0
-                  }
-                >
-                  {extractLoading ? (
-                    <>
-                      <Loader2 className="size-4 animate-spin" />
-                      Analyzing...
-                    </>
-                  ) : (
-                    <>
-                      Analyze {formatNumber(extractCount)} comments
-                    </>
-                  )}
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={reset}
-                  disabled={extractLoading}
-                  className="text-muted-foreground"
-                >
-                  <RotateCcw className="size-3.5" />
-                  Try another URL
-                </Button>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={reset}
+              disabled={extractLoading}
+              className="text-muted-foreground"
+            >
+              <RotateCcw className="size-3.5" />
+              Try another URL
+            </Button>
+          </div>
+        </div>
+      )}
 
       {comments.length > 0 && (
         <>
@@ -490,7 +482,7 @@ export function TubeMine({ tier: initialTier }: { tier: ExtractTier }) {
           />
         </>
       )}
-    </section>
+    </>
   )
 }
 
