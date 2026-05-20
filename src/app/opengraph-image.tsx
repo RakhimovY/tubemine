@@ -20,10 +20,10 @@ async function loadFont(url: string): Promise<ArrayBuffer | null> {
 export default async function OpenGraphImage() {
   const [bold, regular] = await Promise.all([
     loadFont(
-      "https://github.com/vercel/geist-font/raw/main/packages/geist-font/fonts/Geist/Geist-Bold.ttf",
+      "https://cdn.jsdelivr.net/npm/geist@1/dist/fonts/geist-sans/Geist-Bold.ttf",
     ),
     loadFont(
-      "https://github.com/vercel/geist-font/raw/main/packages/geist-font/fonts/Geist/Geist-Medium.ttf",
+      "https://cdn.jsdelivr.net/npm/geist@1/dist/fonts/geist-sans/Geist-Medium.ttf",
     ),
   ])
 
