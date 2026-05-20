@@ -218,7 +218,61 @@ Expected: 0 errors (next-intl `getRequestConfig` callback types may differ; if `
 Run: `pnpm test`
 Expected: all 74 existing tests pass.
 
-### Task 0.3: 7-check verification + commit + push
+### Task 0.3: Add testing infrastructure (jsdom + RTL)
+
+Vitest currently uses `environment: "node"` and `include: ["src/**/*.test.ts"]`. Plan tests for Phase 1+ (ExportBar, EmojiPanel, ComparisonTable, PricingIntentRedirect, PlanCard, SideNav) need DOM rendering. Add jsdom + @testing-library/react as dev-dependencies (autonomous-OK per LOCKED decision 8: both are top-5000 weekly downloads, MIT-licensed, dev-only so no client bundle impact).
+
+**Files:**
+- Modify: `package.json` (gain 4 dev-deps)
+- Modify: `vitest.config.ts` (per-file environment matching for `.test.tsx`)
+
+- [ ] **Step 1: Add dev-dependencies**
+
+```bash
+pnpm add -D jsdom @testing-library/react @testing-library/jest-dom @testing-library/user-event
+```
+
+Expected: package.json `devDependencies` gains 4 entries.
+
+- [ ] **Step 2: Update vitest.config.ts to opt-in jsdom for `.test.tsx`**
+
+Replace contents with:
+
+```ts
+import { defineConfig } from "vitest/config"
+import { fileURLToPath } from "node:url"
+
+export default defineConfig({
+  test: {
+    environment: "node",
+    environmentMatchGlobs: [
+      ["src/**/*.test.tsx", "jsdom"],
+    ],
+    globals: false,
+    include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "html"],
+      include: ["src/lib/**/*.ts"],
+    },
+  },
+  resolve: {
+    alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+      "server-only": fileURLToPath(
+        new URL("./src/test/server-only-stub.ts", import.meta.url),
+      ),
+    },
+  },
+})
+```
+
+- [ ] **Step 3: Smoke run existing 74 tests**
+
+Run: `pnpm test`
+Expected: all 74 pass (node env preserved for existing `.test.ts`).
+
+### Task 0.4: 7-check verification + commit + push
 
 - [ ] **Step 1: Run the 7 verification checks**
 
@@ -628,7 +682,7 @@ git push origin main
 
 - [ ] **Step 4: Vercel deploy + smoke**
 
-Same as Phase 0 Task 0.3 Step 4. Wait for READY, then curl smoke. If 5xx, auto-rollback.
+Same as Phase 0 Task 0.4 Step 4. Wait for READY, then curl smoke. If 5xx, auto-rollback.
 
 - [ ] **Step 5: Append to launch note + status tracker + activity log**
 
@@ -1078,13 +1132,13 @@ Full implementation pattern:
 ```tsx
 import { getTranslations } from "next-intl/server"
 import { Link } from "@/i18n/navigation"
-import { createServerClient } from "@/lib/supabase/server"
+import { createClient as createServerClient } from "@/lib/supabase/server"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { ComparisonTable } from "@/components/comparison-table"
 import { TrustLine } from "@/components/trust-line"
 import { FaqAccordion } from "@/components/faq-accordion"
 import { PricingIntentRedirect } from "@/components/pricing-intent-redirect"
-import { resolveTier } from "@/lib/quota" // or wherever effectiveTier lives
+import { getUserQuota } from "@/lib/quota"  // returns { tier, ... }; effectiveTier is private to quota.ts
 
 interface PricingPageProps {
   searchParams: Promise<{ intent?: string; next?: string; plan?: string }>
@@ -1098,7 +1152,7 @@ export default async function PricingPage({ searchParams }: PricingPageProps) {
     data: { user },
   } = await supabase.auth.getUser()
   const signedIn = !!user
-  const tier = signedIn ? await resolveTier(user!.id) : "anonymous"
+  const tier = signedIn ? (await getUserQuota(user!.id)).tier : "anonymous"
 
   // CTA URLs per persona
   const freeCtaHref =
@@ -1181,7 +1235,7 @@ export default async function PricingPage({ searchParams }: PricingPageProps) {
 }
 ```
 
-(Adapt imports to actual codebase. Verify `resolveTier` exists at expected path; if not, use the existing helper from `src/lib/quota.ts` or `src/lib/subscription.ts`.)
+(`getUserQuota` lives at `src/lib/quota.ts` line 55 and returns `{ tier, ...usage fields }`. Confirmed by spec round 2 buildability check. The `tier` field is the resolved effective tier; pricing-intent-redirect accepts `"anonymous" | "free" | "pro"` so cast is safe.)
 
 ### Task 2.7: Phase 2 verify + commit + push
 
@@ -1544,7 +1598,7 @@ export async function BillingCard() {
 import { useState } from "react"
 import { useTranslations } from "next-intl"
 import { useRouter } from "@/i18n/navigation"
-import { createBrowserClient } from "@/lib/supabase/client"
+import { createClient as createBrowserClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 
 export function DangerZone() {
@@ -1694,10 +1748,11 @@ Run: `cat src/app/\[locale\]/profile/page.tsx`. Note: 31 lines, only h1 + placeh
 // src/app/[locale]/profile/page.tsx
 import { getTranslations } from "next-intl/server"
 import { redirect } from "@/i18n/navigation"
-import { createServerClient } from "@/lib/supabase/server"
-import { getSubscription, resolveTier } from "@/lib/subscription" // adapt to actual paths
-import { getUserUsage } from "@/lib/quota"
-import { FREE_MONTHLY_CAP, PRO_MONTHLY_CAP } from "@/lib/quota"
+import { createClient as createServerClient } from "@/lib/supabase/server"
+import { getUserQuota, FREE_MONTHLY_CAP, PRO_MONTHLY_CAP } from "@/lib/quota"
+// NOTE: src/lib/subscription.ts only exports webhook handlers (handleSubscription*).
+// `resolveTier` and `getSubscription` do NOT exist. Use getUserQuota for tier (internally
+// calls effectiveTier) + inline supabase query for subscription row.
 import { ProfileSection } from "@/components/profile-section"
 import { AccountFields } from "@/components/account-fields"
 import { PlanCard } from "@/components/plan-card"
@@ -1720,9 +1775,16 @@ export default async function ProfilePage({
     redirect({ href: "/login?next=/profile", locale })
     return null
   }
-  const subscription = await getSubscription(user.id)
-  const tier = await resolveTier(user.id)
-  const usage = await getUserUsage(user.id)
+  const { data: subscription } = await supabase
+    .from("subscriptions")
+    .select("status, current_period_end, cancel_at_period_end")
+    .eq("user_id", user.id)
+    .maybeSingle()
+  const quota = await getUserQuota(user.id)
+  const tier = quota.tier
+  // Read actual UserQuota shape from src/lib/quota.ts line 9; field is `used` or `usage`
+  // Cast defensively until you have the actual type in hand.
+  const usage = (quota as { used?: number }).used ?? (quota as { usage?: number }).usage ?? 0
   const cap = tier === "pro" ? PRO_MONTHLY_CAP : FREE_MONTHLY_CAP
 
   return (
@@ -2116,7 +2178,7 @@ import { usePathname } from "next/navigation"
 import { useRouter } from "@/i18n/navigation"
 import { useTranslations } from "next-intl"
 import { Menu, X, Home, History, User, Github, FileText, LogOut } from "lucide-react"
-import { createBrowserClient } from "@/lib/supabase/client"
+import { createClient as createBrowserClient } from "@/lib/supabase/client"
 
 const WORKSPACE = [
   { href: "/dashboard", icon: Home, key: "home" },
@@ -2633,6 +2695,11 @@ Append final entry to `~/vault/logs/activity.md`.
 
 **3. Type consistency:** Components use consistent prop names: `tier: "anonymous" | "free" | "pro"`, `subscription: { status, current_period_end, cancel_at_period_end }`, `signedIn: boolean`, `locale: string`. PricingIntentRedirect `intent: string | null` matches searchParams shape.
 
-**4. Buildability check:** All referenced helpers (`resolveTier`, `getSubscription`, `createServerClient`, `createBrowserClient`, `getUserUsage`, `FREE_MONTHLY_CAP`, `PRO_MONTHLY_CAP`) are confirmed by earlier audit + Buildability spec review (round 2) to exist in the codebase. If any import path doesn't resolve during execution, the executing agent should grep for the actual export location and adapt.
+**4. Buildability check (corrected in plan review round 2):** Confirmed exports:
+- `src/lib/supabase/server.ts`: exports `createClient` (NOT `createServerClient`). Imports aliased as `createClient as createServerClient`.
+- `src/lib/supabase/client.ts`: exports `createClient` (NOT `createBrowserClient`). Same alias pattern.
+- `src/lib/quota.ts`: exports `getUserQuota` (returns `{ tier, ...usage }`), `FREE_MONTHLY_CAP`, `PRO_MONTHLY_CAP`, `bumpUserUsage`. `effectiveTier` exists but is PRIVATE (no `export`). Plan does NOT need it directly; uses `getUserQuota(userId).tier` instead.
+- `src/lib/subscription.ts`: ONLY exports webhook handlers (`handleSubscriptionActive`, etc.). `resolveTier`, `getSubscription` do NOT exist. Plan uses `getUserQuota` for tier + inline `supabase.from("subscriptions").select(...)` query for subscription row.
+- Test infra: `@testing-library/react` + `jsdom` added in Phase 0 Task 0.3 (autonomous-OK per LOCKED 8: top-5000, MIT, dev-only).
 
 **5. TDD discipline:** New components (ComparisonTable, PricingIntentRedirect, PlanCard) have explicit test scaffolds. Server components use export-shape tests since async render is harder to test (visual screenshots cover behavior). Existing tests (trial-banner.test.ts) extended with new gating cases.
