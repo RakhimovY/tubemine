@@ -46,7 +46,82 @@
     "pro_plan": "Pro",
     "manage_subscription": "Manage subscription",
     "start_trial_cta": "Start 3-day free trial",
-    "trial_subnote": "$19/mo after. Cancel anytime."
+    "trial_subnote": "$19/mo after. Cancel anytime.",
+    "page_title": "Pricing",
+    "page_subtitle": "Start free, upgrade when you outgrow the quota. Same product, larger monthly cap.",
+    "compare_title": "Compare plans",
+    "faq_title": "Frequently asked",
+    "trust_line": "Trusted by 1 paying customer",
+    "free_bullets": {
+      "b1": "5,000 comments per month",
+      "b2": "Sentiment direction (qualitative)",
+      "b3": "Top 15 words + top 15 emoji",
+      "b4": "CSV export",
+      "b5": "Last 10 analyses saved"
+    },
+    "pro_bullets": {
+      "b1": "100,000 comments per month",
+      "b2": "Exact sentiment % + trends",
+      "b3": "All words and emoji ranked, with per-item counts",
+      "b4": "CSV, JSON, Excel export (API coming soon)",
+      "b5": "Last 100 analyses saved"
+    },
+    "pro_footer": "Billed monthly. Cancel anytime via customer portal.",
+    "compare_table": {
+      "feature_header": "Feature",
+      "col_anon": "Anonymous",
+      "col_free": "Free",
+      "col_pro": "Pro",
+      "row": {
+        "sentiment_direction": "Sentiment direction",
+        "sentiment_direction_anon": "Total count only",
+        "sentiment_direction_free": "Qualitative bar",
+        "sentiment_direction_pro": "Exact % and trend",
+        "sentiment_exact": "Sentiment exact percentages",
+        "sentiment_exact_anon": "No",
+        "sentiment_exact_free": "No",
+        "sentiment_exact_pro": "Yes",
+        "top_words": "Top words shown",
+        "top_words_anon": "Top 5 + counts",
+        "top_words_free": "Top 15 + counts",
+        "top_words_pro": "All ranked + counts",
+        "top_emoji": "Top emoji shown",
+        "top_emoji_anon": "Top 5 + counts",
+        "top_emoji_free": "Top 15 + counts",
+        "top_emoji_pro": "All ranked + per-emoji counts",
+        "export_formats": "Export formats",
+        "export_formats_anon": "CSV",
+        "export_formats_free": "CSV",
+        "export_formats_pro": "CSV, JSON, Excel (API coming soon)",
+        "saved_analyses": "Saved analyses history",
+        "saved_analyses_anon": "Single session",
+        "saved_analyses_free": "Last 10",
+        "saved_analyses_pro": "Last 100",
+        "monthly_comments": "Monthly comments",
+        "monthly_comments_anon": "1,000 per video",
+        "monthly_comments_free": "5,000 per month",
+        "monthly_comments_pro": "100,000 per month"
+      }
+    },
+    "faq_v2": {
+      "comment_q": "What counts as a comment?",
+      "comment_a": "Every top-level comment or reply we return for a video counts as one. The counter increments only on successful analysis.",
+      "apikey_q": "Do I need a YouTube API key?",
+      "apikey_a": "No. TubeMine uses a shared key on the server. You just paste a URL.",
+      "cancel_q": "Can I cancel anytime?",
+      "cancel_a": "Yes. Start a 3-day free trial, no charge during. Cancel any time from the customer portal. If you stay past day 3, you are billed $19/mo. Cancel later, you keep access until the period ends.",
+      "refund_q": "What about refunds?",
+      "refund_a": "The 3-day trial means no charge if you cancel in time. If you are billed (day 4 onward) and change your mind, email us within 7 days of that first charge and we refund the latest invoice, no questions. The trial window and the refund window do not stack: the 3 days are before any charge, the 7 days are after."
+    },
+    "cta": {
+      "anon_free": "Start free",
+      "anon_pro": "Sign in to upgrade",
+      "free_free": "Open dashboard",
+      "free_pro": "Upgrade to Pro",
+      "pro_free": "Open dashboard",
+      "pro_pro": "Manage subscription"
+    },
+    "hero_heading": "Analyze more comments. No surprises."
   },
   "profile": {
     "title": "Profile",

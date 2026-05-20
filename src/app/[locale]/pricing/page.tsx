@@ -6,9 +6,12 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { buttonVariants } from "@/components/ui/button"
 import { createClient } from "@/lib/supabase/server"
-import { getUserQuota, FREE_MONTHLY_CAP, PRO_MONTHLY_CAP } from "@/lib/quota"
-import { formatNumber } from "@/lib/format"
+import { getUserQuota } from "@/lib/quota"
 import { UpgradeButton } from "../dashboard/upgrade-button"
+import { ComparisonTable } from "@/components/comparison-table"
+import { TrustLine } from "@/components/trust-line"
+import { FaqAccordion } from "@/components/faq-accordion"
+import { PricingIntentRedirect } from "@/components/pricing-intent-redirect"
 
 export const metadata = {
   title: "Pricing, TubeMine",
@@ -40,44 +43,57 @@ async function loadAuthState(): Promise<AuthState> {
 
 export default async function PricingPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ locale: string }>
+  searchParams: Promise<{ intent?: string; plan?: string; next?: string }>
 }) {
   const { locale } = await params
+  const sp = await searchParams
   setRequestLocale(locale)
   const t = await getTranslations("pricing")
   const state = await loadAuthState()
+  const tier: "anonymous" | "free" | "pro" = state.signedIn
+    ? state.tier
+    : "anonymous"
 
   return (
-    <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-10 px-6 pt-24 pb-16 sm:pt-28">
+    <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-12 px-6 pt-24 pb-16 sm:pt-28">
+      {/* Client island: runs ?intent=signup&plan=pro post-OAuth redirect to /api/checkout */}
+      <PricingIntentRedirect
+        intent={sp.intent ?? null}
+        signedIn={state.signedIn}
+        tier={tier}
+      />
+
       <header className="flex flex-col items-center gap-3 text-center">
         <Badge
           variant="secondary"
           className="rounded-full border border-border/60"
         >
-          Pricing
+          {t("page_title")}
         </Badge>
         <h1 className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl">
-          Analyze more comments. No surprises.
+          {t("hero_heading")}
         </h1>
         <p className="max-w-xl text-pretty text-sm text-muted-foreground sm:text-base">
-          Start free, upgrade when you outgrow the quota. Same product, just a
-          larger monthly cap.
+          {t("page_subtitle")}
         </p>
       </header>
 
-      <div className="grid gap-5 sm:grid-cols-2">
+      <ComparisonTable />
+
+      <div className="grid gap-5 sm:grid-cols-2 max-w-4xl mx-auto w-full">
         <PlanCard
-          name="Free"
+          name={t("free_plan")}
           price="$0"
           priceSuffix="forever"
-          summary={`${formatNumber(FREE_MONTHLY_CAP)} comments per month`}
           features={[
-            "Sign in with Google",
-            "Sentiment, top words, emoji insights",
-            "Full audience analytics on every video",
-            "CSV export",
-            "No credit card",
+            t("free_bullets.b1"),
+            t("free_bullets.b2"),
+            t("free_bullets.b3"),
+            t("free_bullets.b4"),
+            t("free_bullets.b5"),
           ]}
           cta={
             state.signedIn ? (
@@ -88,7 +104,7 @@ export default async function PricingPage({
                   className: "w-full",
                 })}
               >
-                Open dashboard
+                {state.tier === "pro" ? t("cta.pro_free") : t("cta.free_free")}
               </Link>
             ) : (
               <Link
@@ -98,31 +114,32 @@ export default async function PricingPage({
                   className: "w-full",
                 })}
               >
-                Start free
+                {t("cta.anon_free")}
               </Link>
             )
           }
         />
 
         <PlanCard
-          name="Pro"
+          name={t("pro_plan")}
           price="$19"
           priceSuffix="per month"
           highlight
-          summary={`${formatNumber(PRO_MONTHLY_CAP)} comments per month`}
           features={[
-            `${formatNumber(PRO_MONTHLY_CAP)} comments per month`,
-            "Sentiment, top words, emoji insights",
-            "Higher monthly cap, no overage charge",
-            "Cancel anytime via customer portal",
+            t("pro_bullets.b1"),
+            t("pro_bullets.b2"),
+            t("pro_bullets.b3"),
+            t("pro_bullets.b4"),
+            t("pro_bullets.b5"),
           ]}
+          footer={t("pro_footer")}
           cta={
             !state.signedIn ? (
               <Link
-                href="/login?next=/pricing"
+                href="/login?next=/pricing&intent=signup&plan=pro"
                 className={buttonVariants({ className: "w-full" })}
               >
-                Sign in to upgrade
+                {t("cta.anon_pro")}
               </Link>
             ) : state.tier === "pro" ? (
               <NextLink
@@ -132,7 +149,7 @@ export default async function PricingPage({
                   className: "w-full",
                 })}
               >
-                Manage subscription
+                {t("cta.pro_pro")}
                 <ArrowUpRight className="size-3.5" />
               </NextLink>
             ) : (
@@ -147,7 +164,19 @@ export default async function PricingPage({
         />
       </div>
 
-      <FaqSection />
+      <TrustLine />
+
+      <section className="mt-4 flex flex-col gap-4 max-w-2xl mx-auto w-full">
+        <h2 className="text-lg font-semibold text-center">{t("faq_title")}</h2>
+        <FaqAccordion
+          items={[
+            { question: t("faq_v2.comment_q"), answer: t("faq_v2.comment_a") },
+            { question: t("faq_v2.apikey_q"), answer: t("faq_v2.apikey_a") },
+            { question: t("faq_v2.cancel_q"), answer: t("faq_v2.cancel_a") },
+            { question: t("faq_v2.refund_q"), answer: t("faq_v2.refund_a") },
+          ]}
+        />
+      </section>
     </main>
   )
 }
@@ -156,17 +185,17 @@ function PlanCard({
   name,
   price,
   priceSuffix,
-  summary,
   features,
   cta,
+  footer,
   highlight,
 }: {
   name: string
   price: string
   priceSuffix: string
-  summary: string
   features: string[]
   cta: React.ReactNode
+  footer?: string
   highlight?: boolean
 }) {
   return (
@@ -189,11 +218,8 @@ function PlanCard({
             <span className="text-4xl font-semibold tracking-tight">
               {price}
             </span>
-            <span className="text-sm text-muted-foreground">
-              {priceSuffix}
-            </span>
+            <span className="text-sm text-muted-foreground">{priceSuffix}</span>
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">{summary}</p>
         </div>
         <ul className="flex flex-col gap-2.5 text-sm">
           {features.map((f) => (
@@ -204,45 +230,10 @@ function PlanCard({
           ))}
         </ul>
         <div>{cta}</div>
+        {footer ? (
+          <p className="text-center text-xs text-muted-foreground">{footer}</p>
+        ) : null}
       </CardContent>
     </Card>
-  )
-}
-
-function FaqSection() {
-  const faqs = [
-    {
-      q: "What counts as a comment?",
-      a: "Every top-level comment or reply we return for a video counts as one. The counter increments only on successful extraction.",
-    },
-    {
-      q: "Do I need a YouTube API key?",
-      a: "No. TubeMine uses a shared key on the server. You just paste a URL.",
-    },
-    {
-      q: "Can I cancel anytime?",
-      a: "Yes. Cancel from the customer portal, keep access until the period ends, then downgrade automatically.",
-    },
-    {
-      q: "What about refunds?",
-      a: "Email us within 7 days of the charge and we will refund the latest invoice, no questions.",
-    },
-  ]
-  return (
-    <section className="mt-4 flex flex-col gap-4">
-      <h2 className="text-lg font-semibold">Frequently asked</h2>
-      <div className="grid gap-3 sm:grid-cols-2">
-        {faqs.map((f) => (
-          <Card key={f.q} className="border-border/60">
-            <CardContent className="flex flex-col gap-2 p-5">
-              <p className="text-sm font-medium">{f.q}</p>
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                {f.a}
-              </p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    </section>
   )
 }
