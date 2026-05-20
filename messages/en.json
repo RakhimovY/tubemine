@@ -540,17 +540,37 @@
     "social": "Social"
   },
   "oauth_intro": {
+    "brand_aria": "TubeMine home",
+    "language_label": "Language",
+    "version": "v3.0",
     "title": "One quick step before Google",
     "coming_soon_banner": "Beta, coming soon",
-    "helper": "Opens after Google verification (estimated Q3 2026).",
+    "coming_soon_sub": "Opens after Google verification (estimated Q3 2026). The button below is a preview of the future flow.",
+    "helper_lead": "To analyze unlimited videos we need read access to YouTube on your behalf. This uses",
+    "helper_strong": "YOUR personal Google quota",
+    "helper_tail": "of 10,000 calls per day, free. We only read public comment data. You can revoke anytime in your Google account.",
     "continue_disabled": "Continue to Google, coming soon",
+    "continue_aria": "Continue to Google (coming soon)",
     "shared_quota_link": "Use TubeMine shared quota instead (slower at peak times)",
     "back_to_login": "Back to sign in",
     "trust": {
       "scope": "youtube.readonly only",
       "no_write": "No write access",
       "revoke": "Revoke anytime"
-    }
+    },
+    "social_label": "Social links",
+    "github_aria": "GitHub",
+    "x_aria": "X",
+    "linkedin_aria": "LinkedIn",
+    "devto_aria": "dev.to",
+    "threads_aria": "Threads",
+    "instagram_aria": "Instagram",
+    "telegram_aria": "Telegram",
+    "reddit_aria": "Reddit",
+    "footer_copyright": "© 2026 TubeMine",
+    "footer_privacy": "Privacy",
+    "footer_terms": "Terms",
+    "footer_contact": "Contact"
   },
   "login": {
     "brand_aria": "TubeMine home",

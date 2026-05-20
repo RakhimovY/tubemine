@@ -3461,3 +3461,281 @@ body.no-scroll { overflow: hidden; }
   .tm-design .login-page .topbar > .topbar-meta { display: none; }
   .tm-design .login-page .topbar { gap: var(--space-3); }
 }
+
+/* ===========================================================
+   TUB-1 Visual Port, Page 7/9: /oauth-intro. Verbatim port of
+   the OAuth Intro section from TubeMine OAuth Intro.html (slim
+   topbar, centered card with oauth-badge + coming-soon banner +
+   disabled Google button + shared-quota skip-link, back link,
+   trust strip, slim footer with social row). Shared base layout
+   classes (.topbar, .stage, .login-card, .google-btn, .back-link,
+   .trust-mini, .foot-social, .foot) mirror the /login port and
+   live duplicated under the .oauth-intro-page scope so the two
+   pages stay independently editable without cross-route leakage.
+   The /oauth-intro page is anonymous and gated as "coming soon"
+   (Phase E gate): the Google button carries .is-disabled and
+   never wires into supabase.auth.signInWithOAuth.
+   =========================================================== */
+.tm-design .oauth-intro-page {
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(245,245,247,0.04) 0%, transparent 60%),
+    var(--color-surface-base);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-primary);
+  font-size: var(--font-size-md);
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+}
+.tm-design .oauth-intro-page .topbar {
+  padding: var(--space-6) var(--space-6);
+  display: flex; align-items: center; justify-content: space-between;
+  max-width: 1200px; width: 100%; margin: 0 auto;
+}
+@media (min-width: 768px) {
+  .tm-design .oauth-intro-page .topbar { padding: var(--space-7) var(--space-8); }
+}
+.tm-design .oauth-intro-page .topbar-end {
+  display: inline-flex; align-items: center; gap: var(--space-5);
+}
+.tm-design .oauth-intro-page .brand {
+  display: inline-flex; align-items: center; gap: var(--space-3);
+  font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.01em;
+}
+.tm-design .oauth-intro-page .topbar-meta {
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-xs);
+  font-family: var(--font-family-mono);
+  display: inline-flex; align-items: center; gap: var(--space-2);
+}
+.tm-design .oauth-intro-page .topbar-meta::before {
+  content: ""; width: 5px; height: 5px; border-radius: 50%;
+  background: var(--color-feedback-success);
+}
+.tm-design .oauth-intro-page .stage {
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--space-7);
+}
+.tm-design .oauth-intro-page .login-wrap {
+  width: 100%; max-width: 400px; text-align: center;
+}
+.tm-design .oauth-intro-page .login-card {
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  padding: clamp(28px, 5vw, 36px);
+  box-shadow: var(--shadow-1);
+  text-align: left;
+}
+.tm-design .oauth-intro-page .login-card-title {
+  font-size: clamp(22px, 3.5vw, 26px);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.015em;
+  margin: 0 0 var(--space-3);
+  text-wrap: balance;
+}
+.tm-design .oauth-intro-page .login-card-sub {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-md);
+  line-height: 1.55;
+  margin: 0 0 var(--space-8);
+}
+.tm-design .oauth-intro-page .login-card-sub strong {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-medium);
+}
+.tm-design .oauth-intro-page .oauth-badge {
+  width: 48px; height: 48px;
+  border-radius: 50%;
+  background: rgba(245,245,247,0.06);
+  border: 1px solid var(--color-border-subtle);
+  color: var(--color-text-secondary);
+  display: inline-flex; align-items: center; justify-content: center;
+  margin-bottom: var(--space-5);
+}
+.tm-design .oauth-intro-page .oauth-badge svg {
+  width: 20px; height: 20px;
+}
+.tm-design .oauth-intro-page .coming-soon-banner {
+  display: flex; gap: var(--space-3); align-items: flex-start;
+  padding: var(--space-4) var(--space-5);
+  margin: 0 0 var(--space-6);
+  border: 1px solid rgba(251,191,36,0.32);
+  background: rgba(251,191,36,0.08);
+  border-radius: var(--radius-xs);
+  color: var(--color-feedback-warning);
+}
+.tm-design .oauth-intro-page .coming-soon-banner .dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--color-feedback-warning);
+  flex-shrink: 0; margin-top: 6px;
+  box-shadow: 0 0 0 4px rgba(251,191,36,0.18);
+}
+.tm-design .oauth-intro-page .coming-soon-banner .body {
+  display: grid; gap: 2px; min-width: 0;
+}
+.tm-design .oauth-intro-page .coming-soon-banner .title {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.005em;
+  color: var(--color-feedback-warning);
+}
+.tm-design .oauth-intro-page .coming-soon-banner .sub {
+  font-size: 12px;
+  color: rgba(251,191,36,0.78);
+  line-height: 1.5;
+}
+.tm-design .oauth-intro-page .google-btn {
+  display: flex; align-items: center; justify-content: center;
+  gap: var(--space-4);
+  width: 100%;
+  height: 48px;
+  background: var(--color-surface-muted);
+  color: var(--color-text-inverse);
+  border: 1px solid var(--color-surface-muted);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: -0.005em;
+  cursor: pointer;
+  position: relative;
+  transition:
+    background-color var(--motion-duration-fast) var(--motion-ease),
+    box-shadow var(--motion-duration-fast) var(--motion-ease);
+  text-decoration: none;
+}
+.tm-design .oauth-intro-page .google-btn:hover { background: #ececef; }
+.tm-design .oauth-intro-page .google-btn:focus-visible {
+  outline: none; box-shadow: 0 0 0 3px rgba(245,245,247,0.4);
+}
+.tm-design .oauth-intro-page .google-btn:active { background: #dcdce0; }
+.tm-design .oauth-intro-page .google-btn.is-disabled,
+.tm-design .oauth-intro-page .google-btn.is-disabled:hover,
+.tm-design .oauth-intro-page .google-btn.is-disabled:active {
+  background: rgba(245,245,247,0.06);
+  color: var(--color-text-tertiary);
+  cursor: not-allowed;
+  pointer-events: none;
+  border-color: var(--color-border-subtle);
+  box-shadow: none;
+}
+.tm-design .oauth-intro-page .google-btn.is-disabled .google-g {
+  opacity: 0.4; filter: grayscale(1);
+}
+.tm-design .oauth-intro-page .google-g {
+  width: 18px; height: 18px; flex-shrink: 0;
+}
+.tm-design .oauth-intro-page .oauth-skip {
+  display: block;
+  text-align: center;
+  margin-top: var(--space-6);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-tertiary);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-xs);
+  transition:
+    color var(--motion-duration-fast) var(--motion-ease),
+    background var(--motion-duration-fast) var(--motion-ease);
+  text-decoration: underline;
+  text-decoration-color: var(--color-border-strong);
+  text-underline-offset: 3px;
+}
+.tm-design .oauth-intro-page .oauth-skip:hover {
+  color: var(--color-text-secondary);
+  background: rgba(245,245,247,0.04);
+}
+.tm-design .oauth-intro-page .oauth-skip:focus-visible {
+  outline: none; box-shadow: 0 0 0 2px var(--color-border-focus);
+}
+.tm-design .oauth-intro-page .back-link {
+  margin-top: var(--space-7);
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-sm);
+  padding: 6px 10px;
+  border-radius: var(--radius-xs);
+  transition:
+    color var(--motion-duration-fast) var(--motion-ease),
+    background var(--motion-duration-fast) var(--motion-ease);
+}
+.tm-design .oauth-intro-page .back-link:hover {
+  color: var(--color-text-primary);
+  background: rgba(245,245,247,0.04);
+}
+.tm-design .oauth-intro-page .back-link:focus-visible {
+  outline: none; box-shadow: 0 0 0 2px var(--color-border-focus);
+}
+.tm-design .oauth-intro-page .back-link .icon { width: 14px; height: 14px; }
+.tm-design .oauth-intro-page .trust-mini {
+  margin-top: var(--space-7);
+  display: flex; flex-wrap: wrap; gap: var(--space-5); justify-content: center;
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-xs);
+  font-family: var(--font-family-mono);
+}
+.tm-design .oauth-intro-page .trust-mini span {
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.tm-design .oauth-intro-page .trust-mini .dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--color-text-disabled, #4a4a52);
+  display: inline-block;
+}
+.tm-design .oauth-intro-page .foot-social {
+  display: flex; flex-wrap: wrap; justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-7) var(--space-6) var(--space-5);
+  max-width: 1200px; margin: 0 auto;
+}
+.tm-design .oauth-intro-page .foot-social a {
+  width: 36px; height: 36px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--color-border-subtle);
+  color: var(--color-text-tertiary);
+  transition:
+    color var(--motion-duration-fast) var(--motion-ease),
+    background-color var(--motion-duration-fast) var(--motion-ease),
+    border-color var(--motion-duration-fast) var(--motion-ease);
+}
+.tm-design .oauth-intro-page .foot-social a:hover {
+  color: var(--color-text-primary);
+  background: rgba(245,245,247,0.06);
+  border-color: var(--color-border-strong);
+}
+.tm-design .oauth-intro-page .foot-social a:focus-visible {
+  outline: none; box-shadow: 0 0 0 2px var(--color-border-focus);
+}
+.tm-design .oauth-intro-page .foot-social svg {
+  width: 16px; height: 16px; flex-shrink: 0;
+}
+.tm-design .oauth-intro-page .foot {
+  padding: var(--space-6) var(--space-6);
+  border-top: 1px solid var(--color-border-subtle);
+  display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-4);
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-xs);
+  font-family: var(--font-family-mono);
+}
+@media (min-width: 768px) {
+  .tm-design .oauth-intro-page .foot { padding: var(--space-6) var(--space-8); }
+}
+.tm-design .oauth-intro-page .foot .links {
+  display: flex; gap: var(--space-5);
+}
+.tm-design .oauth-intro-page .foot .links a {
+  transition: color var(--motion-duration-fast) var(--motion-ease);
+}
+.tm-design .oauth-intro-page .foot .links a:hover {
+  color: var(--color-text-secondary);
+}
+/* OAuth Intro mobile baseline (slim header retained, locale visible) */
+@media (max-width: 1023px) {
+  .tm-design .oauth-intro-page { font-size: 16px; line-height: 1.55; }
+  .tm-design .oauth-intro-page .google-btn { font-size: 16px; }
+}
+@media (max-width: 539px) {
+  .tm-design .oauth-intro-page .topbar > .topbar-meta { display: none; }
+  .tm-design .oauth-intro-page .topbar { gap: var(--space-3); }
+}
