@@ -131,6 +131,73 @@
   }
 }
 
+/* ============================================================
+   TUB-1 Phase 0: v3 design system tokens (Claude Design tubemine-v3-ux)
+   Additive only. Skips tokens that would collide with existing
+   Tailwind v4 defaults or current --radius-*, --spacing-*,
+   --color-border, --color-accent, --color-foreground utilities.
+   New components built in Phases 1-6 use these tokens via Tailwind
+   utility classes: bg-surface-raised, text-text-secondary, etc.
+   ============================================================ */
+@theme {
+  /* Font families (new namespace, distinct from --font-sans/mono) */
+  --font-family-primary: "SF Pro Display", -apple-system, system-ui, "Inter", "Segoe UI", sans-serif;
+  --font-family-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --font-weight-base: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+
+  /* Surfaces (v3 dark theme, monochrome) */
+  --color-surface-base: #000000;
+  --color-surface-raised: #0f0f11;
+  --color-surface-sunken: #0a0a0c;
+  --color-surface-muted: #ffffff;
+
+  /* Text (5 levels) */
+  --color-text-primary: #f5f5f7;
+  --color-text-secondary: #b9b9c0;
+  --color-text-tertiary: #7a7a82;
+  --color-text-inverse: #0a0a0c;
+  --color-text-disabled: #4a4a52;
+
+  /* Borders (3 strengths). Distinct from existing --color-border. */
+  --color-border-subtle: rgba(245, 245, 247, 0.08);
+  --color-border-strong: rgba(245, 245, 247, 0.16);
+  --color-border-focus: rgba(245, 245, 247, 0.55);
+
+  /* Feedback (semantic exceptions to monochrome, paired with icons + labels per a11y) */
+  --color-feedback-success: rgba(52, 211, 153, 0.8);
+  --color-feedback-success-soft: rgba(52, 211, 153, 0.12);
+  --color-feedback-danger: rgba(251, 113, 133, 0.8);
+  --color-feedback-danger-soft: rgba(251, 113, 133, 0.12);
+  --color-feedback-warning: rgba(251, 191, 36, 0.85);
+  --color-feedback-warning-soft: rgba(251, 191, 36, 0.12);
+
+  /* Sentiment widget only (do not reuse outside Sentiment + TrialBanner) */
+  --color-accent-positive: rgba(52, 211, 153, 0.8);
+  --color-accent-negative: rgba(251, 113, 133, 0.8);
+  --color-sentiment-neutral: var(--color-text-secondary);
+
+  /* Radius: add --radius-xs (6) + --radius-pill (9999) without touching sm/md/lg/xl */
+  --radius-xs: 6px;
+  --radius-pill: 9999px;
+
+  /* Shadow (v3 layered) */
+  --shadow-1: 0 24px 80px 0 rgba(0, 0, 0, 0.18);
+  --shadow-2: 0 10px 34px 0 rgba(245, 245, 247, 0.08);
+
+  /* Motion */
+  --duration-instant: 140ms;
+  --duration-fast: 150ms;
+  --duration-normal: 200ms;
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Layout (app shell: header + sidebar) */
+  --layout-sidebar-w: 240px;
+  --layout-header-h: 60px;
+}
+
 /* Animated mesh gradient for the hero */
 @keyframes mesh-shift {
   0%, 100% {

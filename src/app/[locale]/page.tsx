@@ -81,7 +81,7 @@ async function Hero() {
         </p>
         <p className="mt-3 text-xs text-foreground/50">
           For researchers, marketers, creators, and indie devs who want the
-          signal, not a scrape.
+          signal, not the noise.
         </p>
       </div>
     </header>

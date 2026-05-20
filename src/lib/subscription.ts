@@ -127,7 +127,7 @@ export async function handleSubscriptionUpdated(
   )
 
   // If Polar marks the subscription as fully expired in an update event,
-  // downgrade immediately. Otherwise leave tier as-is — revoked event handles it.
+  // downgrade immediately. Otherwise leave tier as-is, revoked event handles it.
   if (status === "revoked" || status === "expired") {
     await sb
       .from("profiles")
