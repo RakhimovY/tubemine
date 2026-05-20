@@ -10,8 +10,9 @@
     "delete": "Удалить",
     "confirm": "Подтвердить",
     "load_more": "Загрузить ещё",
-    "export_json": "Экспорт JSON",
-    "export_excel": "Экспорт Excel"
+    "save_csv": "Сохранить CSV",
+    "save_json": "Сохранить JSON",
+    "save_excel": "Сохранить Excel"
   },
   "landing": {
     "hero_title_a": "Понимайте любую",
@@ -274,7 +275,7 @@
     "upgrade_cta": "Перейти на Pro",
     "quick_analyze_heading": "Быстрый анализ",
     "quick_analyze_sub": "вставьте ссылку YouTube",
-    "recent_sub": "{channel} · {when} · {count} комментариев проанализировано",
+    "recent_sub": "{channel} · {when} · {count, plural, one {# комментарий} few {# комментария} many {# комментариев} other {# комментария}}",
     "recent_view_all_count": "смотреть все {count}",
     "recent_zero_saved": "0 сохранено",
     "empty_state_title": "Пока нет анализов.",
@@ -521,6 +522,67 @@
   },
   "auth": {
     "sign_in_with_google": "Войти через Google"
+  },
+  "extractor": {
+    "input_label": "URL видео YouTube",
+    "input_placeholder": "https://www.youtube.com/watch?v=...",
+    "analyzing": "Анализируем...",
+    "analyze_n_comments": "Проанализировать {count, number} {count, plural, one {комментарий} few {комментария} many {комментариев} other {комментария}}",
+    "try_another_url": "Другой URL",
+    "preview_views": "{count, number} {count, plural, one {просмотр} few {просмотра} many {просмотров} other {просмотра}}",
+    "preview_likes": "{count, number} {count, plural, one {лайк} few {лайка} many {лайков} other {лайка}}",
+    "preview_comments": "{count, number} {count, plural, one {комментарий} few {комментария} many {комментариев} other {комментария}}",
+    "results_header": "Проанализировано {count, number} {count, plural, one {комментарий} few {комментария} many {комментариев} other {комментария}}",
+    "col_author": "Автор",
+    "col_comment": "Комментарий",
+    "col_likes": "Лайки",
+    "col_replies": "Ответы",
+    "col_when": "Когда",
+    "dash_placeholder": "-",
+    "toast_preview_failed": "Не удалось получить превью",
+    "toast_analysis_failed": "Анализ не удался",
+    "toast_comments_disabled": "Комментарии отключены или пустые для этого видео",
+    "toast_network_error": "Сетевая ошибка",
+    "toast_analyzed": "Проанализировано {count, number} {count, plural, one {комментарий} few {комментария} many {комментариев} other {комментария}}",
+    "toast_export_failed": "Экспорт не удался",
+    "toast_export_failed_status": "Экспорт не удался ({status})",
+    "errors": {
+      "url_required": "Вставьте URL YouTube",
+      "url_invalid_youtube": "Это не похоже на URL видео YouTube"
+    }
+  },
+  "analytics": {
+    "top_words": {
+      "heading": "Топ слов",
+      "across_comments": "по {count, plural, one {# комментарию} few {# комментариям} many {# комментариям} other {# комментариям}}",
+      "unique_top_shown": "уникальных: {total}, показано: {shown}",
+      "cta_anon": "ещё {count} слов с бесплатным аккаунтом",
+      "cta_free": "ещё {count} слов в Pro",
+      "footnote": "По частотности, после удаления стоп-слов, URL и упоминаний. С учётом языка. Помогает быстро увидеть повторяющиеся темы."
+    },
+    "emoji": {
+      "heading": "Топ эмодзи",
+      "sub": "как реагирует аудитория",
+      "unique_top_shown": "уникальных: {total}, показано: {shown}",
+      "cta_anon": "ещё {count} эмодзи с бесплатным аккаунтом",
+      "cta_free": "ещё {count} эмодзи в Pro"
+    },
+    "sentiment": {
+      "heading": "Тональность",
+      "across_comments": "по {count, plural, one {# комментарию} few {# комментариям} many {# комментариям} other {# комментариям}}",
+      "anon_prefix": "Тональность аудитории проанализирована.",
+      "anon_link": "Зарегистрируйтесь бесплатно",
+      "anon_suffix": ", чтобы узнать, как настроена аудитория: позитивно, негативно или смешанно.",
+      "ru_experimental": "Экспериментально для русского",
+      "ru_experimental_title": "Покрытие русского словаря приблизительное",
+      "free_bar_aria": "Распределение тональности, пропорциональная полоса",
+      "pro_bar_aria": "{pos} процентов позитива, {neu} процентов нейтрально, {neg} процентов негатива",
+      "upgrade_cta": "Pro: точные проценты",
+      "legend_positive": "Позитив",
+      "legend_neutral": "Нейтрально",
+      "legend_negative": "Негатив",
+      "footnote": "Скоринг по словарю (англ. + рус.), без LLM. Охват: {percent}% комментариев содержат хотя бы одно эмоционально окрашенное слово."
+    }
   },
   "sentiment_label": {
     "mostly_positive": "В основном позитив",

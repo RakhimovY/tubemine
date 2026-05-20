@@ -1,6 +1,7 @@
 "use client"
 
 import { Lock, Sparkles } from "lucide-react"
+import { useTranslations } from "next-intl"
 import { Link } from "@/i18n/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { formatNumber } from "@/lib/format"
@@ -18,24 +19,27 @@ export function TopWordsPanel({
   totalUnique: number
   commentsAnalyzed: number
 }) {
+  const t = useTranslations("analytics.top_words")
   if (items.length === 0) return null
 
   const max = items[0].count
   const remaining = Math.max(0, totalUnique - items.length)
-  const cta = upgradeCta(tier, remaining)
+  const cta = upgradeCta(t, tier, remaining)
 
   return (
     <Card className="mt-6 border-border/60">
       <CardContent className="flex flex-col gap-4 p-6 sm:p-7">
         <div className="flex flex-wrap items-center gap-2">
           <Sparkles className="size-4 text-foreground/70" />
-          <h2 className="text-sm font-medium">Top words</h2>
+          <h2 className="text-sm font-medium">{t("heading")}</h2>
           <span className="text-xs text-muted-foreground">
-            across {formatNumber(commentsAnalyzed)} comments
+            {t("across_comments", { count: commentsAnalyzed })}
           </span>
           <span className="ml-auto text-xs text-muted-foreground">
-            {formatNumber(totalUnique)} unique, top {formatNumber(items.length)}{" "}
-            shown
+            {t("unique_top_shown", {
+              total: totalUnique,
+              shown: items.length,
+            })}
           </span>
         </div>
         <div className="grid gap-1.5 sm:grid-cols-2">
@@ -72,8 +76,7 @@ export function TopWordsPanel({
           </Link>
         ) : null}
         <p className="text-[11px] leading-relaxed text-muted-foreground">
-          Frequency-based, after stripping common stopwords, URLs, and mentions.
-          Multi-language aware. Use this to spot recurring themes at a glance.
+          {t("footnote")}
         </p>
       </CardContent>
     </Card>
@@ -81,6 +84,7 @@ export function TopWordsPanel({
 }
 
 function upgradeCta(
+  t: (key: string, values?: Record<string, number | string>) => string,
   tier: ExtractTier,
   remaining: number,
 ): { href: string; label: string } | null {
@@ -88,13 +92,13 @@ function upgradeCta(
   if (tier === "anonymous") {
     return {
       href: "/login?next=/",
-      label: `${formatNumber(remaining)} more words available with a free account`,
+      label: t("cta_anon", { count: remaining }),
     }
   }
   if (tier === "free") {
     return {
       href: "/pricing",
-      label: `${formatNumber(remaining)} more words available in Pro`,
+      label: t("cta_free", { count: remaining }),
     }
   }
   return null

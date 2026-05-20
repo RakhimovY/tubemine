@@ -25,7 +25,7 @@ export function ExportBar({
     return (
       <Button onClick={onDownloadCsv} size="sm">
         <Download className="size-4" />
-        Save CSV
+        {tCommon("save_csv")}
       </Button>
     )
   }
@@ -35,15 +35,15 @@ export function ExportBar({
     <div className="flex flex-wrap items-center gap-2">
       <Button onClick={onDownloadCsv} size="sm">
         <Download className="size-4" />
-        Save CSV
+        {tCommon("save_csv")}
       </Button>
       <Button onClick={onDownloadJson} size="sm" variant="outline">
         <Download className="size-4" />
-        {tCommon("export_json")}
+        {tCommon("save_json")}
       </Button>
       <Button onClick={onDownloadExcel} size="sm" variant="outline">
         <Download className="size-4" />
-        {tCommon("export_excel")}
+        {tCommon("save_excel")}
       </Button>
     </div>
   )

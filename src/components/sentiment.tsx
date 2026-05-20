@@ -39,6 +39,7 @@ export function SentimentPanel({
   commentsAnalyzed: number
 }) {
   const tLabel = useTranslations("sentiment_label")
+  const t = useTranslations("analytics.sentiment")
   useEffect(() => {
     if (tier === "anonymous") {
       track("sentiment_curiosity_gap_shown", { commentsAnalyzed })
@@ -62,20 +63,20 @@ export function SentimentPanel({
         <CardContent className="flex flex-col gap-3 p-6 sm:p-7">
           <div className="flex items-center gap-2">
             <Activity className="size-4 text-foreground/70" />
-            <h2 className="text-sm font-medium">Sentiment</h2>
+            <h2 className="text-sm font-medium">{t("heading")}</h2>
             <span className="text-xs text-muted-foreground">
-              across {formatNumber(commentsAnalyzed)} comments
+              {t("across_comments", { count: commentsAnalyzed })}
             </span>
           </div>
           <p className="text-xs leading-relaxed text-muted-foreground">
-            Audience sentiment analyzed.{" "}
+            {t("anon_prefix")}{" "}
             <Link
               href="/login?next=/"
               className="font-medium text-foreground underline-offset-4 hover:underline"
             >
-              Sign up free
+              {t("anon_link")}
             </Link>{" "}
-            to see whether the room leans positive, negative, or mixed.
+            {t("anon_suffix")}
           </p>
         </CardContent>
       </Card>
@@ -96,25 +97,29 @@ export function SentimentPanel({
       <CardContent className="flex flex-col gap-4 p-6 sm:p-7">
         <div className="flex flex-wrap items-center gap-2">
           <Activity className="size-4 text-foreground/70" />
-          <h2 className="text-sm font-medium">Sentiment</h2>
+          <h2 className="text-sm font-medium">{t("heading")}</h2>
           <span className="text-xs text-muted-foreground">
-            across {formatNumber(aggregate.sampleSize)} comments
+            {t("across_comments", { count: aggregate.sampleSize })}
           </span>
           {ruExperimental ? (
             <span
               className="ml-auto inline-flex items-center gap-1 rounded-full border border-border/60 bg-muted/40 px-2 py-0.5 text-[10px] text-muted-foreground"
-              title="Russian lexicon coverage is approximate"
+              title={t("ru_experimental_title")}
             >
               <FlaskConical className="size-3" />
-              Experimental for Russian
+              {t("ru_experimental")}
             </span>
           ) : null}
         </div>
 
         {tier === "free" ? (
-          <FreeBar dist={dist} />
+          <FreeBar dist={dist} ariaLabel={t("free_bar_aria")} />
         ) : (
-          <ProBar dist={dist} aggregate={aggregate} />
+          <ProBar dist={dist} aggregate={aggregate} ariaLabel={t("pro_bar_aria", {
+            pos: Math.round(dist.positive * 100),
+            neu: Math.round(dist.neutral * 100),
+            neg: Math.round(dist.negative * 100),
+          })} />
         )}
 
         {tier === "free" ? (
@@ -125,33 +130,31 @@ export function SentimentPanel({
               className="inline-flex items-center gap-1 text-foreground/80 underline-offset-4 hover:underline"
             >
               <Lock className="size-3" />
-              Upgrade for exact percentages
+              {t("upgrade_cta")}
             </Link>
           </div>
         ) : (
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-            <Legend dotClass="bg-emerald-500/70" label="Positive" count={aggregate.positive} />
-            <Legend dotClass="bg-muted-foreground/30" label="Neutral" count={aggregate.neutral} />
-            <Legend dotClass="bg-rose-500/70" label="Negative" count={aggregate.negative} />
+            <Legend dotClass="bg-emerald-500/70" label={t("legend_positive")} count={aggregate.positive} />
+            <Legend dotClass="bg-muted-foreground/30" label={t("legend_neutral")} count={aggregate.neutral} />
+            <Legend dotClass="bg-rose-500/70" label={t("legend_negative")} count={aggregate.negative} />
             <span className="ml-auto">{summary}</span>
           </div>
         )}
 
         <p className="text-[11px] leading-relaxed text-muted-foreground">
-          Lexicon-based scoring (English + Russian), no LLM. Coverage:{" "}
-          {Math.round(aggregate.coverage * 100)}% of comments matched at least
-          one emotion word.
+          {t("footnote", { percent: Math.round(aggregate.coverage * 100) })}
         </p>
       </CardContent>
     </Card>
   )
 }
 
-function FreeBar({ dist }: { dist: SentimentDistribution }) {
+function FreeBar({ dist, ariaLabel }: { dist: SentimentDistribution; ariaLabel: string }) {
   return (
     <div
       role="img"
-      aria-label="Sentiment distribution, proportional bar"
+      aria-label={ariaLabel}
       className="flex h-7 w-full overflow-hidden rounded-md border border-border/40"
     >
       {dist.positive > 0 && (
@@ -179,15 +182,17 @@ function FreeBar({ dist }: { dist: SentimentDistribution }) {
 function ProBar({
   dist,
   aggregate,
+  ariaLabel,
 }: {
   dist: SentimentDistribution
   aggregate: SentimentAggregateProp
+  ariaLabel: string
 }) {
   const pctRound = (n: number) => Math.round(n * 100)
   return (
     <div
       role="img"
-      aria-label={`${pctRound(dist.positive)} percent positive, ${pctRound(dist.neutral)} percent neutral, ${pctRound(dist.negative)} percent negative`}
+      aria-label={ariaLabel}
       className="flex h-7 w-full overflow-hidden rounded-md border border-border/40"
     >
       {aggregate.positive > 0 && (

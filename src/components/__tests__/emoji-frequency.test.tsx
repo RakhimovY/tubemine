@@ -9,6 +9,9 @@ vi.mock("@/i18n/navigation", () => ({
   ),
 }))
 vi.mock("@vercel/analytics", () => ({ track: vi.fn() }))
+vi.mock("next-intl", () => ({
+  useTranslations: () => (key: string) => key,
+}))
 
 const items = [
   { emoji: "🔥", count: 100, share: 0.5 },

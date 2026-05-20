@@ -86,7 +86,6 @@ export default async function DashboardPage({
     : ""
   const daysUntilReset = computeDaysUntil(quota.resetAt)
 
-  const initials = buildInitials(user.email, user.user_metadata?.full_name)
   const displayName =
     typeof user.user_metadata?.full_name === "string" &&
     user.user_metadata.full_name.length > 0
@@ -103,11 +102,6 @@ export default async function DashboardPage({
   const welcomeMeta = lastAnalysisWhen
     ? t("welcome_meta_with_last", { when: lastAnalysisWhen })
     : t("welcome_meta_first")
-
-  // initials kept for backwards compatibility (used by avatar in the shared
-  // AppShell layout via cookie/profile fetch). Suppressed locally to avoid
-  // the unused-var warning since the inner shell wrapper is gone.
-  void initials
 
   return (
     <div className="dashboard-page">
@@ -233,7 +227,7 @@ export default async function DashboardPage({
                         {t("recent_sub", {
                           channel: item.channel_name ?? "-",
                           when: formatDateRelative(item.processed_at),
-                          count: formatNumber(item.comment_count),
+                          count: item.comment_count,
                         })}
                       </div>
                     </div>
@@ -395,13 +389,6 @@ function computeDaysUntil(iso: string): number {
   // Server-side rendering: Date.now() is the authoritative wall clock.
   const now = Date.now()
   return Math.max(0, Math.ceil((target - now) / 86_400_000))
-}
-
-function buildInitials(email: string | undefined, fullName: unknown): string {
-  const source = typeof fullName === "string" && fullName ? fullName : email ?? ""
-  const parts = source.split(/\s|@/).filter(Boolean).slice(0, 2)
-  if (parts.length === 0) return "U"
-  return parts.map((s) => s[0]?.toUpperCase() ?? "").join("") || "U"
 }
 
 function sentClassFor(dist: SentimentDistribution | null): "pos" | "neu" | "neg" {

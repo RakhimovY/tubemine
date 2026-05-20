@@ -3,6 +3,7 @@
 import { useEffect } from "react"
 import { Lock, Smile } from "lucide-react"
 import { track } from "@vercel/analytics"
+import { useTranslations } from "next-intl"
 import { Link } from "@/i18n/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { emojiName, type EmojiCount } from "@/lib/emoji-frequency"
@@ -18,6 +19,7 @@ export function EmojiPanel({
   items: EmojiCount[]
   totalUnique: number
 }) {
+  const t = useTranslations("analytics.emoji")
   useEffect(() => {
     if (items.length === 0) return
     track("emoji_rendered", {
@@ -30,20 +32,20 @@ export function EmojiPanel({
   if (items.length === 0) return null
 
   const remaining = Math.max(0, totalUnique - items.length)
-  const cta = upgradeCta(tier, remaining)
+  const cta = upgradeCta(t, tier, remaining)
 
   return (
     <Card className="mt-6 border-border/60">
       <CardContent className="flex flex-col gap-4 p-6 sm:p-7">
         <div className="flex flex-wrap items-center gap-2">
           <Smile className="size-4 text-foreground/70" />
-          <h2 className="text-sm font-medium">Top emojis</h2>
-          <span className="text-xs text-muted-foreground">
-            how your audience reacts
-          </span>
+          <h2 className="text-sm font-medium">{t("heading")}</h2>
+          <span className="text-xs text-muted-foreground">{t("sub")}</span>
           <span className="ml-auto text-xs text-muted-foreground">
-            {formatNumber(totalUnique)} unique, top {formatNumber(items.length)}{" "}
-            shown
+            {t("unique_top_shown", {
+              total: totalUnique,
+              shown: items.length,
+            })}
           </span>
         </div>
         <div className="grid grid-cols-5 gap-2 sm:grid-cols-10">
@@ -85,6 +87,7 @@ export function EmojiPanel({
 }
 
 function upgradeCta(
+  t: (key: string, values?: Record<string, number | string>) => string,
   tier: ExtractTier,
   remaining: number,
 ): { href: string; label: string } | null {
@@ -92,13 +95,13 @@ function upgradeCta(
   if (tier === "anonymous") {
     return {
       href: "/login?next=/",
-      label: `${formatNumber(remaining)} more emojis available with a free account`,
+      label: t("cta_anon", { count: remaining }),
     }
   }
   if (tier === "free") {
     return {
       href: "/pricing",
-      label: `${formatNumber(remaining)} more emojis available in Pro`,
+      label: t("cta_free", { count: remaining }),
     }
   }
   return null
