@@ -28,7 +28,9 @@
     "last_100_saved": "Last 100 analyses saved",
     "trial_banner_text": "Trial: {days, plural, one {# day} other {# days}} left, then $19/mo.",
     "trial_banner_today": "Trial ends today, then $19/mo.",
-    "trial_manage_cta": "Manage subscription"
+    "trial_manage_cta": "Manage subscription",
+    "trial_banner_text_canceled": "Trial: {days, plural, one {# day} other {# days}} left, ends {date}.",
+    "trial_banner_today_canceled": "Trial ends today, {date}."
   },
   "history": {
     "title": "History",
@@ -128,7 +130,29 @@
     "section_account": "Account",
     "section_plan": "Plan",
     "section_billing": "Billing",
-    "section_danger": "Danger zone"
+    "section_danger": "Danger zone",
+    "account": {
+      "joined": "Joined",
+      "account_id": "Account ID",
+      "copy": "Copy",
+      "copied": "Copied",
+      "delete_note": "Email hello@tubemine.tech to delete your account"
+    },
+    "plan": {
+      "tier_free": "Free",
+      "tier_pro": "Pro",
+      "usage": "{used, number} of {cap, number} comments this month",
+      "renews": "Renews {date}",
+      "ends": "Subscription ends {date}"
+    },
+    "billing": {
+      "manage": "Manage subscription"
+    },
+    "danger": {
+      "sign_out": "Sign out",
+      "sign_out_busy": "Signing out..."
+    },
+    "canceled_toast": "Subscription canceled. You keep access until the period ends."
   },
   "auth": {
     "sign_in_with_google": "Sign in with Google"

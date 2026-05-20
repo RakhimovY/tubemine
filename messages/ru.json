@@ -28,7 +28,9 @@
     "last_100_saved": "Сохраняются последние 100 анализов",
     "trial_banner_text": "Триал: осталось {days, plural, one {# день} few {# дня} many {# дней} other {# дней}}, потом $19/мес.",
     "trial_banner_today": "Триал заканчивается сегодня, потом $19/мес.",
-    "trial_manage_cta": "Управлять подпиской"
+    "trial_manage_cta": "Управлять подпиской",
+    "trial_banner_text_canceled": "Пробный период: осталось {days, plural, one {# день} few {# дня} many {# дней} other {# дней}}, заканчивается {date}.",
+    "trial_banner_today_canceled": "Пробный период заканчивается сегодня, {date}."
   },
   "history": {
     "title": "История",
@@ -127,8 +129,30 @@
     "title": "Профиль",
     "section_account": "Аккаунт",
     "section_plan": "План",
-    "section_billing": "Оплата",
-    "section_danger": "Опасная зона"
+    "section_billing": "Биллинг",
+    "section_danger": "Опасная зона",
+    "account": {
+      "joined": "Зарегистрирован",
+      "account_id": "ID аккаунта",
+      "copy": "Скопировать",
+      "copied": "Скопировано",
+      "delete_note": "Напишите на hello@tubemine.tech чтобы удалить аккаунт"
+    },
+    "plan": {
+      "tier_free": "Free",
+      "tier_pro": "Pro",
+      "usage": "{used, number} из {cap, number} комментариев в этом месяце",
+      "renews": "Продлевается {date}",
+      "ends": "Подписка заканчивается {date}"
+    },
+    "billing": {
+      "manage": "Управлять подпиской"
+    },
+    "danger": {
+      "sign_out": "Выйти",
+      "sign_out_busy": "Выход..."
+    },
+    "canceled_toast": "Подписка отменена. Доступ сохраняется до конца периода."
   },
   "auth": {
     "sign_in_with_google": "Войти через Google"

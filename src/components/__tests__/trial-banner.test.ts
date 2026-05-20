@@ -69,7 +69,7 @@ describe("loadTrialState", () => {
       data: { status: "trialing", current_period_end: endsAt },
     })
     const state = await loadTrialState("user-1")
-    expect(state).toEqual({ kind: "active", daysLeft: 3 })
+    expect(state).toMatchObject({ kind: "active", daysLeft: 3, canceled: false })
   })
 
   it("returns today branch when less than 24h remain", async () => {
@@ -78,6 +78,32 @@ describe("loadTrialState", () => {
       data: { status: "trialing", current_period_end: endsAt },
     })
     const state = await loadTrialState("user-1")
-    expect(state).toEqual({ kind: "today" })
+    expect(state).toMatchObject({ kind: "today", canceled: false })
+  })
+
+  it("returns canceled=true when cancel_at_period_end is true (mid-trial cancel)", async () => {
+    const endsAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString()
+    maybeSingleMock.mockResolvedValueOnce({
+      data: {
+        status: "trialing",
+        current_period_end: endsAt,
+        cancel_at_period_end: true,
+      },
+    })
+    const state = await loadTrialState("user-1")
+    expect(state).toMatchObject({ kind: "active", canceled: true })
+  })
+
+  it("returns canceled=false when cancel_at_period_end is null or missing", async () => {
+    const endsAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString()
+    maybeSingleMock.mockResolvedValueOnce({
+      data: {
+        status: "trialing",
+        current_period_end: endsAt,
+        cancel_at_period_end: null,
+      },
+    })
+    const state = await loadTrialState("user-1")
+    expect(state).toMatchObject({ canceled: false })
   })
 })
