@@ -92,7 +92,7 @@ export default async function PricingPage({
               </Link>
             ) : (
               <Link
-                href="/login?redirect=/dashboard"
+                href="/login?next=/dashboard"
                 className={buttonVariants({
                   variant: "outline",
                   className: "w-full",
@@ -115,12 +115,11 @@ export default async function PricingPage({
             "Sentiment, top words, emoji insights",
             "Higher monthly cap, no overage charge",
             "Cancel anytime via customer portal",
-            "Priority bug fixes",
           ]}
           cta={
             !state.signedIn ? (
               <Link
-                href="/login?redirect=/pricing"
+                href="/login?next=/pricing"
                 className={buttonVariants({ className: "w-full" })}
               >
                 Sign in to upgrade

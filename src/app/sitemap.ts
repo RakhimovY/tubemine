@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next"
 
-const base = "https://tubemine.vercel.app"
+const base = "https://tubemine.tech"
 const locales = ["en", "ru"] as const
 const routes = [
   "",

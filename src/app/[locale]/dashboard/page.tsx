@@ -155,7 +155,7 @@ export default async function DashboardPage({
         <CardContent className="flex flex-col gap-4 p-6 sm:p-7">
           <div className="flex items-center gap-2">
             <Zap className="size-4 text-foreground/70" />
-            <h2 className="text-sm font-medium">Extract comments</h2>
+            <h2 className="text-sm font-medium">Analyze comments</h2>
           </div>
           <p className="text-sm text-muted-foreground">
             Head back to the extractor to pull comments. Your usage will

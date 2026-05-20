@@ -70,7 +70,7 @@ export function SentimentPanel({
           <p className="text-xs leading-relaxed text-muted-foreground">
             Audience sentiment analyzed.{" "}
             <Link
-              href="/login?redirect=/"
+              href="/login?next=/"
               className="font-medium text-foreground underline-offset-4 hover:underline"
             >
               Sign up free

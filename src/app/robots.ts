@@ -9,7 +9,7 @@ export default function robots(): MetadataRoute.Robots {
         disallow: ["/api/"],
       },
     ],
-    sitemap: "https://tubemine.vercel.app/sitemap.xml",
-    host: "https://tubemine.vercel.app",
+    sitemap: "https://tubemine.tech/sitemap.xml",
+    host: "https://tubemine.tech",
   }
 }

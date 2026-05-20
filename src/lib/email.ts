@@ -34,7 +34,7 @@ export async function sendWelcomeEmail(to: string): Promise<void> {
 }
 
 function welcomeHtml(): string {
-  const origin = process.env.NEXT_PUBLIC_ORIGIN ?? "https://tubemine.vercel.app"
+  const origin = process.env.NEXT_PUBLIC_ORIGIN ?? "https://tubemine.tech"
   return `<!doctype html>
 <html>
   <body style="margin:0;padding:0;background:#fafafa;font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#0a0a0a">
@@ -74,7 +74,7 @@ function welcomeHtml(): string {
 }
 
 function welcomeText(): string {
-  const origin = process.env.NEXT_PUBLIC_ORIGIN ?? "https://tubemine.vercel.app"
+  const origin = process.env.NEXT_PUBLIC_ORIGIN ?? "https://tubemine.tech"
   return [
     "Welcome to TubeMine",
     "",

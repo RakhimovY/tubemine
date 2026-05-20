@@ -25,7 +25,7 @@ export async function generateMetadata({
   params: Promise<{ locale: string }>
 }): Promise<Metadata> {
   const { locale } = await params
-  const base = "https://tubemine.vercel.app"
+  const base = "https://tubemine.tech"
   return {
     title: "TubeMine, YouTube Audience Analytics. Free. No Setup.",
     description:
@@ -98,7 +98,7 @@ export default async function LocaleLayout({
               name: "TubeMine",
               description:
                 "YouTube audience analytics: sentiment, top words, and emoji insights from public comment data via the YouTube Data API. Free up to 5,000 comments per month with a free account.",
-              url: "https://tubemine.vercel.app",
+              url: "https://tubemine.tech",
               applicationCategory: "DeveloperApplication",
               operatingSystem: "Web",
               offers: {

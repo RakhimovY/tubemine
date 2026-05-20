@@ -87,7 +87,7 @@ function upgradeCta(
   if (remaining <= 0) return null
   if (tier === "anonymous") {
     return {
-      href: "/login?redirect=/",
+      href: "/login?next=/",
       label: `${formatNumber(remaining)} more words available with a free account`,
     }
   }

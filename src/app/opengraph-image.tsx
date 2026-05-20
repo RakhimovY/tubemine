@@ -136,7 +136,7 @@ export default async function OpenGraphImage() {
             fontWeight: 500,
           }}
         >
-          tubemine.vercel.app
+          tubemine.tech
         </div>
       </div>
     ),

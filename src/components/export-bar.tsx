@@ -1,16 +1,12 @@
 "use client"
 
-import { Link } from "@/i18n/navigation"
-import { useEffect } from "react"
-import { Download, LogIn } from "lucide-react"
+import { Download } from "lucide-react"
 import { useTranslations } from "next-intl"
-import { track } from "@vercel/analytics"
-import { Button, buttonVariants } from "@/components/ui/button"
+import { Button } from "@/components/ui/button"
 import type { ExtractTier } from "@/components/tubemine"
 
 export function ExportBar({
   tier,
-  videoId,
   onDownloadCsv,
   onDownloadJson,
   onDownloadExcel,
@@ -23,26 +19,9 @@ export function ExportBar({
 }) {
   const tCommon = useTranslations("common")
 
-  useEffect(() => {
-    if (tier === "anonymous") {
-      track("csv_signin_gate_shown", { videoId: videoId ?? "unknown" })
-    }
-  }, [tier, videoId])
-
-  if (tier === "anonymous") {
-    return (
-      <Link
-        href="/login?redirect=/"
-        onClick={() => track("csv_signin_clicked", { videoId: videoId ?? "unknown" })}
-        className={buttonVariants({ size: "sm" })}
-      >
-        <LogIn className="size-4" />
-        Sign in to export CSV
-      </Link>
-    )
-  }
-
-  if (tier === "free") {
+  // Phase K + TUB-1 Phase 1: anon and free tiers share the same single CSV button.
+  // Papa.unparse runs client-side, so no backend gate needed. Sign-in interstitial removed.
+  if (tier === "anonymous" || tier === "free") {
     return (
       <Button onClick={onDownloadCsv} size="sm">
         <Download className="size-4" />

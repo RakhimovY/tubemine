@@ -51,16 +51,22 @@ export function EmojiPanel({
             <div
               key={emoji}
               role="img"
-              aria-label={`${emojiName(emoji)}, ${count} occurrences (${Math.round(share * 100)} percent)`}
+              aria-label={
+                tier === "pro"
+                  ? `${emojiName(emoji)}, ${count} occurrences (${Math.round(share * 100)} percent)`
+                  : `${emojiName(emoji)}, ${count} occurrences`
+              }
               className="flex flex-col items-center justify-center gap-1 rounded-lg border border-border/40 bg-muted/40 px-2 py-3"
             >
               <span className="text-2xl leading-none">{emoji}</span>
               <span className="text-xs font-medium tabular-nums">
                 {formatNumber(count)}
               </span>
-              <span className="text-[10px] tabular-nums text-muted-foreground">
-                {Math.round(share * 100)}%
-              </span>
+              {tier === "pro" && (
+                <span className="text-[10px] tabular-nums text-muted-foreground">
+                  {Math.round(share * 100)}%
+                </span>
+              )}
             </div>
           ))}
         </div>
@@ -85,7 +91,7 @@ function upgradeCta(
   if (remaining <= 0) return null
   if (tier === "anonymous") {
     return {
-      href: "/login?redirect=/",
+      href: "/login?next=/",
       label: `${formatNumber(remaining)} more emojis available with a free account`,
     }
   }
