@@ -126,8 +126,9 @@ export default async function DashboardPage({
               <div className="space-y-1">
                 <p className="text-sm font-medium">Need more?</p>
                 <p className="text-xs text-muted-foreground">
-                  TubeMine Pro: {formatNumber(PRO_MONTHLY_CAP)} comments/month
-                  for $19.
+                  Pro is {formatNumber(PRO_MONTHLY_CAP)} comments per month for
+                  $19. Last 100 saved analyses, CSV results, exact sentiment
+                  percentages, hour-of-day trends.
                 </p>
               </div>
               <UpgradeButton label={tPricing("start_trial_cta")} />

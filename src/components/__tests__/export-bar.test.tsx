@@ -17,7 +17,7 @@ describe("ExportBar tier-aware rendering", () => {
         onDownloadExcel={vi.fn()}
       />,
     )
-    expect(document.body.textContent).toContain("Export CSV")
+    expect(document.body.textContent).toContain("Save CSV")
     expect(document.body.textContent).not.toContain("Sign in to export")
     expect(document.body.textContent).not.toContain("export_json")
   })
@@ -31,7 +31,7 @@ describe("ExportBar tier-aware rendering", () => {
         onDownloadExcel={vi.fn()}
       />,
     )
-    expect(document.body.textContent).toContain("Export CSV")
+    expect(document.body.textContent).toContain("Save CSV")
     expect(document.body.textContent).not.toContain("export_json")
     expect(document.body.textContent).not.toContain("export_excel")
   })
@@ -45,7 +45,7 @@ describe("ExportBar tier-aware rendering", () => {
         onDownloadExcel={vi.fn()}
       />,
     )
-    expect(document.body.textContent).toContain("Export CSV")
+    expect(document.body.textContent).toContain("Save CSV")
     expect(document.body.textContent).toContain("export_json")
     expect(document.body.textContent).toContain("export_excel")
   })

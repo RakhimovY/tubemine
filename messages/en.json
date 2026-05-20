@@ -174,5 +174,18 @@
     "resources": "Resources",
     "legal": "Legal",
     "social": "Social"
+  },
+  "oauth_intro": {
+    "title": "One quick step before Google",
+    "coming_soon_banner": "Beta, coming soon",
+    "helper": "Opens after Google verification (estimated Q3 2026).",
+    "continue_disabled": "Continue to Google, coming soon",
+    "shared_quota_link": "Use TubeMine shared quota instead (slower at peak times)",
+    "back_to_login": "Back to sign in",
+    "trust": {
+      "scope": "youtube.readonly only",
+      "no_write": "No write access",
+      "revoke": "Revoke anytime"
+    }
   }
 }

@@ -174,5 +174,18 @@
     "resources": "Ресурсы",
     "legal": "Юридическая информация",
     "social": "Социальные сети"
+  },
+  "oauth_intro": {
+    "title": "Один быстрый шаг перед Google",
+    "coming_soon_banner": "Бета, скоро",
+    "helper": "Откроется после верификации в Google (ориентир: Q3 2026).",
+    "continue_disabled": "Продолжить в Google, скоро",
+    "shared_quota_link": "Использовать общую квоту TubeMine (медленнее в пик)",
+    "back_to_login": "Назад к входу",
+    "trust": {
+      "scope": "Только youtube.readonly",
+      "no_write": "Без записи",
+      "revoke": "Отзыв в любое время"
+    }
   }
 }

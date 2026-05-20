@@ -22,6 +22,31 @@ export default async function TermsPage({
         responsibly. We process data via the YouTube Data API v3 and do not
         warrant uninterrupted service.
       </p>
+      <h2>Google API services use</h2>
+      <p>
+        TubeMine uses YouTube Data API v3 in compliance with Google&apos;s
+        API Services User Data Policy, including the Limited Use requirements.
+        We access public video metadata and public comment threads only on
+        the videos you submit; we never request any other Google API scope.
+        Your continued use of TubeMine constitutes your agreement to abide by
+        the{" "}
+        <a
+          href="https://www.youtube.com/t/terms"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          YouTube Terms of Service
+        </a>{" "}
+        and{" "}
+        <a
+          href="https://policies.google.com/privacy"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Google Privacy Policy
+        </a>
+        .
+      </p>
       <h2>Retention</h2>
       <p>
         Analysis results saved to your account are retained for 30 days from
@@ -36,8 +61,9 @@ export default async function TermsPage({
       </p>
       <h2>Account deletion</h2>
       <p>
-        Email rakhimov.y.hh@gmail.com to request account deletion. Deletion
-        cascades and removes all saved analyses + subscription records.
+        Email <a href="mailto:hello@tubemine.tech">hello@tubemine.tech</a> to
+        request account deletion. Deletion cascades and removes all saved
+        analyses + subscription records.
       </p>
     </main>
   )

@@ -25,7 +25,7 @@ export function ExportBar({
     return (
       <Button onClick={onDownloadCsv} size="sm">
         <Download className="size-4" />
-        Export CSV
+        Save CSV
       </Button>
     )
   }
@@ -35,7 +35,7 @@ export function ExportBar({
     <div className="flex flex-wrap items-center gap-2">
       <Button onClick={onDownloadCsv} size="sm">
         <Download className="size-4" />
-        Export CSV
+        Save CSV
       </Button>
       <Button onClick={onDownloadJson} size="sm" variant="outline">
         <Download className="size-4" />
