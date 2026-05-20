@@ -52,7 +52,7 @@ Resolve 24 audit items (M1-M24) between current `~/projects/yt-comments` UI and 
 - Polar SDK for `/api/checkout` + `/api/portal` (already wired, do NOT change webhook).
 - Vercel Analytics only (NO Sentry, NO GA, NO PostHog).
 - TypeScript strict, server components by default, client islands only where needed.
-- next-intl for EN/RU localization (already wired at routing level). Phase 0 also ensures `src/i18n/request.ts` has `onError: () => {}` + `getMessageFallback: ({ key }) => key` to prevent runtime crash on a missing translation key (Edge Case #10 from spec review).
+- next-intl for EN/RU localization (already wired at routing level). Phase 0 also ensures `src/i18n/request.ts` has `onError: (err) => console.error('[i18n]', err)` + `getMessageFallback: ({ key }) => key` to prevent runtime crash on a missing translation key while still surfacing the miss in browser/server logs (Edge Case #10 from spec review).
 
 ## LOCKED decisions (no re-litigation, user pre-locked)
 
@@ -107,7 +107,7 @@ Map token names to Tailwind utility classes via `@theme` block so existing `bg-c
 ### Phase 0: CSS tokens migration (~30-45 min, single commit, BLOCKING)
 
 - Translate `tokens.md` → `src/app/globals.css` via Tailwind v4 `@theme` block
-- Set next-intl runtime guard in `src/i18n/request.ts`: `onError: () => {}` + `getMessageFallback: ({ key }) => key` (prevents runtime crash if Phase 6 adds an EN key but forgets RU; user sees key string instead of 500)
+- Set next-intl runtime guard in `src/i18n/request.ts`: `onError: (err) => console.error('[i18n]', err)` + `getMessageFallback: ({ key }) => key` (prevents runtime crash if Phase 6 adds an EN key but forgets RU; user sees the key string instead of a 500, and the console.error keeps the miss observable in logs)
 - Verify existing components still render (dev server smoke `/`, `/dashboard`, `/pricing`)
 - **Commit message:** `feat(tokens): port v3 design system tokens to Tailwind v4 @theme + next-intl onError guard`
 - **M-ids resolved:** none directly, but enables M1-M24
@@ -124,6 +124,7 @@ User-visible improvements shippable independent of full rebuild. 6 fixes batched
 - **M12:** Dashboard `h2` "Extract comments" → "Analyze comments" (`dashboard/page.tsx` line 158)
 - **M17:** EmojiPanel exact `%` gate by tier: only render `%` span when `tier === "pro"` (anon + free see counts only, `emoji-frequency.tsx` lines 60-62)
 - **M15:** Login redirect param unification → adopt `?next=` (login-form already reads it). Update callers: `pricing/page.tsx`, `sentiment.tsx`, `export-bar.tsx`, `top-words.tsx`, `emoji-frequency.tsx` from `?redirect=` → `?next=`
+- **Brand voice cleanup (legacy leak from Phase J commit `73d68b3`)**: `src/app/[locale]/page.tsx` lines 83-85 contain hardcoded EN copy `"For researchers, marketers, creators, and indie devs who want the signal, not a scrape."` The word `scrape` is a LOCKED banned verb. Rewrite to `"...who want the signal, not the noise."` (preserves rhetorical contrast, removes the banned verb). Phase 6 M22 i18n sweep will extract this to a translation key later. Required to make Phase 1 pass verification check 6.
 
 - **Verify:** tsc + lint + tests pass; anon can save CSV in browser; EmojiPanel hides `%` on free; login redirect lands user on intended page after sign-in
 - **Commit message:** `fix: pre-rebuild cleanup, anon CSV + emoji % gate + domain + Priority + Extract verb + login redirect`
@@ -187,7 +188,7 @@ Build 4 new components in `src/components/`:
 
 - **`account-fields.tsx`** (client island for clipboard copy): avatar (from `profiles.avatar_url`), email, joined date (from `profiles.created_at` or `auth.users.created_at`), account ID with click-to-copy. Use `navigator.clipboard.writeText` with `textarea` fallback per Profile.html reference
 - **`plan-card.tsx`** (server component): tier badge, quota progress bar, renews/ends date (from `subscriptions.current_period_end`). Derive `subscriptionCanceled` inline as `subscription?.status === 'revoked' || subscription?.cancel_at_period_end === true` (no new flag added to schema, no Polar webhook change required, both fields already exist on the row). When derived true, swap "renews Jun 18" for "subscription ends Jun 18"
-- **TrialBanner gating refinement** (existing component from Phase J, light amendment): hide when `period_end <= now` (handles Polar webhook delay race where status is still `trialing` but the period has actually expired). Additionally, when `cancel_at_period_end === true`, swap copy from "...then $19/mo" to "...trial ends [date]" (user already canceled during trial, no charge coming). These are 5-10 LOC edits to the existing `src/components/trial-banner.tsx`
+- **TrialBanner gating refinement** (existing component from Phase J, light amendment): apply branches IN THIS STRICT ORDER, hide-wins-over-copy-swap. (1) Hide entirely when `status !== "trialing" || period_end <= now` (handles Polar webhook delay race where status is still `trialing` but the period has actually expired). (2) When banner IS shown by step (1) AND `cancel_at_period_end === true`, swap copy from `"...then $19/mo"` to `"...trial ends [date]"` (user already canceled during trial, no charge coming). If both conditions match (expired AND canceled), step (1) hides the banner and step (2) is never evaluated. These are 5-10 LOC edits to the existing `src/components/trial-banner.tsx`.
 - **`billing-card.tsx`** (server component, Pro-only): mount only when `tier === "pro"`. CTA → `/api/portal`. Last 4 of card optional (omit if Polar API doesn't expose it, under-promise rule)
 - **`danger-zone.tsx`** (client island for Sign out): Sign out destructive button using Supabase `signOut()` helper. Delete account: text-only note "Email hello@tubemine.tech to delete your account" (no in-product delete)
 
@@ -221,7 +222,7 @@ Reference: `TubeMine Landing.html` for Phase J Variant D hero + trust row + feat
 - **FaqAccordion at bottom:** client island, single-open, animated `max-height` per design tokens. 4-6 items per Landing.html FAQ section
 - **DashboardPreview** 3D-skewed mockup is SKIPPED in TUB-1 scope. No M-id maps to it (pure decoration). The 3D trust-contract feature is deferred to a follow-up TUB if the user wants it shipped later. Phase 4 does NOT build a dashboard preview component.
 
-- **Verify:** anon visits `/` → sees hero + trust row + extractor + Sample label + feature blocks + dashboard preview (if shipped) + final CTA + FAQ. Mobile 375 + desktop 1280 screenshots captured. EN + RU render. Signed-in visits `/` → sees only extractor (Variant D anon-only hero hidden)
+- **Verify:** anon visits `/` → sees hero + trust row + extractor + Sample label + feature blocks + final CTA + FAQ. Mobile 375 + desktop 1280 screenshots captured. EN + RU render. Signed-in visits `/` → sees only extractor (Variant D anon-only hero hidden)
 - **Commit message:** `feat(landing): Phase J Variant D hero + Sample label + trust row + feature blocks + final CTA + FAQ accordion`
 - **M-ids resolved:** M8, M9 (folded into M8 per LOCKED decision 1), M10 (3 items)
 - **Tests added:** 3+ (Sample label anon-only render gate, signed-in hero hidden, FAQ accordion behavior)
@@ -362,7 +363,7 @@ After FULL TUB-1 ship (all 6 phases shipped, all acceptance criteria met):
 - **R2: Comparison table mobile `.compare-cards` mode complex to implement responsively.** *Mitigation:* Reference handoff HTML directly during Phase 2; use CSS container queries if needed; fallback to media queries.
 - **R3: i18n debt cleanup (M22 main extractor) expands beyond ~60 min estimate.** *Mitigation:* If Phase 6 elapsed crosses 3h, AskUserQuestion to split into Phase 6a + 6b OR defer some M21/22 strings to follow-up TUB issue.
 - **R4: AppShell breaks existing layout cookies / session state.** *Mitigation:* Phase 5 reuses existing auth helpers; signed-out users redirected from AppShell-wrapped pages to `/login?next=` per existing pattern.
-- **R5: 3D-skewed DashboardPreview burns time.** *Mitigation:* Time-boxed to <1h in Phase 4; defers to follow-up if over budget.
+- **R5: Scope-creep pressure to re-add DashboardPreview during Phase 4.** *Mitigation:* DashboardPreview is explicitly CUT from TUB-1 (no M-id maps to it, pure decoration). Hold the line during Phase 4; defer to a follow-up TUB if the user requests the feature after this sprint ships.
 - **R6: `/api/extract` response shape drift if I accidentally touch it.** *Mitigation:* Hard NO in user prompt + listed in out-of-scope; if any code change touches it, AskUserQuestion immediately.
 - **R7: Vercel deploy timing race** (push, deploy READY before smoke can run). *Mitigation:* Use `mcp__vercel__list_deployments` to poll until `status=READY`, max 5 min, before running smoke curls.
 - **R8: Server-only `exceljs` import accidentally leaks to client bundle.** *Mitigation:* `import "server-only"` guard; Vitest alias stub at `src/test/server-only-stub.ts` per runbook.
