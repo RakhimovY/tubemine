@@ -1,0 +1,862 @@
+# TUB-28 INP Perf Refactor Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** Bring `/dashboard` sidebar nav-item INP from 2097 ms toward < 600 ms via 3 staged commits: add `loading.tsx`, replace `listAnalyses(100)` with a cheap count query, and wrap auth/quota fetches in `react.cache` for per-request dedup. Step 4 (cache wrap) is conditional on prod INP still being > 600 ms after Steps 1+2.
+
+**Architecture:** No structural change. Server-rendered Next.js 16 App Router. Route group `src/app/[locale]/(app)/` with `AppShell` chrome in `layout.tsx`, three sibling pages (`dashboard`, `profile`, `history`). Supabase RLS scopes per-user. Changes: (1) Suspense fallback for instant skeleton; (2) head-only count query instead of 100-row fetch; (3) `react.cache` shims around `supabase.auth.getUser()` and `getUserQuota(userId)` to avoid duplicate fetches inside one request.
+
+**Tech Stack:** Next.js 16.2.6, React 19.2.4, TypeScript, `next-intl` 4.12, `@supabase/ssr` 0.10.3, `@supabase/supabase-js` 2.105.4, vitest, pnpm. No new deps.
+
+**Spec:** `docs/superpowers/specs/2026-05-21-tub-28-inp-perf-refactor-design.md`.
+**Linear:** [TUB-28](https://linear.app/qostap/issue/TUB-28).
+
+---
+
+## Constants for every task
+
+- Project root: `/Users/rakhimovy/projects/yt-comments`. All paths below are relative to this root unless absolute.
+- Prod URL: `https://tubemine.tech`.
+- Locale used for verify: `en` (URL `/en/dashboard`).
+- Test command: `pnpm test` (runs `NODE_ENV=test vitest run`).
+- Single-file test: `pnpm test -- src/lib/__tests__/<file>.test.ts`.
+- Build (validates message parity + types + bundle): `pnpm build`.
+- Lint: `pnpm lint`.
+- No em-dash (`U+2014`) or en-dash (`U+2013`) in any code, comment, or commit message. Use `,` `.` `()` `:` `-` only.
+- `redirect` import in pages comes from `@/i18n/navigation`, not `next/navigation`.
+
+---
+
+## File Structure (locked decisions)
+
+| File | Operation | Responsibility |
+|---|---|---|
+| `src/app/[locale]/(app)/loading.tsx` | create (Task 1) | Suspense fallback for `(app)` child pages. Static React, no data deps, no translations. |
+| `src/lib/analyses.ts` | modify (Task 2) | Add `getAnalysesCount(sb)` helper. |
+| `src/app/[locale]/(app)/layout.tsx` | modify (Task 2 + Task 3) | Task 2: swap `listAnalyses(100)` for `getAnalysesCount`. Task 3: swap `supabase.auth.getUser()` for `getCachedUser()`. |
+| `src/lib/__tests__/analyses-count.test.ts` | create (Task 2) | Happy-path unit test for `getAnalysesCount`. |
+| `src/lib/supabase/server.ts` | modify (Task 3) | Add `getCachedUser` export (`cache(...)`-wrapped) with RSC-only JSDoc. |
+| `src/lib/quota.ts` | modify (Task 3) | Wrap existing `getUserQuota` with `react.cache` for per-request dedup. |
+| `src/app/[locale]/(app)/dashboard/page.tsx` | modify (Task 3) | Replace `supabase.auth.getUser()` with `getCachedUser()`. |
+| `src/app/[locale]/(app)/profile/page.tsx` | modify (Task 3) | Same as dashboard. |
+| `src/app/[locale]/(app)/history/page.tsx` | modify (Task 3) | Same as dashboard. |
+
+No other files are touched. No new dependencies. No new directories.
+
+---
+
+## Pre-flight (do once, before Task 1)
+
+- [ ] **PF.1: Refresh Linear context.**
+
+Run from any shell context that can reach Linear MCP:
+- `mcp__claude_ai_Linear__get_issue('TUB-28')` to confirm current status.
+- `mcp__claude_ai_Linear__save_issue` to move TUB-28 from Backlog to In Progress. Use the existing team/status IDs returned by `get_issue`.
+
+- [ ] **PF.2: Verify clean working tree on `main`.**
+
+Run: `git status`
+Expected: `On branch main` ... `nothing to commit, working tree clean`.
+
+If dirty: stash or commit BEFORE starting Task 1. Do NOT branch off a dirty tree.
+
+- [ ] **PF.3: Confirm prod deploy of current `main` is READY.**
+
+Run: `mcp__vercel__list_deployments` with `projectId=tubemine` (find the canonical projectId via `mcp__vercel__list_projects` if unknown). Expected: latest deployment for `main` has `readyState=READY`.
+
+If not READY: wait for the in-flight deploy to finish before starting Task 1.
+
+---
+
+## Task 1: Add `loading.tsx` (Step 1 in spec)
+
+**Files:**
+- Create: `src/app/[locale]/(app)/loading.tsx`
+
+Bite-sized steps:
+
+- [ ] **1.1: Branch off main.**
+
+```bash
+git checkout main
+git pull --ff-only origin main
+git checkout -b fix/tub-28-step-1-loading-skeleton
+```
+
+Expected: branch `fix/tub-28-step-1-loading-skeleton` created and checked out.
+
+- [ ] **1.2: Create `loading.tsx`.**
+
+Write the following to `src/app/[locale]/(app)/loading.tsx`:
+
+```tsx
+import { Skeleton } from "@/components/ui/skeleton"
+
+/*
+  TUB-28 Step 1: Suspense fallback for child pages in the (app) route group.
+  Renders instantly on navigation between /dashboard, /profile, /history while
+  the new page's server data resolves. AppShell chrome (topbar + sidebar) is
+  already mounted by the parent layout, so this file only fills .main-inner.
+
+  Hard rules:
+    - No t() / getTranslations() / useTranslations(). Locale-agnostic body.
+    - No auth. No data fetches.
+    - Reserved class .is-placeholder is NOT used here (owned by
+      .recent-thumb.is-placeholder in globals.css line 1776 for missing
+      thumbnail fallback). Use [data-slot="skeleton"] from the Skeleton
+      primitive instead.
+
+  Block heights match the real dashboard sections so transition to real
+  content does not visibly jump.
+*/
+export default function AppGroupLoading() {
+  return (
+    <div className="dashboard-page" aria-busy="true" aria-live="polite">
+      {/* Welcome strip placeholder. Real welcome-strip is ~56px tall. */}
+      <Skeleton className="h-14 w-2/3" />
+
+      {/* Usage card placeholder. Real usage card is ~180px tall. */}
+      <Skeleton className="h-44 w-full rounded-xl" />
+
+      {/* Quick analyze card placeholder. Real quick-analyze is ~220px tall. */}
+      <Skeleton className="h-56 w-full rounded-xl" />
+
+      {/* Recent analyses list: 5 rows, ~64px each. */}
+      <div className="recent-list">
+        <Skeleton className="h-16 w-full rounded-lg" />
+        <Skeleton className="h-16 w-full rounded-lg" />
+        <Skeleton className="h-16 w-full rounded-lg" />
+        <Skeleton className="h-16 w-full rounded-lg" />
+        <Skeleton className="h-16 w-full rounded-lg" />
+      </div>
+    </div>
+  )
+}
+```
+
+- [ ] **1.3: Verify the new file has no banned characters.**
+
+Run: `grep -cP '[\x{2014}\x{2013}]' src/app/\[locale\]/\(app\)/loading.tsx`
+Expected: `0`.
+
+- [ ] **1.4: Type-check + build.**
+
+Run: `pnpm build`
+Expected: success (vitest passes, message parity OK, Next.js build completes).
+
+If TypeScript errors mention missing `Skeleton` import: verify the file at `src/components/ui/skeleton.tsx` exports `Skeleton`. Do NOT modify that file.
+
+- [ ] **1.5: Lint.**
+
+Run: `pnpm lint`
+Expected: no errors.
+
+- [ ] **1.6: Commit.**
+
+```bash
+git add src/app/\[locale\]/\(app\)/loading.tsx
+git commit -m "$(cat <<'EOF'
+perf(tub-28): step 1 add loading.tsx for (app) route group
+
+Suspense fallback so sidebar nav-item clicks render skeleton instantly
+while the new page server-resolves. AppShell chrome already mounted by
+parent layout, so this file only fills .main-inner with 4 dashboard-shaped
+skeleton blocks (welcome strip, usage card, quick analyze, 5 recent rows).
+No translations, no auth, no data deps. Uses [data-slot="skeleton"] from
+existing Skeleton primitive; reserved .is-placeholder class untouched.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+- [ ] **1.7: Push and open PR.**
+
+```bash
+git push -u origin fix/tub-28-step-1-loading-skeleton
+gh pr create --title "perf(tub-28): step 1 add loading.tsx for (app) route group" --body "$(cat <<'EOF'
+## Summary
+- Adds Suspense fallback for child pages in the (app) route group so sidebar nav clicks render an instant skeleton.
+- AppShell chrome stays mounted across navigation; only .main-inner gets the skeleton.
+- Zero data dependencies; pure markup.
+
+## Test plan
+- [ ] Preview URL renders skeleton when navigating /dashboard -> /profile -> /history
+- [ ] DOM has [data-slot="skeleton"] within 100ms of click
+- [ ] No new lint or TS errors
+- [ ] No visible CLS jump (< 0.05) on transition
+
+Relates to: TUB-28
+EOF
+)"
+```
+
+Expected: PR URL returned. Vercel auto-creates a preview deployment.
+
+- [ ] **1.8: Verify preview, then merge.**
+
+Wait for Vercel preview to reach READY (poll `mcp__vercel__list_deployments` filtered to the PR branch). Hard-reload the preview URL in Chrome MCP (`mcp__claude-in-chrome__navigate` to the preview URL + `/en/dashboard`). Click any sidebar nav-item, observe a skeleton flash.
+
+Then merge the PR:
+```bash
+gh pr merge --squash --delete-branch
+git checkout main
+git pull --ff-only origin main
+```
+
+- [ ] **1.9: Wait for prod deploy READY.**
+
+Run: `mcp__vercel__list_deployments` (filter to `target=production`, latest commit on `main`).
+Expected: `readyState=READY`.
+
+- [ ] **1.10: Verify on prod via Chrome MCP.**
+
+Navigate to `https://tubemine.tech/en/dashboard` via `mcp__claude-in-chrome__navigate`. Sign in if not authed (this verify is best run with a real authed session in the user's main browser; if running headless-anonymous, the auth redirect will happen, still acceptable for verifying the skeleton path).
+
+Execute DOM assertion via `mcp__claude-in-chrome__javascript_tool`:
+
+```js
+// Click the History nav item, capture if skeleton element exists within 100ms.
+const link = document.querySelector('aside a[href$="/history"]')
+const before = performance.now()
+link?.click()
+let skeletonSeen = false
+const start = Date.now()
+while (Date.now() - start < 200) {
+  if (document.querySelector('[data-slot="skeleton"]')) {
+    skeletonSeen = true
+    break
+  }
+  await new Promise(r => setTimeout(r, 10))
+}
+return { skeletonSeen, elapsedMs: performance.now() - before }
+```
+
+Expected: `skeletonSeen=true`, `elapsedMs < 100`.
+
+Also take a screenshot via `mcp__claude-in-chrome__take_screenshot` for sanity.
+
+- [ ] **1.11: Run Tier 1 verify subset (Step-1 relevant subset: TC #1 SideNav highlight, TC #2 AppShell persists, TC #8 skeleton on nav).**
+
+In Chrome MCP javascript_tool:
+- TC #1: click `/dashboard`, then `/profile`, check `document.querySelector('aside a.is-active')?.href` ends with `/profile`.
+- TC #2: assert `document.querySelector('aside.sidebar')` is the same node before and after nav (record nodeRef, re-check).
+- TC #8: per 1.10 above.
+
+If any TC fails: **STOP**, run `vercel rollback` immediately (`mcp__vercel__list_deployments` to find previous READY deployment id, then redeploy that target via CLI or dashboard), diagnose locally, fix on a NEW branch, do NOT push more commits on top of failing main.
+
+- [ ] **1.12: Comment on TUB-28 with Task 1 result.**
+
+Use `mcp__claude_ai_Linear__save_comment` with body:
+
+```
+Step 1 (loading.tsx) shipped: <commit SHA>.
+
+Tier 1 verify: TC #1 PASS, TC #2 PASS, TC #8 PASS (skeleton observed within <N> ms of click).
+
+INP measurement (if Vercel Analytics visible): <number> ms.
+
+Proceeding to Step 2.
+```
+
+- [ ] **1.13: Append progress to vault daily note.**
+
+Use `mcp__obsidian__write_note` with mode `append` to `daily/2026-05-21.md`:
+
+```
+- Turbo #1 INP perf progress: Step 1 (loading.tsx) shipped <SHA>. Tier 1 verify clean. Proceeding to Step 2.
+```
+
+Subheading "Turbo #1 INP perf progress" should be created on first append if it does not already exist in today's note.
+
+---
+
+## Task 2: Replace `listAnalyses(100)` with `getAnalysesCount` (Step 2 in spec)
+
+**Files:**
+- Modify: `src/lib/analyses.ts` (append `getAnalysesCount`)
+- Modify: `src/app/[locale]/(app)/layout.tsx` (swap fetch)
+- Create: `src/lib/__tests__/analyses-count.test.ts` (happy-path test)
+
+Bite-sized steps:
+
+- [ ] **2.1: Branch off main (after Task 1 merged).**
+
+```bash
+git checkout main
+git pull --ff-only origin main
+git checkout -b fix/tub-28-step-2-analyses-count
+```
+
+- [ ] **2.2: Write the failing test.**
+
+Create `src/lib/__tests__/analyses-count.test.ts`:
+
+```ts
+import { describe, it, expect, vi } from "vitest"
+import type { SupabaseClient } from "@supabase/supabase-js"
+import { getAnalysesCount } from "@/lib/analyses"
+
+describe("getAnalysesCount", () => {
+  it("returns the count when supabase responds with no error", async () => {
+    const select = vi.fn().mockResolvedValue({ count: 7, error: null })
+    const from = vi.fn().mockReturnValue({ select })
+    const sb = { from } as unknown as SupabaseClient
+
+    const result = await getAnalysesCount(sb)
+
+    expect(result).toBe(7)
+    expect(from).toHaveBeenCalledWith("analyses")
+    expect(select).toHaveBeenCalledWith("id", { count: "exact", head: true })
+  })
+})
+```
+
+- [ ] **2.3: Run the test, confirm it fails.**
+
+Run: `pnpm test -- src/lib/__tests__/analyses-count.test.ts`
+Expected: FAIL with `getAnalysesCount` undefined or import error.
+
+- [ ] **2.4: Add `getAnalysesCount` helper to `src/lib/analyses.ts`.**
+
+Append AFTER the existing `purgeExpiredAnalyses` function (current end of file at line ~191), before any final newline:
+
+```ts
+export async function getAnalysesCount(sb: SupabaseClient): Promise<number> {
+  // sb is the USER-SCOPED Supabase server client. RLS policy
+  // "users read own analyses" filters auth.uid() = user_id, so count is
+  // scoped to the caller. head:true + count:'exact' returns a count
+  // without a row payload (index-only scan when possible).
+  const { count, error } = await sb
+    .from("analyses")
+    .select("id", { count: "exact", head: true })
+  if (error) {
+    console.warn("[analyses] count failed", { error: error.message })
+    return 0
+  }
+  return count ?? 0
+}
+```
+
+- [ ] **2.5: Re-run the test, confirm it passes.**
+
+Run: `pnpm test -- src/lib/__tests__/analyses-count.test.ts`
+Expected: PASS (1 test).
+
+- [ ] **2.6: Modify `(app)/layout.tsx` to use the new helper.**
+
+In `src/app/[locale]/(app)/layout.tsx`:
+
+a) Change the import line for analyses. Replace:
+```ts
+import { listAnalyses } from "@/lib/analyses"
+```
+with:
+```ts
+import { getAnalysesCount } from "@/lib/analyses"
+```
+
+b) Replace the `Promise.all` block (currently lines ~38-45):
+```ts
+const [quota, recent] = await Promise.all([
+  getUserQuota(user.id),
+  listAnalyses(supabase, null, 100),
+])
+
+const tier: Tier = quota.tier
+const initials = buildInitials(user.email, user.user_metadata?.full_name)
+const historyCount = recent.items.length
+```
+
+with:
+
+```ts
+const [quota, historyCount] = await Promise.all([
+  getUserQuota(user.id),
+  getAnalysesCount(supabase),
+])
+
+const tier: Tier = quota.tier
+const initials = buildInitials(user.email, user.user_metadata?.full_name)
+```
+
+- [ ] **2.7: Run the full vitest suite + lint + build to catch regressions.**
+
+Run: `pnpm test`
+Expected: all tests pass (including the new `analyses-count.test.ts`).
+
+Run: `pnpm lint`
+Expected: no errors. If lint complains that `listAnalyses` import is unused elsewhere in `layout.tsx`, confirm step 2.6a removed it; rerun.
+
+Run: `pnpm build`
+Expected: success.
+
+- [ ] **2.8: Audit for em/en-dash.**
+
+Run: `grep -cP '[\x{2014}\x{2013}]' src/lib/analyses.ts src/app/\[locale\]/\(app\)/layout.tsx src/lib/__tests__/analyses-count.test.ts`
+Expected: `0` for each.
+
+- [ ] **2.9: Commit.**
+
+```bash
+git add src/lib/analyses.ts src/lib/__tests__/analyses-count.test.ts src/app/\[locale\]/\(app\)/layout.tsx
+git commit -m "$(cat <<'EOF'
+perf(tub-28): step 2 swap listAnalyses(100) for getAnalysesCount
+
+Layout previously fetched 100 rows of analyses just to compute the sidebar
+history-count badge (recent.items.length). Replace with a head-only
+count:'exact' query that returns just the integer, saving ~500-900 ms per
+intra-(app) navigation. Sidebar badge still shows the real total via the
+existing side-nav.tsx guard historyCount > 0; brand-new users and
+RLS-denied fallbacks both render with the badge hidden.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+- [ ] **2.10: Push and open PR.**
+
+```bash
+git push -u origin fix/tub-28-step-2-analyses-count
+gh pr create --title "perf(tub-28): step 2 swap listAnalyses(100) for getAnalysesCount" --body "$(cat <<'EOF'
+## Summary
+- Layout drops the 100-row analyses fetch; replaces with head-only count query (~500-900ms saved per intra-(app) nav).
+- Sidebar count badge still renders correctly (real total when > 0, hidden when 0).
+- New unit test in src/lib/__tests__/analyses-count.test.ts.
+
+## Test plan
+- [ ] pnpm test passes (incl. new analyses-count.test)
+- [ ] Preview /dashboard, /history, /profile all load without error
+- [ ] Sidebar History badge shows real count for a user with > 0 analyses
+- [ ] User B (incognito) sees their own count, not User A's
+- [ ] No new RLS errors in Vercel logs
+
+Relates to: TUB-28
+EOF
+)"
+```
+
+- [ ] **2.11: Verify preview, merge, wait prod READY.**
+
+Same pattern as Task 1 steps 1.8-1.9.
+
+- [ ] **2.12: Verify on prod via Chrome MCP.**
+
+Navigate to `https://tubemine.tech/en/dashboard` authed. Run JS assertion:
+
+```js
+const aside = document.querySelector('aside.sidebar')
+const countSpan = aside?.querySelector('a[href$="/history"] .count')
+return {
+  hasSidebar: !!aside,
+  countSpanText: countSpan?.textContent ?? null,
+  countSpanPresent: !!countSpan,
+}
+```
+
+Expected:
+- For a user with > 0 saved analyses: `countSpanPresent=true`, `countSpanText` is a positive integer matching the user's actual count (sanity-check against `/history` page row total).
+- For a brand-new user with 0 analyses: `countSpanPresent=false` (badge hidden by `historyCount > 0` guard).
+
+Take screenshot of `/dashboard` for visual record.
+
+- [ ] **2.13: Multi-user RLS isolation check.**
+
+In Chrome MCP regular tab: log in as User A, observe sidebar count = N.
+Open new incognito tab (`mcp__claude-in-chrome__tabs_create_mcp` if supported, or User runs manually). Log in as User B. Observe User B's sidebar count = M (their own value, not N).
+
+If incognito automation is unavailable in the current Chrome MCP setup, ask the user to verify manually with a second account.
+
+- [ ] **2.14: Tier 1 verify subset (full 9 TCs this round, since Step 2 is the data-shape change).**
+
+Run each TC #1-9 from spec § 7 via Chrome MCP javascript_tool. Record PASS/FAIL for each.
+
+If any TC fails: `vercel rollback`, diagnose, fix on new branch.
+
+- [ ] **2.15: Comment on TUB-28 + append to daily note.**
+
+Same pattern as 1.12 and 1.13, with Step 2 SHA + Tier 1 result + INP delta if measurable from Vercel Analytics.
+
+---
+
+## Task 3: React `cache()` per-request dedup (Step 4 in spec; CONDITIONAL)
+
+**Pre-trigger check** (do NOT skip):
+
+- [ ] **3.0: Measure post-Step-2 INP on prod.**
+
+Pull INP for `/dashboard` sidebar nav-item from Vercel Web Analytics for the past hour (or last 10 nav clicks if user count is low). If INP `<= 600 ms`: SKIP Task 3 entirely (mark task tree complete here, jump to "Wrap up" section). If INP `> 600 ms`: proceed with Task 3.
+
+If Vercel Analytics doesn't have enough samples to measure: do one manual Chrome DevTools INP overlay measurement on prod (`mcp__claude-in-chrome__navigate` to /en/dashboard, open DevTools manually via user, observe INP overlay number on a real click). If still > 600 ms or measurement is impossible: proceed with Task 3 as a precaution.
+
+**Files (6 total, all in single atomic commit per spec § 6):**
+- Modify: `src/lib/supabase/server.ts`
+- Modify: `src/lib/quota.ts`
+- Modify: `src/app/[locale]/(app)/layout.tsx`
+- Modify: `src/app/[locale]/(app)/dashboard/page.tsx`
+- Modify: `src/app/[locale]/(app)/profile/page.tsx`
+- Modify: `src/app/[locale]/(app)/history/page.tsx`
+
+Bite-sized steps:
+
+- [ ] **3.1: Branch off main.**
+
+```bash
+git checkout main
+git pull --ff-only origin main
+git checkout -b fix/tub-28-step-4-react-cache-dedup
+```
+
+- [ ] **3.2: Add `getCachedUser` to `src/lib/supabase/server.ts`.**
+
+Read the current file. At the top of the imports section, after the existing `import "server-only"`, add:
+```ts
+import { cache } from "react"
+```
+
+At the END of the file (after `createServiceClient`), append the new export verbatim:
+
+```ts
+
+/**
+ * Per-request memoized auth lookup. RSC-ONLY.
+ *
+ * Use ONLY from server components rendered inside the React render tree
+ * (layouts, pages under `src/app/[locale]/(app)/`).
+ *
+ * Do NOT call from:
+ *   - Route handlers (`app/api/.../route.ts`)
+ *   - Server actions
+ *   - Middleware (`middleware.ts`)
+ *   - Webhook handlers
+ *
+ * `react.cache` only dedupes within a single RSC render pass. Calling from
+ * non-RSC contexts gives no dedup and may surprise future readers; use the
+ * direct `(await createClient()).auth.getUser()` pattern there instead.
+ */
+export const getCachedUser = cache(async () => {
+  const sb = await createClient()
+  const {
+    data: { user },
+  } = await sb.auth.getUser()
+  return user
+})
+```
+
+- [ ] **3.3: Wrap `getUserQuota` in `react.cache` in `src/lib/quota.ts`.**
+
+Read the current file. At the top of the imports section (line 1 area, after `import "server-only"`), add:
+```ts
+import { cache } from "react"
+```
+
+Find the existing `export async function getUserQuota(userId: string): Promise<UserQuota>` declaration. Convert it from `export async function` to an unexported `const` + a cached export. The body stays identical.
+
+Before:
+```ts
+export async function getUserQuota(userId: string): Promise<UserQuota> {
+  // ... existing body unchanged ...
+}
+```
+
+After:
+```ts
+const _getUserQuota = async (userId: string): Promise<UserQuota> => {
+  // ... same body, indented identically ...
+}
+
+export const getUserQuota = cache(_getUserQuota)
+```
+
+When transcribing the body, preserve every line, every comment, every blank line. Do not refactor.
+
+- [ ] **3.4: Run tests to confirm wrap didn't break anything.**
+
+Run: `pnpm test`
+Expected: all tests pass. If any test mocked `getUserQuota` by importing the function directly, it still resolves because `cache(fn)` returns a callable with the same `(userId: string) => Promise<UserQuota>` signature.
+
+If a test fails because it spied on the original function reference: open that test and look for `vi.spyOn` / `vi.mock` patterns. The wrap preserves the export name; mocks targeting `@/lib/quota` -> `getUserQuota` should still work. If a test mocked the inner `_getUserQuota`, that's not in scope and shouldn't happen.
+
+- [ ] **3.5: Modify `(app)/layout.tsx`.**
+
+Read the current `src/app/[locale]/(app)/layout.tsx`. Add to imports:
+```ts
+import { getCachedUser } from "@/lib/supabase/server"
+```
+
+Remove the destructured `getUser` block (currently around lines 29-32):
+```ts
+const supabase = await createClient()
+const {
+  data: { user },
+} = await supabase.auth.getUser()
+```
+
+Replace with:
+```ts
+const supabase = await createClient()
+const user = await getCachedUser()
+```
+
+(Keep `supabase` because Task 2 made layout use `getAnalysesCount(supabase)` immediately below.)
+
+The existing `if (!user)` redirect (currently line ~33) stays unchanged.
+
+- [ ] **3.6: Modify `dashboard/page.tsx`.**
+
+Add to imports:
+```ts
+import { getCachedUser } from "@/lib/supabase/server"
+```
+
+Find and replace (currently around lines 61-64):
+```ts
+const supabase = await createClient()
+const {
+  data: { user },
+} = await supabase.auth.getUser()
+```
+
+with:
+```ts
+const supabase = await createClient()
+const user = await getCachedUser()
+```
+
+(Keep `supabase` because line 72's `listAnalyses(supabase, null, 5)` uses it.)
+
+Existing `if (!user) { redirect(...) }` block unchanged.
+
+- [ ] **3.7: Modify `profile/page.tsx`.**
+
+Add to imports:
+```ts
+import { getCachedUser } from "@/lib/supabase/server"
+```
+
+Find and replace (currently around lines 40-43):
+```ts
+const supabase = await createClient()
+const {
+  data: { user },
+} = await supabase.auth.getUser()
+```
+
+with:
+```ts
+const supabase = await createClient()
+const user = await getCachedUser()
+```
+
+(Keep `supabase` because line ~52's `supabase.from("subscriptions").select(...)` uses it.)
+
+Existing `if (!user) { redirect(...) }` block unchanged.
+
+- [ ] **3.8: Modify `history/page.tsx`.**
+
+Add to imports:
+```ts
+import { getCachedUser } from "@/lib/supabase/server"
+```
+
+Find and replace (currently around lines 36-39):
+```ts
+const supabase = await createClient()
+const {
+  data: { user },
+} = await supabase.auth.getUser()
+```
+
+with:
+```ts
+const supabase = await createClient()
+const user = await getCachedUser()
+```
+
+(Keep `supabase` because line ~47's `listAnalyses(supabase, null, 100)` uses it.)
+
+Existing `if (!user) { redirect(...) }` block unchanged.
+
+- [ ] **3.9: Lint + type-check + build all together.**
+
+Run: `pnpm lint`
+Expected: no errors.
+
+Run: `pnpm build`
+Expected: success. If TS errors mention `getCachedUser` not exported: re-check Step 3.2 syntax.
+
+If the build fails because some test file imports `supabase.auth.getUser()` directly: those tests don't exist for these pages (verified: only existing auth-touching tests are in `src/lib/__tests__/`). If somehow surfaces, fix in the same commit.
+
+- [ ] **3.10: Audit for em/en-dash across all 6 modified files.**
+
+Run:
+```bash
+grep -cP '[\x{2014}\x{2013}]' \
+  src/lib/supabase/server.ts \
+  src/lib/quota.ts \
+  src/app/\[locale\]/\(app\)/layout.tsx \
+  src/app/\[locale\]/\(app\)/dashboard/page.tsx \
+  src/app/\[locale\]/\(app\)/profile/page.tsx \
+  src/app/\[locale\]/\(app\)/history/page.tsx
+```
+Expected: `0` for each file.
+
+- [ ] **3.11: Single atomic commit.**
+
+```bash
+git add \
+  src/lib/supabase/server.ts \
+  src/lib/quota.ts \
+  src/app/\[locale\]/\(app\)/layout.tsx \
+  src/app/\[locale\]/\(app\)/dashboard/page.tsx \
+  src/app/\[locale\]/\(app\)/profile/page.tsx \
+  src/app/\[locale\]/\(app\)/history/page.tsx
+git commit -m "$(cat <<'EOF'
+perf(tub-28): step 4 react.cache dedup for getUser + getUserQuota
+
+Wrap supabase.auth.getUser() (via getCachedUser export co-located with
+createClient in lib/supabase/server.ts) and getUserQuota in react.cache so
+layout + pages share the same auth + quota result inside a single RSC
+render pass. Saves ~300-500 ms per intra-(app) navigation by eliminating
+3-4x duplicate fetches. Per-request scope, no cross-user leak.
+
+getCachedUser carries a JSDoc RSC-only restriction: callers must be inside
+the React render tree (layouts, pages). Route handlers, server actions,
+middleware, and webhook handlers should keep using the direct
+(await createClient()).auth.getUser() pattern.
+
+Single atomic commit covers 6 files; partial state would break the build.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+- [ ] **3.12: Push and open PR.**
+
+```bash
+git push -u origin fix/tub-28-step-4-react-cache-dedup
+gh pr create --title "perf(tub-28): step 4 react.cache dedup for getUser + getUserQuota" --body "$(cat <<'EOF'
+## Summary
+- Wraps supabase.auth.getUser() in getCachedUser (lib/supabase/server.ts) and getUserQuota in lib/quota.ts via react.cache.
+- Layout + pages share results within one RSC render pass; saves ~300-500ms of duplicate fetches per intra-(app) navigation.
+- getCachedUser is RSC-only (JSDoc warning included).
+- All 6 file changes in one atomic commit to avoid partial-build state.
+
+## Test plan
+- [ ] pnpm test passes
+- [ ] Preview /dashboard, /history, /profile all load without auth errors
+- [ ] User A and User B simultaneous (concurrent requests) see only their own quota
+- [ ] Vercel logs show no PGRST301 RLS denials post-merge
+- [ ] INP measurement under 600ms (target)
+
+Relates to: TUB-28
+EOF
+)"
+```
+
+- [ ] **3.13: Verify preview, merge, wait prod READY.**
+
+Same pattern as Task 1 / 2.
+
+- [ ] **3.14: Verify on prod via Chrome MCP.**
+
+Sign in to `https://tubemine.tech/en/dashboard`. Run:
+
+```js
+// Assert basic page works (auth flowed through getCachedUser correctly).
+return {
+  hasMain: !!document.querySelector('main.main'),
+  hasUserAvatar: !!document.querySelector('.topbar-user .avatar'),
+  hasUsageCard: !!document.querySelector('.usage-card'),
+}
+```
+
+Expected: all three `true`.
+
+Then trigger a sidebar nav click (`/dashboard` -> `/profile` -> `/history`) and observe INP via DevTools INP overlay (manually if not automatable). Record the number.
+
+- [ ] **3.15: Multi-user concurrent isolation check.**
+
+Open TWO simultaneous tabs (one regular, one incognito) logged in as different users. Hard-reload `/dashboard` in both within 5 seconds of each other. Confirm each user's:
+- Usage card shows THEIR quota (different `used / cap` numbers).
+- Sidebar count shows THEIR count.
+- Topbar tier badge matches THEIR tier.
+
+If User A sees User B's quota or vice versa: **CRITICAL** - rollback immediately, file a P0 issue, do NOT proceed.
+
+- [ ] **3.16: Tier 1 verify (all 9 TCs).**
+
+Same as Task 2 step 2.14.
+
+- [ ] **3.17: Comment on TUB-28 + append to daily note.**
+
+Same pattern. Include measured INP number.
+
+---
+
+## Wrap up (always run, after Task 1+2 or 1+2+3)
+
+- [ ] **W.1: 24-hour prod observation window.**
+
+After the LAST task's prod deploy is READY: wait 24 hours, monitor Vercel logs for:
+- Any new `PGRST301` (RLS violation) errors.
+- Any new 5xx error rate spike on `/en/dashboard`, `/en/profile`, `/en/history`.
+- Any user-reported quota anomalies (none expected).
+
+If anything anomalous appears: roll back to the last known-good deploy via Vercel Instant Rollback (`vercel rollback`).
+
+- [ ] **W.2: Move TUB-28 to Done.**
+
+After 24 hours stable, use `mcp__claude_ai_Linear__save_issue` to move TUB-28 to status `Done`. Final comment via `save_comment`:
+
+```
+TUB-28 closed.
+
+Shipped (in order):
+- Step 1 (loading.tsx): <SHA>
+- Step 2 (getAnalysesCount): <SHA>
+- Step 4 (react.cache dedup): <SHA or "skipped, INP under 600 ms after Step 2">
+
+Final INP: <number> ms (was 2097 ms baseline).
+
+Step 3 (caching via 'use cache' + Edge Config kill switch) NOT attempted in this session; deferred to TUB-29.
+
+24-hour observation clean. No new RLS errors, no 5xx spike.
+```
+
+- [ ] **W.3: Final hand-off append to `~/vault/daily/2026-05-21.md`.**
+
+Use `mcp__obsidian__write_note` with mode `append`:
+
+```
+## Session Summary (HH:MM) - TUB-28 INP perf refactor shipped
+
+- **Goal:** Reduce /dashboard sidebar nav-item INP from 2097ms to < 600ms via 3 staged commits (steps 1, 2, optional 4).
+- **Progress:**
+  - Step 1 (loading.tsx): <SHA>
+  - Step 2 (getAnalysesCount swap): <SHA>
+  - Step 4 (react.cache dedup): <SHA or "skipped">
+- **Final INP:** <number> ms.
+- **Linear:** TUB-28 moved to Done.
+- **Out of scope (preserved):** Step 3 caching deferred to TUB-29. Branded error.tsx separate issue.
+- **Confirmed:** Step 3 (caching directives) NOT attempted in this session.
+- **Next:** TUB-29 if INP not yet < 300 ms target.
+
+---
+*Session ended at HH:MM*
+```
+
+---
+
+## Self-review checklist (the planner runs this before handing off)
+
+- [x] Spec coverage: Step 1 -> Task 1; Step 2 -> Task 2; Step 4 -> Task 3 (conditional); Linear updates -> PF.1, 1.12, 2.15, 3.17, W.2; daily-note hand-off -> 1.13, 2.15, 3.17, W.3; multi-user isolation verified in 2.13 + 3.15. Tier 1 9-TC subset run in 1.11 (subset), 2.14 (full), 3.16 (full). All spec § 7 acceptance bullets are exercised. Branded `error.tsx` out-of-scope (per § 5) - no task. Step 3 caching deferred (per § 5) - no task.
+- [x] Placeholder scan: no TBD / TODO / FIXME / "add appropriate error handling" / "similar to Task N". Every code block is complete and copy-pasteable.
+- [x] Type consistency: `getAnalysesCount(sb: SupabaseClient): Promise<number>` used identically in tests and layout. `getCachedUser` used identically across 4 page files. `getUserQuota(userId: string): Promise<UserQuota>` signature preserved (only inner `_getUserQuota` introduced, still returns `UserQuota`).
+- [x] Bite-sized: each step is one action (write code, run command, commit, etc.); no step combines multiple concerns.
+- [x] Exact paths: every file path is absolute or relative-to-root, exact extension. No `[locale]` or `(app)` segments lost.
+- [x] Exact commands: every shell command has expected output noted. Test runner is `pnpm test`. Build is `pnpm build`. Lint is `pnpm lint`.
+- [x] No em/en-dash: spot-grep on the plan itself before commit.
+- [x] Atomic-commit requirement for Task 3 (6 files): enforced in step 3.11.
