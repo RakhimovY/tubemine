@@ -140,9 +140,9 @@ function DocsFooter({
 const SOCIALS: Array<{ label: string; url: string; icon: React.ReactNode }> = []
 ```
 
-- [ ] **Step 2: Copy the verbatim footer and SOCIALS array.** Open `src/app/[locale]/terms/page.tsx`, copy lines 238-420 (the `LegalFooter` function plus the `SOCIALS` constant array). Paste in place of the placeholder `DocsFooter` function and empty `SOCIALS` constant from Step 1. Rename the function to `DocsFooter` (only the function name changes; everything else is verbatim).
+- [ ] **Step 2: Copy the verbatim footer and SOCIALS array.** Open `src/app/[locale]/terms/page.tsx`, copy lines 238-408 (the entire `LegalFooter` function plus the `SOCIALS` constant array; line 408 is the closing `]` of SOCIALS). Paste in place of the placeholder `DocsFooter` function and empty `SOCIALS` constant from Step 1. Rename the function to `DocsFooter` (only the function name changes; everything else is verbatim).
 
-- [ ] **Step 3: Add hero, toc, and meta i18n keys (EN).** Open `messages/en.json`. Locate the existing `"dashboard"` key (alphabetical position). Add the new `"docs"` block immediately after `"dashboard"` and before `"extractor"`:
+- [ ] **Step 3: Add hero, toc, and meta i18n keys (EN).** Open `messages/en.json`. The file is NOT alphabetically ordered. Insert the new `"docs"` block immediately after the closing `}` of the existing `"auth"` block and before the opening `"extractor": {` (they ARE adjacent in the file; verify by `grep -n '"auth":\|"extractor":' messages/en.json` first to find the exact line numbers). Add:
 
 ```json
 "docs": {
@@ -164,7 +164,7 @@ const SOCIALS: Array<{ label: string; url: string; icon: React.ReactNode }> = []
 },
 ```
 
-- [ ] **Step 4: Add hero, toc, and meta i18n keys (RU).** Open `messages/ru.json`. Same alphabetical position (after `"dashboard"`, before `"extractor"`). Add:
+- [ ] **Step 4: Add hero, toc, and meta i18n keys (RU).** Open `messages/ru.json`. Same insertion point as Step 3 (after closing `}` of `"auth"` block, before `"extractor": {`). Verify line numbers with `grep -n '"auth":\|"extractor":' messages/ru.json` first. Add:
 
 ```json
 "docs": {
@@ -203,8 +203,8 @@ const SOCIALS: Array<{ label: string; url: string; icon: React.ReactNode }> = []
 "overview": {
   "toc_label": "Overview",
   "title": "Overview",
-  "p1": "TubeMine reads a YouTube video's public comments and returns the audience signal: sentiment direction, the words people use most, and the emoji they reach for. Paste a URL and the results are ready in seconds.",
-  "p2": "It is for creators, marketing analysts, ML researchers, indie developers, and anyone who wants to read the room without scrolling through hundreds of comments by hand."
+  "p1": "TubeMine reads a YouTube video's public comments and returns audience analytics: sentiment direction, the most frequent words, and the most frequent emoji. Paste a URL and the results are ready in seconds.",
+  "p2": "It is for creators, marketing analysts, ML researchers, indie developers, and anyone who wants the audience signal without manually scrolling through hundreds of comments."
 }
 ```
 
@@ -214,8 +214,8 @@ const SOCIALS: Array<{ label: string; url: string; icon: React.ReactNode }> = []
 "overview": {
   "toc_label": "Обзор",
   "title": "Обзор",
-  "p1": "TubeMine читает публичные комментарии под видео YouTube и возвращает сигнал аудитории: направление сентимента, самые частые слова, самые частые эмодзи. Вставьте URL и получите результат за несколько секунд.",
-  "p2": "Подойдёт авторам, маркетинговым аналитикам, ML-исследователям, инди-разработчикам и всем, кому нужно понять реакцию аудитории не прокручивая сотни комментариев вручную."
+  "p1": "TubeMine читает публичные комментарии под видео YouTube и возвращает аналитику аудитории: направление сентимента, самые частые слова, самые частые эмодзи. Вставьте URL и получите результат за несколько секунд.",
+  "p2": "Подойдёт авторам, маркетинговым аналитикам, ML-исследователям, инди-разработчикам и всем, кому нужен сигнал аудитории без ручной прокрутки сотен комментариев."
 }
 ```
 
@@ -326,15 +326,15 @@ const SOCIALS: Array<{ label: string; url: string; icon: React.ReactNode }> = []
 "signin": {
   "toc_label": "Sign in (Free)",
   "title": "Sign in for the Free plan",
-  "p1": "Sign in with Google to switch from per-IP limits to a per-account monthly budget plus saved history.",
+  "p1": "Signing in with Google switches you from per-IP limits to a per-account monthly budget, adds the qualitative sentiment label, and persists your last analyses to history.",
   "b1_strong": "Sign in via Google.",
   "b1_text": "The /login route handles OAuth. No password to remember.",
   "b2_strong": "5,000 comments per month.",
   "b2_text": "Counted across all videos you analyze in the calendar month; resets on the 1st.",
-  "b3_strong": "Last 10 analyses saved.",
-  "b3_text": "Visit /history to revisit prior runs and re-download their CSV.",
-  "b4_strong": "Same CSV format.",
-  "b4_text": "Author, text, likes, replies, publishedAt. Same columns as anonymous; just more of them per month."
+  "b3_strong": "Qualitative sentiment label.",
+  "b3_text": "Each analysis shows a qualitative bar for sentiment direction (positive, neutral, negative). Pro adds exact percentages.",
+  "b4_strong": "Last 10 analyses saved with CSV download.",
+  "b4_text": "Visit /history to revisit prior runs. CSV columns match anonymous: author, text, likes, replies, publishedAt."
 }
 ```
 
@@ -344,15 +344,15 @@ const SOCIALS: Array<{ label: string; url: string; icon: React.ReactNode }> = []
 "signin": {
   "toc_label": "Вход (Free)",
   "title": "Войдите для тарифа Free",
-  "p1": "Войдите через Google чтобы перейти с IP-лимита на месячный лимит на аккаунт плюс сохранённую историю.",
+  "p1": "Вход через Google переключает вас с IP-лимита на месячный лимит на аккаунт, добавляет качественную оценку сентимента и сохраняет последние анализы в историю.",
   "b1_strong": "Вход через Google.",
   "b1_text": "Маршрут /login обрабатывает OAuth. Пароли запоминать не нужно.",
   "b2_strong": "5 000 комментариев в месяц.",
   "b2_text": "Считается по всем видео которые вы проанализировали в текущем календарном месяце. Сбрасывается 1-го числа.",
-  "b3_strong": "Последние 10 анализов сохраняются.",
-  "b3_text": "Зайдите в /history чтобы пересмотреть прошлые запуски и заново скачать их CSV.",
-  "b4_strong": "Тот же формат CSV.",
-  "b4_text": "Author, text, likes, replies, publishedAt. Те же столбцы что и в анонимном режиме, просто больше в месяц."
+  "b3_strong": "Качественная оценка сентимента.",
+  "b3_text": "Каждый анализ показывает качественную полоску направления сентимента (positive, neutral, negative). Pro добавляет точные проценты.",
+  "b4_strong": "Последние 10 анализов сохраняются плюс скачивание CSV.",
+  "b4_text": "Зайдите в /history чтобы пересмотреть прошлые запуски. Столбцы CSV те же что и в анонимном режиме: author, text, likes, replies, publishedAt."
 }
 ```
 
@@ -401,7 +401,7 @@ const SOCIALS: Array<{ label: string; url: string; icon: React.ReactNode }> = []
 "pro": {
   "toc_label": "Pro flow",
   "title": "Pro flow ($19/month)",
-  "p1": "Pro is $19 per month with a 3-day free trial. It adds the data that creators and analysts actually want for digging into the audience: exact sentiment percentages, full word and emoji rankings, JSON and Excel exports, and a much larger monthly budget.",
+  "p1": "Pro is $19 per month with a 3-day free trial. It adds exact sentiment percentages, full word and emoji rankings, JSON and Excel exports, a 100,000-comment monthly budget, and 100 saved analyses in history.",
   "b1_strong": "Price and trial.",
   "b1_text": "Pro costs $19 / month. New signups get a 3-day free trial; you only pay on day 4 if you stay.",
   "b2_strong": "7-day refund window.",
@@ -422,7 +422,7 @@ const SOCIALS: Array<{ label: string; url: string; icon: React.ReactNode }> = []
 "pro": {
   "toc_label": "Тариф Pro",
   "title": "Тариф Pro ($19/month)",
-  "p1": "Pro стоит $19 в месяц с 3-дневным бесплатным trial. Добавляет данные которые нужны авторам и аналитикам для глубокого анализа аудитории: точные проценты сентимента, полные рейтинги слов и эмодзи, экспорт в JSON и Excel, и существенно больший месячный лимит.",
+  "p1": "Pro стоит $19 в месяц с 3-дневным бесплатным trial. Добавляет точные проценты сентимента, полные рейтинги слов и эмодзи, экспорт в JSON и Excel, месячный лимит 100 000 комментариев и 100 сохранённых анализов в истории.",
   "b1_strong": "Цена и trial.",
   "b1_text": "Pro стоит $19 / month. Новые подписки получают 3-дневный бесплатный trial; первое списание происходит только на 4-й день если вы продолжаете.",
   "b2_strong": "7 дней на возврат.",
@@ -1032,7 +1032,7 @@ const SOCIALS: Array<{ label: string; url: string; icon: React.ReactNode }> = []
 
 - [ ] **Step 2: Copy verbatim footer + SOCIALS.** Same as Task 1 Step 2: copy `LegalFooter` body + `SOCIALS` array from `src/app/[locale]/terms/page.tsx` lines 238-420, paste in place of `ChangelogFooter` placeholder + empty SOCIALS. Rename the function to `ChangelogFooter`.
 
-- [ ] **Step 3: Add EN chrome keys to `messages/en.json`.** Locate alphabetically (between `"auth"` and `"common"`). Add:
+- [ ] **Step 3: Add EN chrome keys to `messages/en.json`.** The file is NOT alphabetically ordered. Insert the new `"changelog"` block immediately after the closing `}` of the existing `"common"` block (at the very top of the file) and before the opening `"landing": {`. Verify line numbers with `grep -n '"common":\|"landing":' messages/en.json` first. Add:
 
 ```json
 "changelog": {
@@ -1053,7 +1053,7 @@ const SOCIALS: Array<{ label: string; url: string; icon: React.ReactNode }> = []
 },
 ```
 
-- [ ] **Step 4: Add RU chrome keys to `messages/ru.json`** (same alphabetical position):
+- [ ] **Step 4: Add RU chrome keys to `messages/ru.json`** (same insertion point as Step 3, after closing `}` of `"common"`, before `"landing": {`):
 
 ```json
 "changelog": {
@@ -1427,29 +1427,37 @@ document.querySelector('article.legal-article').getAttribute('lang')
 
 ### Task 18: Close TUB-31 in Linear
 
-- [ ] **Step 1: Move TUB-31 to Done with a comment listing both commit SHAs.**
+Linear MCP requires the `state` to be referenced by name or ID per the team's status set. Get the Done status ID first, then update.
 
-```
-mcp__claude_ai_Linear__save_issue id=TUB-31 state=Done
-mcp__claude_ai_Linear__save_comment issue=TUB-31 body="
-Sprint complete.
+- [ ] **Step 1: Look up the Done status ID for the Tubemine team.** Call MCP:
 
-PR 1 (docs): <PR1-SHA>
-PR 2 (changelog): <PR2-SHA>
-
-Verify-on-prod PASS on /en/docs, /ru/docs, /en/changelog, /ru/changelog.
-DOM em-dash count = 0 on all 4 URLs (scoped to article.legal-article).
-Section counts: 8 (docs), 5 (changelog).
-RU disclaimer banner with role='note' renders on /ru/changelog only.
-article.legal-article has lang='en' dir='ltr' on changelog (both locales).
-
-Screenshots at ~/vault/projects/yt-comments/sessions/2026-05-21/tub-31-docs-changelog/screenshots/.
-Spec: docs/superpowers/specs/2026-05-21-tub-30-docs-changelog-content-design.md
-Plan: docs/superpowers/plans/2026-05-21-tub-31-docs-changelog-content.md
-"
+```json
+mcp__claude_ai_Linear__list_issue_statuses { "team": "8f71b118-1601-4499-b9c6-b8e47c848744" }
 ```
 
-(Replace `<PR1-SHA>` and `<PR2-SHA>` with the actual SHAs from Tasks 11 and 16.)
+Capture the `id` of the entry whose `name === "Done"` (or `type === "completed"`). Call this `<DONE_STATUS_ID>`.
+
+- [ ] **Step 2: Move TUB-31 to Done.** Call:
+
+```json
+mcp__claude_ai_Linear__save_issue {
+  "id": "TUB-31",
+  "state": "<DONE_STATUS_ID>"
+}
+```
+
+- [ ] **Step 3: Add a closing comment with both commit SHAs.** Call:
+
+```json
+mcp__claude_ai_Linear__save_comment {
+  "issue": "TUB-31",
+  "body": "Sprint complete.\n\nPR 1 (docs): <PR1-SHA>\nPR 2 (changelog): <PR2-SHA>\n\nVerify-on-prod PASS on /en/docs, /ru/docs, /en/changelog, /ru/changelog.\nDOM em-dash count = 0 on all 4 URLs (scoped to article.legal-article).\nSection counts: 8 (docs), 5 (changelog).\nRU disclaimer banner with role='note' renders on /ru/changelog only.\narticle.legal-article has lang='en' dir='ltr' on changelog (both locales).\n\nScreenshots at ~/vault/projects/yt-comments/sessions/2026-05-21/tub-31-docs-changelog/screenshots/.\nSpec: docs/superpowers/specs/2026-05-21-tub-30-docs-changelog-content-design.md\nPlan: docs/superpowers/plans/2026-05-21-tub-31-docs-changelog-content.md"
+}
+```
+
+(Replace `<PR1-SHA>` and `<PR2-SHA>` with actual SHAs from Tasks 11 and 16.)
+
+- [ ] **Step 4: Verify the move.** Call `mcp__claude_ai_Linear__get_issue { "id": "TUB-31" }`. Confirm `status === "Done"` and the comment appears in `comments`.
 
 ---
 
