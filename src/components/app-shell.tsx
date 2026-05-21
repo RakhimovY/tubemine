@@ -1,8 +1,8 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import type { ReactNode } from "react"
-import { Link } from "@/i18n/navigation"
+import { Link, usePathname } from "@/i18n/navigation"
 import { DesignLocaleSwitcher } from "@/components/design-locale-switcher"
 import { SideNav, type SideNavLabels } from "@/components/side-nav"
 
@@ -47,6 +47,12 @@ export function AppShell({
 }) {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const closeDrawer = useCallback(() => setDrawerOpen(false), [])
+  const pathname = usePathname()
+  const crumb = useMemo(() => {
+    if (pathname.startsWith("/history")) return labels.navHistory
+    if (pathname.startsWith("/profile")) return labels.navProfile
+    return labels.crumb
+  }, [pathname, labels.crumb, labels.navHistory, labels.navProfile])
 
   // Lock scroll while drawer is open (mobile only).
   useEffect(() => {
@@ -108,7 +114,7 @@ export function AppShell({
           <Link href="/" className="topbar-brand">
             <span className="brand-mark" aria-hidden="true" />
             <span>{labels.brand}</span>
-            <span className="crumb">{labels.crumb}</span>
+            <span className="crumb">{crumb}</span>
           </Link>
         </div>
         <div className="topbar-right">

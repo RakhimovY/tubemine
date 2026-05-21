@@ -239,8 +239,14 @@ export default async function ProfilePage({
               <p className="plan-cap">
                 <span className="num">{formatNumber(quota.cap)}</span>{" "}
                 {tier === "free"
-                  ? planCapSuffix(tProfile("plan.free_cap"), quota.cap)
-                  : planCapSuffix(tProfile("plan.pro_cap"), quota.cap)}
+                  ? planCapSuffix(
+                      tProfile("plan.free_cap", { cap: quota.cap }),
+                      quota.cap,
+                    )
+                  : planCapSuffix(
+                      tProfile("plan.pro_cap", { cap: quota.cap }),
+                      quota.cap,
+                    )}
               </p>
               <div className="plan-progress">
                 <div className="plan-progress-head">
