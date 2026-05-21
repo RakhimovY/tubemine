@@ -833,22 +833,50 @@ if (quota.tier !== "pro") {
 // ... json parse + zod parse later
 ```
 
-Replace with the parse-first ordering. After `const parsed = RequestSchema.safeParse(body)` + 400 on failure:
+Concretely, the new POST handler body up through the tier gate looks like this (replacing the existing top of the POST handler):
 
 ```ts
-const tier = quota.tier // computed earlier; keep getUserQuota call where it is
+export async function POST(req: NextRequest) {
+  const { userId } = await authUserId()
+  if (!userId) {
+    return NextResponse.json({ error: "Sign in required" }, { status: 401 })
+  }
 
-// Tier-gate per format:
-//   - cache + csv  : free OR pro (Free retention promise per pricing)
-//   - cache + json/xlsx : pro only
-//   - extract + json/xlsx : pro only (existing behavior)
-const data = parsed.data
-const needsPro =
-  (data.mode === "extract" && (data.format === "json" || data.format === "xlsx")) ||
-  (data.mode === "cache" && (data.format === "json" || data.format === "xlsx"))
+  let body: unknown
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
+  }
 
-if (needsPro && tier !== "pro") {
-  return NextResponse.json({ error: "Pro plan required for this export format" }, { status: 403 })
+  const parsed = RequestSchema.safeParse(body)
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.issues[0]?.message ?? "Invalid request" },
+      { status: 400 },
+    )
+  }
+  const data = parsed.data
+
+  // Tier-gate per format (move BELOW schema parse so cache+csv works for Free):
+  //   - cache + csv         : free OR pro (Free retention promise per pricing)
+  //   - cache + json/xlsx   : pro only
+  //   - extract + json/xlsx : pro only (existing behavior)
+  const needsPro =
+    (data.mode === "extract" && (data.format === "json" || data.format === "xlsx")) ||
+    (data.mode === "cache" && (data.format === "json" || data.format === "xlsx"))
+
+  if (needsPro) {
+    const quota = await getUserQuota(userId)
+    if (quota.tier !== "pro") {
+      return NextResponse.json(
+        { error: "Pro plan required for this export format" },
+        { status: 403 },
+      )
+    }
+  }
+
+  // ... (Step 6 mode-branching code goes here)
 }
 ```
 
@@ -954,28 +982,7 @@ async function buildExportResponse(
 
 - [ ] **Step 6: Branch on mode in POST handler**
 
-Replace the existing format-branching tail of the POST handler:
-
-```ts
-import { createClient } from "@/lib/supabase/server"
-import { downloadCommentsBlob } from "@/lib/supabase/storage"
-import type { StoredComment } from "@/lib/comments"
-
-const CacheExportRequestSchema = z.object({
-  mode: z.literal("cache"),
-  analysisId: z.string().uuid(),
-  format: z.enum(["csv", "json", "xlsx"]),
-})
-
-const ExtractExportRequestSchema = ExportRequestSchema.extend({
-  mode: z.literal("extract"),
-})
-
-const RequestSchema = z.discriminatedUnion("mode", [
-  ExtractExportRequestSchema,
-  CacheExportRequestSchema,
-])
-```
+The schema from Step 3 is already in place. Now replace the existing format-branching tail of the POST handler with the mode-aware version below. **Do NOT re-declare any schema; do NOT re-add imports already added in Step 3.** Just the handler logic:
 
 ```ts
 // (Tier gate already applied above per Step 4.)
@@ -1032,12 +1039,12 @@ return buildExportResponse(data.format, {
 
 Imports to add at top of file: `import { createClient } from "@/lib/supabase/server"`, `import { downloadCommentsBlob } from "@/lib/supabase/storage"`, `import type { StoredComment } from "@/lib/comments"`.
 
-- [ ] **Step 3: Build**
+- [ ] **Step 7: Build**
 
 Run: `pnpm build`
 Expected: SUCCESS. If `buildExportResponse` signature doesn't compile, inspect existing serializer code and adjust.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
 git add src/app/api/export/route.ts
@@ -2151,16 +2158,11 @@ pnpm build
 
 Expected: SUCCESS. If TypeScript errors in unrelated parts of history-client.tsx surface (the file is 1007 lines), fix only ones caused by the new imports/identifiers. Pre-existing issues are out of scope.
 
-- [ ] **Step 3: Build**
-
-Run: `pnpm build`
-Expected: SUCCESS.
-
-- [ ] **Step 4: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add src/app/\[locale\]/\(app\)/history/history-client.tsx
-git commit -m "refactor(tub-34): history page uses unified AnalysesList (paginated, full actions)"
+git commit -m "refactor(tub-34): history page adds delete-with-undo + cache export inline (preserves visual port)"
 ```
 
 ### Task 3.6: PR 3 verify-on-prod
