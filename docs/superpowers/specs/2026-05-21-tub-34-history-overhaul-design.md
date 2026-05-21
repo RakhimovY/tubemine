@@ -121,21 +121,33 @@ export type AnalysisInsert = {
 }
 ```
 
-`saveAnalysis` writes comments via threshold-based fallback:
+`saveAnalysis` writes comments via threshold-based fallback. CRITICAL: both `comments` and `comments_blob_path` columns are ALWAYS set explicitly in the upsert (one will be null, the other populated). This avoids the tier-downgrade-then-reextract trap where an old `comments_blob_path` could linger when the new save writes only the `comments` column.
 
 ```ts
 const COMMENTS_INLINE_THRESHOLD_BYTES = 5 * 1024 * 1024  // 5 MB serialized
+const COMMENTS_HARD_MAX_BYTES = 45 * 1024 * 1024         // 45 MB; Supabase storage default per-object limit is 50 MB, leave headroom
 const serialized = JSON.stringify(input.comments)
-const useBlob = Buffer.byteLength(serialized, "utf-8") > COMMENTS_INLINE_THRESHOLD_BYTES
+const size = Buffer.byteLength(serialized, "utf-8")
+const useBlob = size > COMMENTS_INLINE_THRESHOLD_BYTES
 
-let commentsJson: StoredComment[] | null = input.comments
-let commentsBlobPath: string | null = null
+let commentsJson: StoredComment[] | null
+let commentsBlobPath: string | null
 
 if (useBlob) {
-  commentsBlobPath = await uploadCommentsBlob(input.userId, input.videoId, serialized)
+  if (size > COMMENTS_HARD_MAX_BYTES) {
+    // Pro extract pushed beyond storage object limit. Skip persistence rather than crash.
+    // /api/extract live response still returns comments to the client; only the cache row is sacrificed.
+    console.warn("[analyses] comments payload exceeds hard max, skipping persistence", { size })
+    return
+  }
+  commentsBlobPath = `${input.userId}/${input.videoId}.json`
   commentsJson = null
+} else {
+  commentsJson = input.comments
+  commentsBlobPath = null
 }
-// upsert with comments=commentsJson, comments_blob_path=commentsBlobPath
+// 1. Upsert row with BOTH columns explicit
+// 2. If commentsBlobPath set, upload blob (overwrite-on-conflict)
 ```
 
 `uploadCommentsBlob` lives in new `src/lib/supabase/storage.ts`. Bucket: `analyses-comments` (PRIVATE, service-role write, NO public reads). Object key: `<userId>/<videoId>.json`. Stored as `application/json` (uncompressed for MVP simplicity; gzip is V2).
@@ -191,10 +203,12 @@ Blob read uses service client deliberately. Authorization is already established
 
 `has_comments` is true if `comments` non-null OR `comments_blob_path` non-null. Used by UI to distinguish legacy rows from new rows.
 
-**Modify** `POST /api/export/route.ts`: accept optional `analysisId` field in JSON request body alongside existing extract flow. The existing route already consumes JSON via Zod (`ExportRequestSchema`); add a new alternate schema branch that accepts `{ analysisId: string, format: "csv" | "json" | "xlsx" }`. The Zod union discriminates on presence of `analysisId`. Canonical export-from-cache call: **POST `/api/export` with `Content-Type: application/json` body `{ analysisId, format }`**. All UI download triggers fire a POST; the file stream is returned with appropriate `Content-Disposition` so the browser saves it. CSV branch reuses the existing CSV serializer (the current schema lists `json | xlsx`; extend to include `csv` for the analysisId branch).
+**Modify** `POST /api/export/route.ts`: add a new `mode` discriminator field to make the schema branching explicit. Canonical export-from-cache call: **POST `/api/export` with `Content-Type: application/json` body `{ mode: "cache", analysisId, format }`**; existing extract call shifts to `{ mode: "extract", ...currentFields }`. Use `z.discriminatedUnion("mode", [extractSchema, cacheSchema])`. The existing call sites in the live extract flow get updated in the same PR to include `mode: "extract"`. CSV branch: existing route currently supports `json | xlsx` per Zod schema; extend to include `csv` for the cache branch (the live extract has its own CSV path already; do NOT regress that route).
 
-- When `analysisId` present + user authenticated: load row via `getAnalysisById(userSb, analysisId)`. Compute `has_comments = (row.comments != null || row.comments_blob_path != null)` from the loaded row. Build export from cached comments. Do NOT call YT API. Return 404 if row null. Return 410 `comments_not_stored` if `has_comments === false` (legacy row reached via stale tab; normal UI path keeps download buttons disabled). Return 500 `comments_unavailable` if blob fetch throws (transient infra issue; UI shows a toast and offers retry).
-- When `analysisId` absent: existing extract flow unchanged.
+- When `mode === "cache"` + user authenticated: load row directly via Supabase SELECT (NOT through `getAnalysisById`, because `getAnalysisById` already attaches blob contents - we need the raw row to inspect `comments_blob_path`). Read `(comments, comments_blob_path)`. If both null -> 410 `comments_not_stored`. Otherwise call `downloadCommentsBlob(comments_blob_path)` if path set, else use inline `comments`. If blob fetch throws or returns null (parse error / not found), return 500 `comments_unavailable`. Then build export from the resulting `StoredComment[]` array. Do NOT call YT API. Return 404 if row missing.
+- When `mode === "extract"`: existing extract flow unchanged.
+
+Implementation note: the cache branch deliberately bypasses `getAnalysisById` for export. `getAnalysisById` is for the detail view which wants the resolved `comments` array attached; the export handler wants to differentiate "legacy null" from "blob fetch failed" without ambiguity.
 
 **Modify** `/api/extract/route.ts` (`src/app/api/extract/route.ts` around line 266): pass full `comments` array and resolved `tier` to `saveAnalysis`. Map runtime `Comment` shape to `StoredComment` (drop intermediate scratch fields, keep author/text/likes/replies/publishedAt/sentiment).
 
@@ -235,7 +249,7 @@ Implementation: integration test against Supabase test project OR documented man
 
 - `src/app/[locale]/(app)/history/[id]/page.tsx`: server component. Loads via cached `getUser` + `getAnalysisById(supabase, id)`. Passes tier-resolved data to client component. Wraps response in i18n. Returns `notFound()` on null.
 - `src/app/[locale]/(app)/history/[id]/loading.tsx`: skeleton matching the four panels (top words, sentiment, emojis, comments table)
-- `src/app/[locale]/(app)/history/[id]/not-found.tsx`: simple "Analysis not found or expired" with link back to /history
+- (No separate `not-found.tsx` file in this PR; `page.tsx` calls `notFound()` which renders the nearest existing not-found boundary or default Next.js 404. The i18n keys `not_found_title`/`not_found_body`/`back_to_history_link` are added in case a custom boundary is wired later, but no new boundary file ships in MVP.)
 - `src/components/analysis-detail-view.tsx`: client component composing:
   - Header card: thumbnail + title + channel + comment count + processed_at + expires_at
   - Action row: Download CSV (always for authed), Download JSON + Excel (Pro only), Delete-with-undo (always)
@@ -307,32 +321,25 @@ Also added to general namespace if not present: error toasts (`export_failed_leg
 Client component, accepts props:
 
 ```ts
-type AnalysisItem = {
-  id: string
-  video_id: string
-  video_title: string | null
-  channel_name: string | null
-  thumbnail_url: string | null
-  comment_count: number
-  sentiment: SentimentAggregate | null
-  processed_at: string  // ISO string (timestamps cross server/client boundary as ISO strings)
-  expires_at: string    // ISO string
-  has_comments?: boolean  // optional; only loaded on full GET, not in list endpoint
-}
+// AnalysisRow already defined in src/lib/analyses.ts; reuse it directly.
+// AnalysisRow.sentiment is typed as SentimentAggregate | null (the project's
+// existing type); supabase-js returns the JSONB column already shaped. No new
+// parse step needed for list/detail consumers.
+import type { AnalysisRow } from "@/lib/analyses"
 
 type AnalysesListProps = {
-  initialItems: AnalysisItem[]
-  initialCursor: string | null
+  initialItems: AnalysisRow[]
+  initialCursor: string | null  // existing keyset cursor base64url-encoded {processed_at, id}, per src/lib/analyses.ts encodeCursor/decodeCursor
   tier: "free" | "pro"
   compact: boolean         // true: no actions, no thumbnail enlargement
-  showActions: boolean     // true: per-row View / Download menu / Delete
+  showActions: boolean     // true: per-row Download menu / Delete (no separate View button; row link handles nav)
   paginated: boolean       // true: load-more pagination via cursor
   limit: number            // page size hint (10 for compact, 20 for full)
   viewAllHref?: string     // "View all" link target if compact
 }
 ```
 
-**Wire-shape pin (cross-server/client):** All timestamps cross the server -> client boundary as ISO strings (supabase-js already returns `timestamptz` as ISO strings). The shared `AnalysisItem` type above uses `string` for `processed_at` / `expires_at` so both consumers (dashboard recent block and history page) serialize identically. The pre-existing `AnalysisRow` type in `src/lib/analyses.ts` already uses `string` for these fields; reuse it directly when possible.
+**Wire-shape pin (cross-server/client):** All timestamps cross the server -> client boundary as ISO strings (supabase-js already returns `timestamptz` as ISO strings). The pre-existing `AnalysisRow` type in `src/lib/analyses.ts` already uses `string` for `processed_at` / `expires_at`, so reuse is direct.
 
 **Conditional render path:** When `showActions=false`, the component takes an early-return rendering pure-display markup and never executes the delete-with-undo `useRef`/`useState` code paths. Sonner is subscribed once at the app root (`<Toaster />` in root layout), so dashboard rendering does NOT create extra subscribers. No child-component split is needed; single-component branching is sufficient.
 
@@ -340,8 +347,7 @@ Renders unordered list of rows. Each row:
 
 - Link `<Link href="/history/[id]">` wraps thumbnail + title + channel + count = navigates to detail
 - If `showActions`: trailing button cluster:
-  - **View** (icon-only, same nav target as row link, present for affordance clarity)
-  - **Download** popover menu: tier-aware CSV / JSON / Excel options. Each option triggers a `fetch('/api/export', { method: 'POST', body: JSON.stringify({ analysisId, format }) })`, then converts the response body to a Blob and triggers a download via a hidden anchor with `download` attribute.
+  - **Download** popover menu: tier-aware CSV / JSON / Excel options. Each option triggers a `fetch('/api/export', { method: 'POST', body: JSON.stringify({ mode: 'cache', analysisId, format }) })`, then converts the response body to a Blob and triggers a download via a hidden anchor with `download` attribute. (Row click on the link area still navigates to /history/:id; no redundant View icon button.)
   - **Delete** button: triggers optimistic removal + 5s Sonner toast with Undo action.
 
 Empty state: shared `<EmptyAnalysesList tier />` component with translated CTA back to /dashboard.
@@ -367,7 +373,7 @@ function handleDelete(id: string) {
     entry.committed = true
     try {
       await fetch(`/api/analyses/${id}`, { method: "DELETE" })
-      track("history_deleted", { analysis_id_hash: hashId(id) })
+      track("history_deleted", { analysis_id_hash: id.slice(0, 8) })
     } finally {
       pendingRef.current.delete(id)
       // Row stays hidden; we do not remove from pendingIds since it has been committed.
@@ -375,7 +381,10 @@ function handleDelete(id: string) {
   }, 5000)
   pendingRef.current.set(id, { timer, committed: false })
 
-  // 3. Show Sonner toast with action button "Undo"
+  // 3. Show Sonner toast with action button "Undo".
+  //    Note: toast duration matches timer; if user manually dismisses the toast
+  //    via Sonner's close button, the timer still fires (we treat dismiss as
+  //    "I see it, accept the delete"). This matches Gmail's Undo Send pattern.
   toast(t("delete_pending"), {
     action: { label: t("undo"), onClick: () => undoDelete(id) },
     duration: 5000,
@@ -395,7 +404,7 @@ function undoDelete(id: string) {
   clearTimeout(entry.timer)
   pendingRef.current.delete(id)
   setPendingIds(prev => { const next = new Set(prev); next.delete(id); return next })
-  track("history_delete_undone", { analysis_id_hash: hashId(id) })
+  track("history_delete_undone", { analysis_id_hash: id.slice(0, 8) })
 }
 ```
 
@@ -430,10 +439,10 @@ All new keys present in both `messages/en.json` and `messages/ru.json`. Build-ti
 
 Add `track()` calls (existing helper). New events:
 
-- `history_analysis_opened` (props: `analysis_id_hash`, `tier`) - fired from a `useEffect(() => { track(...) }, [])` inside `<AnalysisDetailView>` (client component) on first mount
-- `history_downloaded` (props: `analysis_id_hash`, `format: "csv" | "json" | "xlsx"`, `from_detail` boolean)
-- `history_deleted` (props: `analysis_id_hash`) - fires only when the 5s timer commits the DELETE; never fires on undo
-- `history_delete_undone` (props: `analysis_id_hash`) - fires when user clicks Undo before commit
+- `history_analysis_opened` (props: `analysis_id_prefix`, `tier`) - fired from a `useEffect(() => { track(...) }, [])` inside `<AnalysisDetailView>` (client component) on first mount. `analysis_id_prefix` is `id.slice(0, 8)` (sync, no async hash). 8 hex chars of a uuid is enough to disambiguate without leaking the full id into the analytics pipeline.
+- `history_downloaded` (props: `analysis_id_prefix`, `format: "csv" | "json" | "xlsx"`)
+- `history_deleted` (props: `analysis_id_prefix`) - fires only when the 5s timer commits the DELETE; never fires on undo
+- `history_delete_undone` (props: `analysis_id_prefix`) - fires when user clicks Undo before commit
 
 `track` is imported directly from `@vercel/analytics` (existing pattern in `sentiment.tsx`, `tubemine.tsx`, `emoji-frequency.tsx`); there is no local whitelist module. The repo's `analytics-i18n-parity.test.ts` is the actual contract enforcer: it scans call sites and asserts every event name has matching i18n parity (if applicable). Add the new event names to that test's expected list at the same time the calls land.
 
@@ -521,7 +530,7 @@ Client: handleDelete(id)
        -> server: delete blob if comments_blob_path set
   -> on Undo: clearTimeout, restore row
 
-Unmount: clear all pending timers WITHOUT firing the DELETE (Gmail-style undo, per §5.14). Row resurrects on next page load since the server never received the DELETE.
+Unmount (including any in-app navigation away from /history, e.g. click into /history/:id while a delete is pending): clear all pending timers WITHOUT firing the DELETE (Gmail-style undo, per §5.14). Row resurrects on next page load since the server never received the DELETE. Side benefit: if a user clicks the row to inspect right after triggering its delete, they reach the detail page on a fully-alive row instead of a ghost-404.
 ```
 
 ## 7. Error handling
@@ -541,6 +550,9 @@ Unmount: clear all pending timers WITHOUT firing the DELETE (Gmail-style undo, p
 | Delete after row already gone (race) | server returns `{ deleted: 0 }` - silent success, no error toast |
 | Storage upload fails (PR 1 write) | the whole `saveAnalysis` call fails; `/api/extract` returns 200 to the client with the extracted comments+aggregates so the LIVE extract view still works, but the row is NOT persisted. Caller logs an error. We never silently truncate (would create inconsistent `comment_count` vs cached `comments` length). User can re-extract to retry. |
 | Storage delete fails (DELETE side-effect) | log warning, swallow; orphan accepted (small cost at expected scale per §8) |
+| Comments payload exceeds Supabase storage hard limit (~45MB+) | `saveAnalysis` skips persistence and logs warning; `/api/extract` response still streams comments to client (live view works); user can re-extract with a lower limit if they want history. Acceptable degraded case for outlier 100K-comment extracts with very long text. |
+| Concurrent delete from two devices (multi-device user) | Device B's immediate DELETE wins. Device A's 5s timer fires later, server returns `{deleted: 0}` (idempotent), no error shown to A. A's `pendingIds` set still has the id so the row stays hidden until page reload. Acceptable: identical end state. |
+| Browser background-tab throttling during 5s undo window | Chrome may delay `setTimeout` in background tabs. Effect: row stays hidden in active tab until the (delayed) timer fires; DELETE commits whenever the browser unthrottles. Acceptable: user-initiated delete eventually completes; F5 confirms state. |
 | Two-tab delete race | NOT addressed in MVP. Tab A starts undo timer; Tab B (or detail page) is open on same row. If commit fires while Tab B is open, subsequent actions in Tab B will 404. Acceptable: users editing the same record from two tabs is rare for this product. Documented limitation. V2 may add BroadcastChannel coordination. |
 
 ## 8. Performance + cost
@@ -558,7 +570,7 @@ Unmount: clear all pending timers WITHOUT firing the DELETE (Gmail-style undo, p
 - Storage bucket `analyses-comments` is private; service-role only access. No public reads. URL-guessing attack surface: zero (no public URL).
 - Authorization for blob reads: gate happens at the row-level SELECT; if RLS denied, blob is never fetched.
 - Comment text written from extract path is user-supplied YT comment content. NEVER rendered as HTML on detail view; always rendered as text content with React's automatic escaping. The CSV/JSON/Excel export reuses existing serialization; CSV path already has injection-safe formula prefix handling (verify in code review).
-- New analytics event payloads: hash analysis_id (e.g. first 8 chars of sha256) to avoid leaking raw UUIDs into analytics service.
+- New analytics event payloads: send `id.slice(0, 8)` (first 8 hex chars of the uuid v4) as `analysis_id_prefix` to keep events disambiguatable while not leaking the full id into the analytics pipeline. Sync, no SubtleCrypto needed.
 
 ## 10. Out of scope hardening / file-touchpoint contract
 
@@ -567,7 +579,7 @@ May edit:
 - `supabase/migrations/03_analyses_comments.sql` (new)
 - `src/lib/analyses.ts` (extend types, add `computeExpiresAt`, `getAnalysisById`; update `saveAnalysis`, `purgeExpiredAnalyses`)
 - `src/lib/comments.ts` (new: `StoredComment` type)
-- `src/lib/supabase/storage.ts` (new: `uploadCommentsBlob(userId, videoId, json) -> path`, `downloadCommentsBlob(path) -> StoredComment[] | null` (null on 404 or parse error), `deleteCommentsBlob(path) -> void` (best-effort, swallows errors); all three take a service-role storage client and return promises)
+- `src/lib/supabase/storage.ts` (new: `uploadCommentsBlob(userId, videoId, json) -> path`, `downloadCommentsBlob(path) -> StoredComment[]` (THROWS on 404 or parse error - never returns null silently; callers wrap in try/catch and translate to `comments_unavailable` UI state), `deleteCommentsBlob(path) -> void` (best-effort, swallows errors); all three use `createServiceClient()` internally and return promises)
 - `src/app/api/extract/route.ts` (pass `comments` + `tier` to `saveAnalysis`)
 - `src/app/api/analyses/[id]/route.ts` (add `GET`)
 - `src/app/api/export/route.ts` (accept `analysisId`)
