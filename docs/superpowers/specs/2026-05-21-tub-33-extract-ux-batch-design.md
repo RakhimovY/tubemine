@@ -72,7 +72,7 @@ Two reset triggers, both must be covered:
 
 1. **User edits the URL after preview loaded.** Use `useWatch({ control: form.control, name: "url" })` (NOT bare `form.watch(...)`, which is non-reactive without a subscription) to observe the URL field reactively. Store the URL that produced the current preview in a `previewSourceUrl: string | null` state alongside `preview`. In a `useEffect` triggered on the watched value: when `previewSourceUrl !== null && watchedUrl !== previewSourceUrl`, clear `preview`, `previewSourceUrl`, `comments`, `sentiment`, `distribution`, `analytics`. This covers both "type a different URL" and "clear the field".
 
-2. **In-flight preview race.** If the user types a new URL while a preview fetch is still in flight, the resolved response could overwrite the cleared state with stale data tied to the old URL. Implementation: keep a `previewRequestIdRef = useRef(0)` counter. Increment on each `onPreview` call, capture the value, and at resolution time only set state if `myId === previewRequestIdRef.current`. Stale responses are discarded.
+2. **In-flight preview race.** If the user types a new URL while a preview fetch is still in flight, the resolved response could overwrite cleared state with stale data tied to the old URL. The current two-step flow has the same latent race (the second click was a manual gate that masked it); collapsing to one step makes the race more reachable, so it is fixed defensively. Implementation: keep a `previewRequestIdRef = useRef(0)` counter. Increment in TWO places: (a) at the top of each `onPreview` call, and (b) inside the URL-change clear effect from trigger 1 (so any in-flight request becomes stale even if the user does not resubmit). Each `onPreview` captures the value, and at resolution time only sets state if `myId === previewRequestIdRef.current`. Stale responses are discarded.
 
 3. **Preview fetch failure.** Existing error toast pathway in `onPreview` (lines 129 to 144) is unchanged. On failure, `preview` stays null, button stays in default-state. User retypes to retry. No new error UI required.
 
@@ -86,7 +86,12 @@ Lines 410 to 470 collapse to a pure info card: thumbnail plus title plus channel
 
 ### 5.5 i18n changes
 
-No new keys required. The existing `landing.demo.cta` and `extractor.analyze_n_comments` keys are reused.
+No new keys required. All reused keys already exist in `messages/{en,ru}.json`:
+
+- `landing.demo.cta` (used at line 386 of `tubemine.tsx`) for the default button label.
+- `extractor.analyze_n_comments` (used at line 456) for the preview-loaded label.
+- `extractor.analyzing` (used at line 453) for the in-flight label.
+- `extractor.try_another_url` (used at line 466) reused on the recovery affordance described in 5.3.
 
 ### 5.6 Acceptance criteria
 
@@ -254,7 +259,7 @@ PR-C: `fix(export-bar): WCAG AA contrast on action buttons [TUB-33]`
 - Pro tier (current session): extract a video with more than 30 unique words.
   - Count visible top-words rows by the existing grid selector. No new `data-testid` is added in Phase B; assertion uses a CSS selector pinned to the Top Words card via its heading text or its grid structure. Recommended: locate the Top Words card by heading, then `card.querySelectorAll('div.grid > div').length === 30` initially.
   - Click "Show all NNN".
-  - Assert: row count grows past 30 and matches `unique_words_total` for the request.
+  - Assert: row count grows past 30 and matches `items.length` returned by the server (the API may pre-cap per `STORAGE_TOP_WORDS`; the assertion is "what the server sent", not the total unique-words count in the comment corpus).
   - Assert: button label is "Скрыть" or "Hide".
 - Free tier: 15 rows, no expand button. Defer this branch to manual TC if no test account is available; document deferral in Linear comment.
 - Anon tier: 5 rows, no expand button. Defer to manual TC if anon quota is exhausted.
@@ -283,7 +288,6 @@ PR-C: `fix(export-bar): WCAG AA contrast on action buttons [TUB-33]`
 ## 11. Risks and mitigations
 
 - Risk: removing the preview confirm button surprises users who used the two-step flow as a "preview before commit" pattern. Mitigation: preview card still appears (info plus thumbnail), the only change is that the confirm step collapses into the existing top-level CTA. The user's own request validates the change.
-- Risk: ready-state pulse animation triggers motion sensitivity. Mitigation: `prefers-reduced-motion: reduce` guard removes the animation entirely.
 - Risk: Phase B caps at 30 hides useful long-tail words for Pro power users. Mitigation: explicit "Show all NNN" button surfaces the full list one click away. Value-prop preserved.
 - Risk: Phase C contrast fix overrides interact with future shadcn upgrades. Mitigation: scoped under `.tm-design` plus a dedicated `tm-action-btn` class. No global shadcn primitive change.
 - Risk: parallel TUB-32 turbo touches `src/app/globals.css` (pricing or login section). Mitigation: Phase C edits are scoped to a new block added at the end of the export-bar styles section; no overlap with pricing or login selectors. Rebase before merge.
