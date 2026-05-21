@@ -120,7 +120,7 @@ No fabricated experience claims ("most users find" etc).
 
 ### 4.4 Section 04: Pro flow
 
-Source: README plans table Pro column, pricing `pricing.pro.price` (verbatim `"19"`) + `pricing.pro.unit` (verbatim `"/ month"` with leading space) + `pricing.faq.a5` (cancel anytime, 7-day refund window, no trial-and-refund stacking, 3-day free trial), comparison `row_monthly_pro` (verbatim `"100,000"` in EN, `"100 000"` thin-space in RU), `row_saved_pro` (`"Last 100"`), `row_export_pro` (verbatim `"CSV, JSON, Excel (API coming soon)"`), `compare.row_sentiment_dir_pro` (`"Exact % and trend"`).
+Source: README plans table Pro column, pricing `pricing.pro.price` (verbatim `"19"`) + `pricing.pro.unit` (verbatim `"/ month"` with leading space) + `pricing.faq.a5` (cancel anytime, 7-day refund window, no trial-and-refund stacking, 3-day free trial), comparison `row_monthly_pro` (verbatim `"100,000"` in EN, `"100 000"` with ASCII space (U+0020) in RU per § 6.3), `row_saved_pro` (`"Last 100"`), `row_export_pro` (verbatim `"CSV, JSON, Excel (API coming soon)"`), `compare.row_sentiment_dir_pro` (`"Exact % and trend"`).
 
 The 3-day trial wording is sourced ONLY from `pricing.faq.a5` (not from `pricing.pro.b4`; round 2 review caught that `pricing.pro.b4` is actually the export-formats bullet).
 
@@ -622,7 +622,7 @@ Round 1 surfaced 27 issues across the 5 perspectives. Round 2 surfaced 15. Detai
 
 ### 13.1 Round 2 corrections of round 1 errors (load-bearing for implementer)
 
-- **RU number formatting** (§ 6.3) was inverted in round 1: spec said "RU mirrors EN comma format" but shipped `messages/ru.json` actually uses thin-space (`"1 000"`, etc.). Round 2 reversed the rule. **Implementer: follow the round-2 rule. RU thin-space, EN comma.**
+- **RU number formatting** (§ 6.3) was inverted in round 1: spec said "RU mirrors EN comma format" but shipped `messages/ru.json` actually uses ASCII space (U+0020), e.g. `"1 000"`. Round 2 reversed the rule; round 3 nailed the codepoint as U+0020 plain ASCII (not thin-space U+2009 nor NBSP U+00A0). **Implementer: follow § 6.3 verbatim. RU values byte-equal to messages/ru.json, EN comma.**
 - **`pricing.pro.b4` citation** (§ 4.4) was wrong: round 1 said b4 contained the 3-day trial; the actual b4 contains the export-formats bullet. The 3-day trial wording is in `pricing.faq.a5` only.
 - **`pricing.pro.unit` quote** (§ 4.4): correct verbatim is `"/ month"` (with leading space), not `"/month"`.
 - **`p3_api_note` key removed** (§ 4.5 / § 6.1): round 1 added it; round 2 YAGNI feedback collapsed the qualifier into the `json_text` and `xlsx_text` strings instead.
