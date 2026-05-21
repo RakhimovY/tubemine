@@ -4,7 +4,7 @@
 
 **Goal:** Fix `/history/:id` detail view to reuse `SentimentPanel` + `EmojiPanel` shared components and wrap in `.dashboard-page` design CSS scope, verify Bug B (dashboard panels after fresh extract) on prod, and codify visual fidelity gate in vault.
 
-**Architecture:** Single-file React edit in `src/components/analysis-detail-view.tsx` replacing inline JSX with shared panel components. Map DB shape (`SentimentAggregate`, `EmojiFreq[]`) to component props (`SentimentAggregateProp`, `EmojiCount[]`) at the call site. No new files. Vault writes via `mcp__obsidian__write_note` and `mcp__obsidian__patch_note`.
+**Architecture:** Single-file React edit in `src/components/analysis-detail-view.tsx` replacing inline JSX with shared panel components. Map DB shape (`SentimentAggregate`, `EmojiFreq[]`) to component props (`SentimentAggregateProp`, `EmojiCount[]`) at the call site. No new files. Vault writes via `mcp__obsidian__write_note` (with `mode: "append"` for additive sections).
 
 **Tech Stack:** Next.js 16 App Router, React 19 client component, TypeScript, Tailwind, pnpm, Chrome DevTools MCP for verify-on-prod, Obsidian MCP for vault writes, Linear MCP for tracking.
 
@@ -412,7 +412,7 @@ Replace tokens with actual values. No em-dash.
 
 Run `mcp__obsidian__read_note` with `filepath: "projects/yt-comments/qa/test-cases.md"`. Note the existing TC numbering convention (e.g., are entries titled `## TC-CSS-007:` or `### TC-CSS-007`), table-of-contents location, and any frontmatter `updated:` date that should be bumped.
 
-If the file does not exist, create it with appropriate frontmatter (see vault conventions in `~/.claude/CLAUDE.md`). If it does exist, prefer `patch_note` with `operation: append` so we do not disturb earlier content.
+If the file does not exist, create it with `mcp__obsidian__write_note` using `mode: "overwrite"` plus appropriate frontmatter (see vault conventions in `~/.claude/CLAUDE.md`). If it already exists, use `mcp__obsidian__write_note` with `mode: "append"` so earlier content is not disturbed.
 
 - [ ] **Step 3.2: Append TC-CSS-008 entry**
 
