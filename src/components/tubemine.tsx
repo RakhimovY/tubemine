@@ -1,13 +1,13 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useForm } from "react-hook-form"
+import { useEffect, useRef, useState } from "react"
+import { useForm, useWatch } from "react-hook-form"
 import { standardSchemaResolver } from "@hookform/resolvers/standard-schema"
 import { z } from "zod"
 import Papa from "papaparse"
 import { toast } from "sonner"
 import { track } from "@vercel/analytics"
-import { Loader2, RotateCcw, Link as LinkIcon } from "lucide-react"
+import { Loader2, Link as LinkIcon } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -82,6 +82,7 @@ export function TubeMine({ tier: initialTier }: { tier: ExtractTier }) {
   const tEx = useTranslations("extractor")
   const [tier, setTier] = useState<ExtractTier>(initialTier)
   const [preview, setPreview] = useState<VideoMeta | null>(null)
+  const [previewSourceUrl, setPreviewSourceUrl] = useState<string | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [extractLoading, setExtractLoading] = useState(false)
   const [comments, setComments] = useState<Comment[]>([])
@@ -96,6 +97,9 @@ export function TubeMine({ tier: initialTier }: { tier: ExtractTier }) {
     resolver: standardSchemaResolver(FormSchema),
     defaultValues: { url: "" },
   })
+
+  const previewRequestIdRef = useRef(0)
+  const watchedUrl = useWatch({ control: form.control, name: "url" })
 
   useEffect(() => {
     fetch("/api/extract", { method: "GET" })
@@ -113,7 +117,20 @@ export function TubeMine({ tier: initialTier }: { tier: ExtractTier }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  useEffect(() => {
+    if (previewSourceUrl === null) return
+    if (watchedUrl === previewSourceUrl) return
+    setPreview(null)
+    setPreviewSourceUrl(null)
+    setComments([])
+    setSentiment(null)
+    setDistribution(null)
+    setAnalytics(EMPTY_ANALYTICS)
+  }, [watchedUrl, previewSourceUrl])
+
   async function onPreview(values: FormValues) {
+    previewRequestIdRef.current += 1
+    const myId = previewRequestIdRef.current
     setPreviewLoading(true)
     setComments([])
     setSentiment(null)
@@ -126,11 +143,13 @@ export function TubeMine({ tier: initialTier }: { tier: ExtractTier }) {
         body: JSON.stringify({ url: values.url }),
       })
       const data = await res.json()
+      if (myId !== previewRequestIdRef.current) return
       if (!res.ok) {
         toast.error(data.error ?? tEx("toast_preview_failed"))
         return
       }
       setPreview(data as VideoMeta)
+      setPreviewSourceUrl(values.url)
       track("preview_loaded", {
         videoId: data.videoId,
         commentCount: data.commentCount,
@@ -140,9 +159,12 @@ export function TubeMine({ tier: initialTier }: { tier: ExtractTier }) {
         toast.warning(tEx("toast_comments_disabled"))
       }
     } catch (e) {
+      if (myId !== previewRequestIdRef.current) return
       toast.error(e instanceof Error ? e.message : tEx("toast_network_error"))
     } finally {
-      setPreviewLoading(false)
+      if (myId === previewRequestIdRef.current) {
+        setPreviewLoading(false)
+      }
     }
   }
 
@@ -214,6 +236,7 @@ export function TubeMine({ tier: initialTier }: { tier: ExtractTier }) {
 
   function reset() {
     setPreview(null)
+    setPreviewSourceUrl(null)
     setComments([])
     setSentiment(null)
     setDistribution(null)
@@ -333,7 +356,13 @@ export function TubeMine({ tier: initialTier }: { tier: ExtractTier }) {
   return (
     <>
       <form
-        onSubmit={form.handleSubmit(onPreview)}
+        onSubmit={form.handleSubmit((values) => {
+          if (preview) {
+            void onExtract()
+          } else {
+            void onPreview(values)
+          }
+        })}
         className="demo-form"
         noValidate
       >
@@ -380,10 +409,23 @@ export function TubeMine({ tier: initialTier }: { tier: ExtractTier }) {
         </div>
         <button
           type="submit"
-          className={`btn btn--primary btn-lg${previewLoading ? " is-loading" : ""}`}
-          disabled={previewLoading || extractLoading}
+          className={`btn btn--primary btn-lg${previewLoading || extractLoading ? " is-loading" : ""}`}
+          disabled={
+            previewLoading ||
+            extractLoading ||
+            (preview !== null &&
+              (preview.commentsDisabled ||
+                extractCount === 0 ||
+                (budget?.remaining ?? 1) === 0))
+          }
         >
-          {previewLoading ? <Loader2 className="size-4 animate-spin" /> : t("cta")}
+          {previewLoading || extractLoading ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : preview ? (
+            tEx("analyze_n_comments", { count: extractCount })
+          ) : (
+            t("cta")
+          )}
         </button>
       </form>
 
@@ -435,37 +477,6 @@ export function TubeMine({ tier: initialTier }: { tier: ExtractTier }) {
             </div>
           </div>
 
-          <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <button
-              type="button"
-              onClick={onExtract}
-              className={`btn btn--primary btn-lg${extractLoading ? " is-loading" : ""}`}
-              disabled={
-                extractLoading ||
-                preview.commentCount === 0 ||
-                preview.commentsDisabled ||
-                (budget?.remaining ?? 1) === 0
-              }
-            >
-              {extractLoading ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" />
-                  {tEx("analyzing")}
-                </>
-              ) : (
-                <>{tEx("analyze_n_comments", { count: extractCount })}</>
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={reset}
-              disabled={extractLoading}
-              className="btn btn--ghost btn-sm"
-            >
-              <RotateCcw className="size-3.5" />
-              {tEx("try_another_url")}
-            </button>
-          </div>
         </div>
       )}
 
