@@ -663,39 +663,48 @@ git commit -m "feat(tub-34): add getAnalysisById + blob cleanup on delete/purge"
 
 Open `src/app/api/extract/route.ts` and find the existing `saveAnalysis({ ... })` call (around line 266 per spec §4).
 
-- [ ] **Step 2: Map Comment[] to StoredComment[] and pass tier**
+- [ ] **Step 2: Map Comment[] to StoredComment[] and pass userQuota.tier**
 
-The extract handler already has `comments: Comment[]` (runtime shape) and a resolved tier. Modify the saveAnalysis call:
+Recon-confirmed: in `src/app/api/extract/route.ts`, the save block lives inside `if (mode === "user" && userId && userQuota)`. The runtime `Comment` shape (per `src/lib/types.ts`) is `{ author: string; text: string; likes: number; publishedAt: string; replies: number; sentiment?: ... }`. The outer `tier` variable is `ExtractTier = "anonymous" | "free" | "pro"`, so use `userQuota.tier` (narrowed `"free" | "pro"`) for the save. `metaSnippet` is the variable holding video meta.
+
+Add at the top of the file:
 
 ```ts
 import type { StoredComment } from "@/lib/comments"
+```
 
-// inside the handler, before saveAnalysis call:
+Inside the `if (mode === "user" && userId && userQuota)` block, right before the existing `await saveAnalysis({...})` call, build the StoredComment array and pass it through:
+
+```ts
 const storedComments: StoredComment[] = comments.map((c) => ({
-  authorName: c.authorName ?? null,
+  authorName: c.author ?? null,
   text: c.text,
-  likes: c.likes ?? 0,
-  replies: c.replies ?? null,
-  publishedAt: c.publishedAt ?? null,
-  sentiment: (c.sentiment as StoredComment["sentiment"]) ?? null,
+  likes: c.likes,
+  replies: c.replies,
+  publishedAt: c.publishedAt,
+  sentiment: c.sentiment ?? null,
 }))
 
 await saveAnalysis({
   userId,
   videoId,
-  videoTitle: videoMeta?.title ?? null,
-  channelName: videoMeta?.channel ?? null,
-  thumbnailUrl: videoMeta?.thumbnail ?? null,
+  videoTitle: metaSnippet?.title ?? null,
+  channelName: metaSnippet?.channelTitle ?? null,
+  thumbnailUrl:
+    metaSnippet?.thumbnails?.high?.url ??
+    metaSnippet?.thumbnails?.medium?.url ??
+    metaSnippet?.thumbnails?.default?.url ??
+    `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
   commentCount: comments.length,
   sentiment: sentimentAggregate,
-  topWords,
-  emojiFrequency,
-  tier, // resolved earlier in the handler
+  topWords: topWordsStored,
+  emojiFrequency: emojiStored,
+  tier: userQuota.tier,
   comments: storedComments,
 })
 ```
 
-Adjust prop names to match the actual existing variables in the route (the spec confirms `comments`, `videoMeta`, `userId`, `videoId`, `topWords`, `emojiFrequency` exist - if a name differs, use what's actually there).
+This replaces the existing 13-line saveAnalysis call inside the try block (recon: lines 266-281). The added fields are `tier` and `comments`. Keep the surrounding try/catch warn intact.
 
 - [ ] **Step 3: Build**
 
@@ -1881,6 +1890,11 @@ export function AnalysesList({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mode: "cache", analysisId: it.id, format }),
       })
+      if (res.status === 403) {
+        // Tier downgrade mid-session: server says Pro required for this format.
+        toast.error(t("export_failed_transient"))
+        return
+      }
       if (!res.ok) {
         toast.error(t("export_failed_transient"))
         return
@@ -2198,9 +2212,9 @@ Click Delete on one row. Confirm:
 - Click Undo within 5s: row restored, NO DELETE call ever fired
 - Click Delete again, wait 5s without undo: NOW DELETE fires; row stays gone
 
-- [ ] **Step 5: Re-extract during pending delete**
+- [ ] **Step 5: (Skipped) Re-extract during pending delete**
 
-Trigger Delete on row R. Within 5s, navigate to dashboard and re-extract the same video R. Confirm row reappears on /history without being deleted (the pending timer was cancelled by the saved-event).
+This guard was dropped per Task 3.3 (spec §10 forbids touching tubemine.tsx to dispatch the saved-event). Documented as MVP limitation in spec §5.3. No verification step here.
 
 - [ ] **Step 6: Linear comment**
 
@@ -2242,15 +2256,25 @@ Otherwise: no commit; task is a no-op.
 - [ ] **Step 1: Write test**
 
 ```tsx
-import { describe, it, expect } from "vitest"
+import { describe, it, expect, vi } from "vitest"
 import { render, screen } from "@testing-library/react"
 import { AnalysesList } from "@/components/analyses-list"
 import type { AnalysisRow } from "@/lib/analyses"
 
-// Provide a minimal next-intl provider via vi.mock if needed; reuse the
-// project's existing test setup file that mocks useTranslations -> identity fn.
-// If no such setup exists, mock inline:
-// vi.mock("next-intl", () => ({ useTranslations: () => (k: string) => k }))
+// Stub all client-only deps so the component renders in jsdom without
+// requiring NextIntlClientProvider or app router context.
+vi.mock("next-intl", () => ({
+  useTranslations: () => (k: string) => k,
+}))
+vi.mock("@/i18n/navigation", () => ({
+  Link: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
+    <a href={href} {...rest}>{children}</a>
+  ),
+}))
+vi.mock("sonner", () => ({
+  toast: Object.assign(() => {}, { error: () => {} }),
+}))
+vi.mock("@vercel/analytics", () => ({ track: () => {} }))
 
 const sample: AnalysisRow = {
   id: "11111111-1111-1111-1111-111111111111",
