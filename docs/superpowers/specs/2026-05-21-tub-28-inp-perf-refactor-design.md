@@ -75,8 +75,9 @@ Skeleton visual: each block is a `<div data-slot="skeleton" className="animate-p
 **Acceptance:**
 
 - Hard-reload `/en/dashboard`, click any sidebar item, skeleton flashes before new page renders.
-- DOM contains `[data-slot="skeleton"]` element (or `.is-placeholder` element) within 100 ms of click.
+- DOM contains `[data-slot="skeleton"]` element within 100 ms of click. Reserved class `.is-placeholder` is NOT used by the loading skeleton (that class is owned by `dashboard-page .recent-thumb.is-placeholder` for missing-thumbnail fallback at `globals.css:1776` and must keep that single meaning).
 - No visual layout shift > 0.05 CLS on transition.
+- `loading.tsx` makes no `t()`, `getTranslations()`, or `useTranslations()` call (Suspense fallback renders synchronously; locale prefix is in the URL but the file body is locale-agnostic).
 
 ### Step 2 - Replace `listAnalyses(100)` with `getAnalysesCount` (medium risk, RLS-safe)
 
@@ -132,24 +133,23 @@ const initials = buildInitials(user.email, user.user_metadata?.full_name)
 
 Remove the now-unused `listAnalyses` import.
 
-**File 3:** `src/lib/__tests__/analyses-count.test.ts` (new) - unit test for the helper.
+**File 3:** `src/lib/__tests__/analyses-count.test.ts` (new) - one happy-path unit test for the helper.
 
-Two cases:
-1. Happy path: mock supabase client returning `{ count: 7, error: null }`, helper returns 7.
-2. Error path: mock returning `{ count: null, error: { message: "rls denied" } }`, helper returns 0 and logs warning.
-
-Use the same vitest + mock pattern already used in `src/lib/__tests__/` (e.g., the csv-safe test mentioned in the session summary).
+Single case: mock supabase client returning `{ count: 7, error: null }`, helper returns 7. The error-fallback branch (`if (error) return 0`) is trivial and verified by the prod multi-user verify in § 7 TCs #6/#7. Use the same vitest + mock pattern already used in `src/lib/__tests__/` (e.g., csv-safe test).
 
 **Acceptance:**
 
 - Layout response time drops by 500-900 ms (count vs row fetch).
-- Sidebar `<span className="count">` still renders correct number.
+- Sidebar `<span className="count">` still renders correct number when count > 0; brand-new user (count === 0) sees badge hidden per `side-nav.tsx:68` guard `historyCount > 0`.
+- On RLS denial (`PGRST301`), helper returns 0 and logs a warning. Sidebar then hides the badge (same as a brand-new user); the RLS error is independently visible in Vercel logs per § 8 monitoring.
 - Multi-user isolation: User B logged into incognito sees their own count, never User A's.
 - `vitest run src/lib/__tests__/analyses-count.test.ts` passes.
 
 ### Step 4 - React `cache()` per-request dedup (optional, low risk)
 
-**Trigger:** only run if Step 1 and Step 2 both verified clean and INP target still > 600 ms. If both steps already brought INP under 600 ms, this step is skipped per the prompt's "skip if no clear duplicate fetches" rule. Concrete duplicates ARE present (see below), so this is most likely going to ship.
+**Status:** optional in scope, but concrete duplicates documented below make it the expected outcome. Expected to ship unless Steps 1+2 alone bring sidebar nav-item INP under 600 ms on prod, in which case Step 4 is skipped per the prompt's "skip if no clear duplicate fetches" rule.
+
+**Trigger:** run after Steps 1 and 2 are both verified clean on prod AND prod INP measurement is still > 600 ms.
 
 **Concrete duplicate fetches per intra-(app) navigation:**
 
@@ -160,12 +160,13 @@ Use the same vitest + mock pattern already used in `src/lib/__tests__/` (e.g., t
 
 `react.cache` scopes dedup to a single server render pass (request), so it cannot leak across users.
 
-**File 1:** `src/lib/auth.ts` (new, small).
+**File 1:** `src/lib/supabase/server.ts` (modify; co-locate with the existing `createClient` to avoid a new module).
+
+Append after the existing exports:
 
 ```ts
-import "server-only"
 import { cache } from "react"
-import { createClient } from "@/lib/supabase/server"
+// ... existing exports above (createClient, createServiceClient)
 
 export const getCachedUser = cache(async () => {
   const sb = await createClient()
@@ -175,6 +176,8 @@ export const getCachedUser = cache(async () => {
   return user
 })
 ```
+
+Cached at module scope; the `cache` from `react` makes the dedup per-request, not module-singleton, so two concurrent requests from different users do not share results.
 
 **File 2:** `src/lib/quota.ts` (modify, top of file).
 
@@ -193,38 +196,51 @@ export const getUserQuota = cache(_getUserQuota)
 
 **File 3:** `src/app/[locale]/(app)/layout.tsx` (modify).
 
-Replace `const { data: { user } } = await supabase.auth.getUser()` with `const user = await getCachedUser()`. Adjust the if-not-user redirect accordingly.
+Replace the destructured `getUser` pattern with:
+
+```ts
+const user = await getCachedUser()
+if (!user) {
+  redirect({ href: `/login?next=/${locale}/dashboard`, locale })
+  return null
+}
+```
+
+The existing `const supabase = await createClient()` line stays (Step 2 added `getAnalysesCount(supabase)`). Import `getCachedUser` from `@/lib/supabase/server`.
 
 **File 4:** `src/app/[locale]/(app)/dashboard/page.tsx` (modify).
 
-Replace the `supabase.auth.getUser()` call only. Keep `const supabase = await createClient()` because the page still uses `supabase` for `listAnalyses(supabase, null, 5)`.
+Same pattern: replace the destructured `getUser` block with `const user = await getCachedUser()` + the same `if (!user)` redirect (preserving the page's existing `next=/${locale}/dashboard` target). Keep `const supabase = await createClient()` because the page still uses `supabase` for `listAnalyses(supabase, null, 5)`. After the swap, any `user.id` or `user.email` access stays guarded by the redirect.
 
 **File 5:** `src/app/[locale]/(app)/profile/page.tsx` (modify).
 
-Same pattern: keep `createClient()` (used for the `subscriptions` query at line 52), replace only the `.auth.getUser()` call.
+Same pattern: replace the destructured `getUser` block with `getCachedUser()` + redirect (preserving `next=/${locale}/profile`). Keep `createClient()` (used for the `subscriptions` query at line 52). All `user.id`, `user.email`, `user.created_at`, `user.user_metadata` accesses stay guarded by the redirect.
 
 **File 6:** `src/app/[locale]/(app)/history/page.tsx` (modify).
 
-Same pattern: keep `createClient()` (used for `listAnalyses(supabase, null, 100)` at line 47), replace only the `.auth.getUser()` call.
+Same pattern: replace the destructured `getUser` block with `getCachedUser()` + redirect (preserving `next=/${locale}/history`). Keep `createClient()` (used for `listAnalyses(supabase, null, 100)` at line 47).
 
 **Acceptance:**
 
 - Second call to `getCachedUser()` within the same request is free (verify via console.log of fetch count or just trust `react.cache` semantics).
-- INP after this step is under 600 ms on prod for sidebar nav clicks.
+- Tier 1 verify subset (§ 7) PASSES on prod.
+- No new RLS errors (`PGRST301`) in Vercel logs.
 - Multi-user isolation: User A request never sees User B's quota cache from a parallel concurrent request. (Verified by `react.cache` scope: per-request.)
 - Existing test suites still pass (no logic change, just dedup).
+- Sidebar nav-item INP measurably lower than after Step 2. The < 600 ms goal is a target, not a pass gate; closing the remaining gap to < 300 ms is owned by TUB-29 (caching). Report whatever number Vercel Analytics shows in the Linear close-out comment.
 
 ---
 
-## 5. Out of scope (deferred to TUB-29)
+## 5. Out of scope (deferred to TUB-29 or separate work)
 
-- `'use cache'` or `'use cache: private'` directives.
+- `'use cache'` or `'use cache: private'` directives (TUB-29).
 - `export const revalidate` on any layout (explicitly **forbidden** here - would leak User A's quota to User B per research doc § Theme 1).
-- Edge Config kill switch for caching.
-- Time-based ISR or `staleTimes`.
-- Parallel routes (`@slot`) for analyses list.
+- Edge Config kill switch for caching (TUB-29).
+- Time-based ISR or `staleTimes` (TUB-29).
+- Parallel routes (`@slot`) for analyses list (TUB-29).
 - Header components (locked by main session).
 - Supabase RLS policies, auth middleware, `/docs`, `/changelog`, i18n messages, CSV/extract code.
+- Branded `error.tsx` for the `(app)` route group. If a page throws after Step 1 ships, the Next.js default error UI shows instead of a branded fallback. Acceptable for this session; raise a separate Linear issue if branded error UX becomes required.
 
 ---
 
@@ -235,7 +251,7 @@ Per research doc § Theme 3 Option 2 (staged commits + PR previews + Vercel Inst
 For each step:
 
 1. New branch `fix/tub-28-step-N-<slug>` off `main`.
-2. One commit per step. Commit message style: `perf(tub-28): step N <short summary>`.
+2. One commit per step. Commit message style: `perf(tub-28): step N <short summary>`. Multi-file steps (Step 4 touches 5 files) MUST land as a single atomic commit so the build never sees partial state where a caller of `getCachedUser` ships before the export exists.
 3. Push, open PR, Vercel auto-creates preview.
 4. Local + preview verify (lint + tsc + vitest + manual preview check).
 5. Merge to `main` -> Vercel auto-deploys to prod.
@@ -277,7 +293,6 @@ From `~/vault/projects/yt-comments/qa/test-cases.md`:
 | Step 1 skeleton has visible layout shift > 0.05 CLS | low | low | Match block heights to real dashboard sections during plan phase; if real CLS measured > 0.05 on preview, tune heights before merge. |
 | Multi-user data leak via `react.cache` | very low | critical | `react.cache` is per-request by design (verified in research doc § Theme 1). Cross-user smoke is mandatory in Step 4 verify. |
 | INP target < 600 ms not reached even after Step 4 | medium | low (still big win vs baseline) | Acceptable. Final caching work in TUB-29 will close the gap. Document achieved INP in Linear final comment. |
-| Layout adds new waterfall when `listAnalyses` moves out (per research § Theme 1) | n/a | n/a | Does not apply: Step 2 replaces with count, not move. No waterfall introduced. |
 | Vercel deploy fails build | low | low | Local `pnpm build` before push; standard Next 16 build pipeline. |
 
 ---
