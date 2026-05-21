@@ -1,7 +1,7 @@
 import { getTranslations, setRequestLocale } from "next-intl/server"
 import type { ReactNode } from "react"
 import { redirect } from "@/i18n/navigation"
-import { createClient } from "@/lib/supabase/server"
+import { createClient, getCachedUser } from "@/lib/supabase/server"
 import { getUserQuota, type Tier } from "@/lib/quota"
 import { getAnalysesCount } from "@/lib/analyses"
 import { AppShell } from "@/components/app-shell"
@@ -27,9 +27,7 @@ export default async function AppGroupLayout({
   setRequestLocale(locale)
 
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getCachedUser()
   if (!user) {
     redirect({ href: `/login?next=/${locale}/dashboard`, locale })
     return null

@@ -1,4 +1,5 @@
 import "server-only"
+import { cache } from "react"
 import { createServiceClient } from "@/lib/supabase/server"
 
 export const FREE_MONTHLY_CAP = 5_000
@@ -52,7 +53,7 @@ async function effectiveTier(userId: string): Promise<Tier> {
   return profileTier
 }
 
-export async function getUserQuota(userId: string): Promise<UserQuota> {
+const _getUserQuota = async (userId: string): Promise<UserQuota> => {
   const sb = createServiceClient()
   const [tier, usageRes] = await Promise.all([
     effectiveTier(userId),
@@ -75,6 +76,8 @@ export async function getUserQuota(userId: string): Promise<UserQuota> {
     resetAt: nextMonthFirstIso(),
   }
 }
+
+export const getUserQuota = cache(_getUserQuota)
 
 /**
  * Atomically increment a user's monthly usage. Returns the new total.

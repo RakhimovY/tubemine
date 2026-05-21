@@ -1,6 +1,6 @@
 import { getTranslations, setRequestLocale } from "next-intl/server"
 import { redirect } from "@/i18n/navigation"
-import { createClient } from "@/lib/supabase/server"
+import { createClient, getCachedUser } from "@/lib/supabase/server"
 import { getUserQuota, type Tier } from "@/lib/quota"
 import { listAnalyses } from "@/lib/analyses"
 import { HistoryClient } from "./history-client"
@@ -34,9 +34,7 @@ export default async function HistoryPage({
   setRequestLocale(locale)
 
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getCachedUser()
   if (!user) {
     redirect({ href: `/login?next=/${locale}/history`, locale })
     return null
