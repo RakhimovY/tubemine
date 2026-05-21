@@ -111,41 +111,51 @@ The TUB-30 `SiteHeader` to `SiteHeaderClient` split established the public-page 
 │ const intent = searchParams.get("intent")                      │
 │                                                                │
 │ const [state, setState] = useState({                           │
-│   signedIn: getAuthHint() === "signed-in",                     │
-│   tier: getAuthHint() === "signed-in" ? "free" : "anonymous"   │
+│   signedIn: false,                                             │
+│   tier: "anonymous",                                           │
+│   resolved: false                                              │
 │ })                                                             │
-│ // Initial state: optimistic 'free' for warm-hint signed-in    │
-│ // visitors so they don't see a Start-trial->Open-dashboard    │
-│ // re-swap. Cold visitors render anonymous (lowest friction).  │
+│ // Always render anonymous variant on first paint, swap once   │
+│ // after async resolve. No optimistic-from-hint to avoid the   │
+│ // Pro-flash and the double-fire bug in PricingIntentRedirect. │
 │                                                                │
 │ useEffect(() => {                                              │
-│   const sb = createClient()                                    │
-│   const { data: { user }, error } = await sb.auth.getUser()    │
-│   if (error || !user) {                                        │
-│     setState({ signedIn: false, tier: "anonymous" })           │
-│     setAuthHint("anonymous")                                   │
-│     return                                                     │
-│   }                                                            │
-│   const [profileQ, subQ] = await Promise.all([                 │
-│     sb.from("profiles").select("tier")                         │
-│       .eq("user_id", user.id).maybeSingle(),                   │
-│     sb.from("subscriptions").select("status")                  │
-│       .eq("user_id", user.id).maybeSingle(),                   │
-│   ])                                                           │
-│   const rawTier = profileQ.data?.tier === "pro" ? "pro" : "free"│
-│   const isRevoked = rawTier === "pro" &&                       │
-│     subQ.data?.status === "revoked"                            │
-│   const effective = isRevoked ? "free" : rawTier               │
-│   setState({ signedIn: true, tier: effective })                │
-│   setAuthHint("signed-in")                                     │
+│   void (async () => {                                          │
+│     const sb = createClient()                                  │
+│     const { data: { user }, error } = await sb.auth.getUser()  │
+│     if (error || !user) {                                      │
+│       setState({ signedIn: false, tier: "anonymous",           │
+│         resolved: true })                                      │
+│       setAuthHint("anonymous")                                 │
+│       return                                                   │
+│     }                                                          │
+│     const [profileQ, subQ] = await Promise.all([               │
+│       sb.from("profiles").select("tier")                       │
+│         .eq("user_id", user.id).maybeSingle(),                 │
+│       sb.from("subscriptions").select("status")                │
+│         .eq("user_id", user.id).maybeSingle(),                 │
+│     ])                                                         │
+│     const rawTier = profileQ.data?.tier === "pro"              │
+│       ? "pro" : "free"                                         │
+│     const isRevoked = rawTier === "pro" &&                     │
+│       subQ.data?.status === "revoked"                          │
+│     const effective = isRevoked ? "free" : rawTier             │
+│     setState({ signedIn: true, tier: effective,                │
+│       resolved: true })                                        │
+│     setAuthHint("signed-in")                                   │
+│   })()                                                         │
 │ }, [])                                                         │
 │                                                                │
 │ sb.auth.onAuthStateChange listener:                            │
 │   on session change, re-run the resolve flow                   │
 │                                                                │
 │ Render:                                                        │
-│   <PricingIntentRedirect intent={intent}                       │
-│     signedIn={state.signedIn} tier={state.tier} />             │
+│   {state.resolved && (                                         │
+│     <PricingIntentRedirect intent={intent}                     │
+│       signedIn={state.signedIn} tier={state.tier} />)}         │
+│   // Gating PricingIntentRedirect on `resolved` ensures the    │
+│   // checkout-redirect fires exactly ONCE on the final tier,   │
+│   // never on the anonymous initial state                      │
 │   <FreeCardCta tier={state.tier} t={t} />                      │
 │   <ProCardCta tier={state.tier} t={t} />                       │
 └─────────────────────────────────────────────────────────────────┘
@@ -176,7 +186,14 @@ The TUB-30 `SiteHeader` to `SiteHeaderClient` split established the public-page 
 │   }                                                            │
 │ }, [router])                                                   │
 │                                                                │
-│ if (redirecting) return null                                   │
+│ if (redirecting) {                                             │
+│   return (                                                     │
+│     <div className="landing-redirect-indicator"                │
+│       aria-live="polite" aria-busy="true">                     │
+│       <span className="brand-mark" />                          │
+│     </div>                                                     │
+│   )                                                            │
+│ }                                                              │
 │ return <>{children}</>                                         │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -200,14 +217,13 @@ Public API:
 <PricingTierAware />
 ```
 
-Zero props. The component does its own translation lookup and reads URL state via `useSearchParams()`. The server page mounts it at the two CTA locations (or once, with both card footers rendered internally), positioned via existing CSS layout.
+Zero props. The component does its own translation lookup via `useTranslations("pricing")` and reads URL state via `useSearchParams()`.
 
-Mounting strategy: rather than two separate `<PricingTierAware>` instances (one per card, each running its own resolve flow), mount ONE instance that renders BOTH card footers from a single state. The server page provides slot containers `<div className="price-foot" />` for each card; `PricingTierAware` portals or directly renders into them. Simplest implementation: the server page passes the entire `<article className="price-card">` structure through `PricingTierAware`'s `children` prop using a small render-helper that returns Free card + Pro card. After plan-phase analysis of CSS dependencies, we may settle on either:
+Mounting strategy (committed): ONE `<PricingTierAware />` instance renders the pricing-grid `<div className="pricing-grid">` block (both Free `<article>` and Pro `<article>` cards). The server page mounts `<Suspense fallback={null}><PricingTierAware /></Suspense>` in place of the current `<div className="pricing-grid">...</div>` block (lines ~149-287 of the existing pricing/page.tsx). The translated text for the card titles, badges, feature lists, and prices comes from `useTranslations("pricing")` running inside the client component (next-intl supports this; `NextIntlClientProvider` wraps the tree in the locale layout).
 
-- (a) `PricingTierAware` renders the entire pricing grid section (both `<article>` cards) internally, with the server only mounting `<PricingTierAware />` at that location; OR
-- (b) Two sibling instances (`<PricingTierAware variant="free-card" />` and `<PricingTierAware variant="pro-card" />`) that share state via a tiny module-level zustand-like store (without adding zustand: a plain React context exposed by a third `<PricingTierProvider>` wrapper).
+The surrounding `<section className="pricing-section"><div className="container">...</div></section>` and the comparison table block (`<div className="compare-wrap">...</div>`) stay in server-rendered scope. The comparison table is static content (not tier-dependent) and the spec deliberately keeps it in the prerender to minimize client-bundle growth and SEO content drift.
 
-The spec recommends (a) for simplicity (one resolve flow, one listener, one state owner). Plan phase commits.
+Trade-off accepted: only the two pricing cards (titles + feature lists + prices + CTAs, ~120 LOC including SVG icons) move from server scope to client bundle. Bundle-size cost is bounded; in exchange the component owns a single state, runs one resolve flow, mounts one listener, has no prop interface to maintain.
 
 CLS prevention: reserve `min-height: 88px` on each `.price-foot` div so the variant swap on hydration does not shift the comparison table below.
 
@@ -276,27 +292,21 @@ Cold visit, anonymous user, no hint:
 
 Cold visit, signed-in free user, no hint:
 
-1. Server renders static page; PricingTierAware mounts with hint=null, initial state anonymous
+1. Server renders static page; PricingTierAware mounts with hint=null, initial state `{ signedIn: false, tier: "anonymous", resolved: false }`
 2. CTAs render anonymous variants briefly (~100-300ms)
 3. Async `sb.auth.getUser()` returns user
 4. Parallel `sb.from("profiles").select("tier")` returns `{ tier: "free" }`, `sb.from("subscriptions").select("status")` returns `{ status: null }` (no row) or `{ status: "active" }` (legacy)
-5. Effective tier = "free"; state becomes `{ signedIn: true, tier: "free" }`
+5. Effective tier = "free"; state becomes `{ signedIn: true, tier: "free", resolved: true }`
 6. CTAs swap to free variants (Free: `Open dashboard`; Pro: `Start trial` to `/api/checkout`)
 7. `setAuthHint("signed-in")`
 
-Warm visit, signed-in free user, hint=signed-in:
+Warm visit, signed-in user (any tier), hint=signed-in:
 
-1. Server renders static page; PricingTierAware mounts with hint=signed-in, initial state `{ signedIn: true, tier: "free" }` (optimistic)
-2. CTAs render free variants immediately on first paint (no async-induced flash)
-3. Async confirms state in background; no UI change unless tier actually drifted (e.g. user just upgraded; correction takes 100-300ms, only the Pro card's Free-variant -> Pro-variant swap is visible)
-
-Warm visit, signed-in Pro user, hint=signed-in:
-
-1. Server renders static page; PricingTierAware mounts with hint=signed-in, initial state `{ signedIn: true, tier: "free" }` (optimistic default)
-2. CTAs render free variants on first paint
-3. Async resolves tier="pro"; state becomes `{ signedIn: true, tier: "pro" }`
-4. Pro card swaps to `Manage subscription` (linking to `/api/portal`); Free card stays as `Open dashboard`
-5. The brief Pro-variant -> Free-variant -> Pro-variant flash is the documented cost of not caching tier in localStorage. The full async path completes in 100-500ms on Vercel + Supabase warm caches.
+1. Server renders static page; PricingTierAware mounts with initial state `{ signedIn: false, tier: "anonymous", resolved: false }` (always anonymous-first)
+2. CTAs render anonymous variants briefly (100-500ms)
+3. Async resolves; state becomes `{ signedIn: true, tier: "free" | "pro", resolved: true }`
+4. CTAs swap to the resolved tier-specific variants. Single swap, no intermediate states. Min-height reserve prevents layout shift.
+5. `PricingIntentRedirect` (which is gated on `resolved`) renders only after this swap, so it never fires on the intermediate anonymous state
 
 Pro user with revoked subscription:
 
@@ -308,13 +318,16 @@ Pro user with revoked subscription:
 Post-OAuth landing flow `/login?intent=signup&plan=pro` -> callback -> `/pricing?intent=signup`:
 
 1. Server renders static `/pricing` (cache-keyed without searchParams)
-2. PricingTierAware mounts, reads `useSearchParams().get("intent")` -> `"signup"`
-3. Hint should be set during the OAuth handoff (the auth callback's redirect causes Supabase JS to fire on the receiving page; `SiteHeaderClient` runs on the same response and sets the hint). If not, the optimistic-from-hint path is skipped, initial state is anonymous, `PricingIntentRedirect` useEffect fires with `signedIn=false` (no-op)
-4. Async resolve completes within 100-500ms, sets state to `{ signedIn: true, tier: "free" }`
-5. `PricingIntentRedirect` useEffect re-fires with `signedIn=true, tier="free", intent="signup"`; calls `window.location.assign("/api/checkout")`
-6. User lands at `/api/checkout` and proceeds to Polar
+2. PricingTierAware mounts, reads `useSearchParams()?.get("intent") ?? null` -> `"signup"` (Suspense ensures `useSearchParams` is available client-side; `?.` guards against the framework returning null during the prerender window)
+3. Initial state is `{ signedIn: false, tier: "anonymous", resolved: false }`. `PricingIntentRedirect` is NOT mounted (gated on `resolved`)
+4. Async resolve completes within 100-500ms. For a Free user: state becomes `{ signedIn: true, tier: "free", resolved: true }`. For a Pro user: state becomes `{ signedIn: true, tier: "pro", resolved: true }`
+5. `PricingIntentRedirect` mounts for the first time with the final resolved values
+6. Its useEffect fires once: for Free users it calls `window.location.assign("/api/checkout")`; for Pro users it is a no-op (tier === "pro" branch)
+7. User lands at `/api/checkout` and proceeds to Polar (Free path), or stays on /pricing seeing the Pro Manage-subscription CTA (Pro path)
 
-Race window: user lands on `/pricing?intent=signup`, sees the page for 100-500ms, may click something during that window. Mitigation: render a small inline notice element when `intent === "signup"` AND state is still resolving: `"Setting up your checkout..."` styled as a non-intrusive banner. The notice is removed once the redirect fires or state resolves to anonymous (race did not match expected post-OAuth state).
+Bookmark/share/back-navigation flow (signed-in user types `/pricing?intent=signup` from outside an OAuth context): the same flow runs. The user is treated as if they came from OAuth. This is design-intent: a signed-in free user clicking ANY `?intent=signup` link wants to upgrade. There is no provenance check; the URL parameter is the intent.
+
+Race window: user lands on `/pricing?intent=signup` and clicks something during the 100-500ms before resolve completes. The redirect never fires; `?intent=signup` is preserved in URL history. If they come back, the redirect retries. No inline notice (round 2 YAGNI cut).
 
 ### 4.2 `/[locale]/page.tsx` landing after migration
 
@@ -384,11 +397,12 @@ Verification step in plan phase: build locally and inspect the route table from 
 | `sb.from("profiles").select("tier")` returns error | Catch, set tier to "free" for signed-in users (optimistic) | RLS misconfig or DB outage; "free" is the lower-privilege optimistic default. The user's actual access is gated server-side by `/api/checkout` (which short-circuits Pro users to `/api/portal`), `/api/portal` (which requires real subscription), and `(app)/*` layouts, so misreading tier here only affects which CTA renders, not what the user can do |
 | `sb.from("subscriptions").select("status")` returns error | Catch, treat as `{ status: null }` (no override) | Identical behaviour to a user with no subscription row, which is the normal case for free users |
 | `router.replace("/dashboard")` throws or hangs | Caller does not await; failure is silent. User stays on landing | next-intl's router uses Next.js's router under the hood; navigation failure is exceptional and acceptable to log-and-continue |
-| `sb.auth.onAuthStateChange` returns `undefined` (no subscription) | Defensive null-check; skip listener setup | Defensive: existing TUB-30 site-header-client.tsx applies the same guard at line 142 |
+| `sb.auth.onAuthStateChange` returns `undefined` (no subscription object) | Defensive null-check; skip listener setup; render proceeds without cross-tab sync | Defensive guard NEW to this work; `site-header-client.tsx:136` destructures without a guard. The signature is `{ data: { subscription: Subscription }}` and Supabase JS guarantees it under normal init, but if `createClient()` succeeded partway and returned a stub, the guard prevents a runtime null-deref |
+| Stale hint says `signed-in` but session has been server-revoked (admin force-logout, password reset elsewhere) AND this is a normal /pricing visit (no `?intent=signup`) | Anonymous initial state -> async resolves -> getUser error path clears hint + sets state to anonymous within ~100-500ms. CTAs show anonymous variant after resolve. If user clicked a signed-in CTA between mount and resolve, the click hits the anonymous-default link (Get started for free -> /login?intent=signup) which the login server gate handles correctly | Recovery path: any stale-hint state self-heals on first /pricing visit. Trade-off: ~100-500ms of "anonymous CTA" rendered to a user whose hint claims signed-in (acceptable because the click target is the safe-default login page) |
 | `localStorage.getItem` throws (private browsing, quota) | `getAuthHint` returns null; fall through to async resolve | Existing `auth-hint.ts` behaviour |
 | `localStorage.setItem` throws | Silently ignore; state still in React | Existing `auth-hint.ts` behaviour |
 | User signs out in another tab | `onAuthStateChange` fires with null session; `PricingTierAware` re-resolves to anonymous, calls `setAuthHint("anonymous")` | Cross-tab sync (TUB-30 pattern). Landing's `LandingAuthGate` does NOT subscribe to this; warm-hint state remains "signed-in" until next page load. Acceptable: landing has no UI that depends on auth state |
-| User clicks a link during `PricingIntentRedirect` race window (intent=signup, async not yet resolved) | User navigates away; redirect never fires. `?intent=signup` is preserved in browser history; if they come back to `/pricing?intent=signup` later, the redirect re-fires after async resolve | Bounded loss: rare, recoverable, low-priority. The inline notice during the resolve window reduces accidental clicks |
+| User clicks a link during `PricingIntentRedirect` race window (intent=signup, async not yet resolved, typically <500ms) | User navigates away; redirect never fires. `?intent=signup` is preserved in browser history; if they come back to `/pricing?intent=signup` later, the redirect re-fires after async resolve. No inline UI signal during the window (cut per round 2 review: the bounded sub-second wait does not warrant a notice element) | Bounded loss: rare, recoverable, low-priority. If field reports show real confusion, add a notice as a follow-up with evidence |
 
 ## 6. Testing
 
@@ -409,7 +423,7 @@ Specific assertions per route:
 **`/pricing` (PR 1):**
 - Anonymous visit (incognito): page renders with anon CTAs (`Get started for free` on Free card, `Get started for free, then upgrade` on Pro card)
 - Sign in as Free test account, hard-reload `/en/pricing`: page renders with `Open dashboard` on Free card AND `Start trial` on Pro card. Verify within 500ms of page-render-complete
-- `/en/pricing?intent=signup` while signed-in: redirects to `/api/checkout` within 1500ms of page load. Inline notice `"Setting up your checkout..."` visible during the resolve window
+- `/en/pricing?intent=signup` while signed-in (Free tier): redirects to `/api/checkout` within 1500ms of page load. No inline notice element; the redirect fires automatically once tier resolves
 - (Pro variant: manual Tier 2 check, see below)
 - Build manifest excerpt: `●  /[locale]/pricing`
 - Googlebot fetch: anonymous CTAs visible in HTML
@@ -445,8 +459,8 @@ Run these after both PRs land:
 
 | Risk | Severity | Mitigation |
 |---|---|---|
-| `PricingIntentRedirect` race: user clicks elsewhere during 100-500ms resolve window, OAuth `?intent=signup` flow silently drops | Medium (revenue) | Inline `"Setting up your checkout..."` notice during the resolve window. Preserve `?intent=signup` in URL history so a retry happens automatically on back-navigation. The window is bounded to async resolve time (typically <500ms); accepting this trade for static prerender of every other visit |
-| Pro user sees `Start trial` button for 100-500ms on cold visit before swap | Low (cosmetic) | Optimistic-from-hint logic shortens the warm path. Cold path is a one-time-per-device transient; accepted |
+| `PricingIntentRedirect` race: user clicks elsewhere during 100-500ms resolve window, OAuth `?intent=signup` flow silently drops | Medium (revenue) | `PricingIntentRedirect` is gated on `state.resolved === true` so the redirect fires exactly once on the final resolved tier (never on the optimistic-anonymous initial state). Window is bounded to async resolve time (typically <500ms). `?intent=signup` is preserved in URL history; back-navigation re-runs the resolver and re-fires the redirect. No inline notice (round 2 YAGNI cut) |
+| Signed-in (any tier) sees anonymous CTAs for 100-500ms before swap on every cold visit | Low (cosmetic) | Single swap, single source of truth, no double-fire risk. The cost is one anon-to-tier transition visible per device session. The min-height reserve prevents layout shift |
 | Tier upgrade-in-flight cross-device: user upgrades on device A, opens `/pricing` on device B with stale state, clicks `Start trial`, hits `/api/checkout` for an already-Pro user | Medium | Tier 2 check #4 verifies `/api/checkout` short-circuits Pro users. If verification fails, file backend follow-up before relying on optimistic UI |
 | Revoked-subscription Pro user sees wrong CTA | High if not handled | Client resolver checks `subscriptions.status === "revoked"` in parallel with `profiles.tier` and applies the same downgrade rule as server `effectiveTier`. Tier 2 check #2 validates |
 | RLS policy change in future migration breaks client-side `select tier` or `select status` | Medium | Add a comment in `pricing-tier-aware.tsx` referencing the RLS policy names by their file location, so future migration authors notice the dependency |
@@ -455,7 +469,7 @@ Run these after both PRs land:
 | Landing page cold-load signed-in flash | Out of scope after design change | `LandingAuthGate` no longer does async supabase; it relies only on hint. Returning signed-in users (overwhelming majority) get instant redirect. Cold signed-in users see landing (acceptable trade) |
 | /api/checkout / /api/portal contract assumes a known user; if client resolver returns wrong tier, button click triggers wrong backend path | Low | Both backend endpoints re-validate the session and tier server-side independent of any client claim. Misreading on the client only affects which button shows, not what executes when clicked |
 | `useSearchParams` requires Suspense wrapper or build fails | Medium | Plan phase wraps `<PricingTierAware />` in `<Suspense fallback={null}>` in the server page. Build verification confirms |
-| `router.replace("/dashboard")` does not trigger locale prefixing | Low | next-intl's `useRouter` from `@/i18n/navigation` auto-prefixes the active locale, verified by `site-header-client.tsx:421-424` which uses the same idiom. No code change needed |
+| `router.replace("/dashboard")` does not trigger locale prefixing | Low | next-intl's `useRouter` (re-exported via `src/i18n/navigation.ts` from `createNavigation(routing)`) auto-prefixes the active locale when no `locale` option is passed. The idiom is documented in next-intl's navigation API; `site-header-client.tsx:421-424` uses the locale-switch form (`router.replace(pathname, { locale: next })`) which is the explicit-override variant of the same router. Plan phase verifies behaviour via a local navigation test |
 
 ## 8. File-level change list
 
@@ -470,11 +484,11 @@ Run these after both PRs land:
 - Remove `searchParams` from the page's destructured props (line 71 area) and remove the `const sp = await searchParams` call (line 77)
 - Remove `const state = await loadAuthState()` call (line 81)
 - Remove `<PricingIntentRedirect intent={...} signedIn={...} tier={...} />` direct render (lines 130-134); it moves inside `PricingTierAware`
-- Remove the tier-conditional JSX from both `.price-foot` divs (lines 182-215 Free, 254-285 Pro); replace each with `<PricingTierAware />` mount or the agreed-upon mounting strategy from §3.2
+- Remove the entire `<section className="pricing-section">...</section>` block (lines ~146-287, including hero badge if it belongs to the same section, both `<article>` cards, the comparison table is OUTSIDE this section and stays). Replace with `<Suspense fallback={null}><PricingTierAware /></Suspense>`
+- Note: the comparison table block (`<div className="compare-wrap">...</div>`) is INSIDE `<section className="pricing-section">` in the current source (lines 290-571). The plan phase must decide whether `PricingTierAware` also renders the comparison table internally, OR whether the section is split so the comparison table stays in server-rendered scope. Recommended: `PricingTierAware` renders ONLY the pricing-grid `<div className="pricing-grid">` and the surrounding `<section>` wrapping; the comparison table stays in the server page outside the `PricingTierAware` boundary, so the static-comparison content (which is not tier-dependent) remains in the prerender and the client component only owns the auth-dependent CTA cards. This requires re-structuring the JSX slightly: server page renders `<section className="pricing-section"><div className="container"><PricingTierAware /><CompareWrap ... /></div></section>` instead of putting the section inside `PricingTierAware`
 - Add `import { Suspense } from "react"` if not already present
 - Add `import { PricingTierAware } from "@/components/pricing-tier-aware"`
-- Wrap the `PricingTierAware` mount in `<Suspense fallback={null}><PricingTierAware /></Suspense>` (required for `useSearchParams`)
-- Keep all other rendering, FAQ, comparison table, footer unchanged
+- Keep all other rendering (hero, FAQ, final CTA, footer) unchanged
 
 **Modified: `src/components/pricing-intent-redirect.tsx`**
 
@@ -485,15 +499,20 @@ Run these after both PRs land:
 **New: `src/components/pricing-tier-aware.tsx`**
 
 - `"use client"` directive
-- Imports: React (`useState`, `useEffect`), `useSearchParams` from `next/navigation`, `useTranslations` from `next-intl`, `IntlLink` from `@/i18n/navigation`, `NextLink` from `next/link`, `createClient` from `@/lib/supabase/client`, `getAuthHint`, `setAuthHint` from `@/lib/auth-hint`, `PricingIntentRedirect` from `@/components/pricing-intent-redirect`
-- Single component: runs resolve flow, renders both `.price-foot` slots' contents
-- Auth + tier resolution per §3.1 pseudocode
-- `useEffect` for async resolve on mount and an `onAuthStateChange` listener (defensive on missing subscription)
-- Renders three sub-elements:
-  1. `<PricingIntentRedirect intent={intent} signedIn={state.signedIn} tier={state.tier} />`
-  2. The Free-card CTA footer (3 variants by `state.tier`)
-  3. The Pro-card CTA footer (3 variants by `state.tier`)
-- Each variant uses the SAME `t("free.cta_anon")` etc. keys as the current server component
+- Imports: React (`useState`, `useEffect`), `useSearchParams` from `next/navigation` (the framework hook, NOT next-intl's), `useTranslations` from `next-intl`, `IntlLink` from `@/i18n/navigation`, `NextLink` from `next/link`, `createClient` from `@/lib/supabase/client`, `getAuthHint`, `setAuthHint` from `@/lib/auth-hint`, `PricingIntentRedirect` from `@/components/pricing-intent-redirect`
+- Single component renders the entire pricing-grid `<section>` (per §3.2 mounting strategy (a))
+- Auth + tier resolution per §3.1 pseudocode (async IIFE inside `useEffect` to handle await without making the effect async)
+- `useSearchParams()` defensive read: `searchParams?.get("intent") ?? null`. The Suspense boundary should ensure non-null, but the guard removes a runtime crash risk
+- `onAuthStateChange` listener with defensive null-check on `data.subscription` before calling `.unsubscribe()` in cleanup
+- Renders:
+  1. The static hero/badge for the section (passed through `useTranslations`)
+  2. Both `<article className="price-card">` cards (Free and Pro), each with their feature lists and conditional `.price-foot` CTA blocks
+  3. `<PricingIntentRedirect intent={intent} signedIn={state.signedIn} tier={state.tier} />`, gated on `state.resolved`
+- Each CTA variant uses the SAME `t("free.cta_anon")` etc. keys as the current server component
+- Link component mapping (CTAs):
+  - `/login?intent=signup` (anon Free CTA, anon Pro CTA target), `/dashboard` (signed-in Open dashboard), and `/api/portal` (Pro Manage subscription) all use `IntlLink` from `@/i18n/navigation` so the locale prefix is added automatically
+  - `/api/checkout` is invoked via `<form action="/api/checkout" method="POST">` (not a link), matching the current pricing/page.tsx pattern; no link component needed
+  - In-page anchors (e.g. `#faq`) and external URLs use plain `<a>` tags or `NextLink` for prefetch; `NextLink` is imported in case any internal non-locale link slips in
 
 ### 8.2 PR 2: `/` landing migration
 
@@ -618,4 +637,4 @@ These are tactical decisions the plan phase will resolve:
 
 1. **`PricingTierAware` mounting strategy:** option (a) one instance owning both `.price-foot` slots, vs option (b) two instances sharing state via a small Provider wrapper. Spec recommends (a); plan phase commits after inspecting CSS dependencies.
 2. **Listener cleanup on unmount:** standard React `useEffect` return + `subscription.unsubscribe()` per TUB-30 pattern in `site-header-client.tsx:140-143`. Plan phase implements verbatim.
-3. **Optimistic-from-hint initial state for `PricingTierAware`:** spec specifies `{ signedIn: true, tier: "free" }` for warm-hint case. Plan phase confirms this is the right optimistic default (alternative: optimistic "pro" if user was previously pro). Spec recommends "free" as the lower-friction default.
+3. **CSS adjustment for `PricingTierAware` mounting:** plan phase confirms that moving the pricing-grid `<section>` rendering from server to client component does not break the existing global CSS scoped under `.tm-design .pricing-page`. Class names and DOM structure stay identical; only the rendering boundary moves. If any CSS rule is brittle to the boundary change, plan phase adjusts. No expected blocker since the design is class-name driven, not parent-tag driven.
