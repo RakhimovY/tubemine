@@ -51,6 +51,8 @@ Anything that cannot be traced to one of these sources is excluded from this spr
 
 ### Shared scaffold (both pages)
 
+Both pages follow the existing render shape from `src/app/[locale]/privacy/page.tsx` and `src/app/[locale]/terms/page.tsx`: define a const `sections` array (each element has `{ id, num, tocLabel, title, body }`), then iterate the array twice in the JSX, once to render the sticky TOC `<ol>` (reading `id` + `tocLabel`) and once to render the body `<article class="legal-article">` (reading `num` + `title` + `body`). This is the dual-iteration pattern that section 5.3's "TOC regenerates automatically" relies on.
+
 Both pages reuse the existing `.legal-page` CSS scope from `src/app/globals.css`, already shipped to power `/privacy` and `/terms`. The scaffold provides:
 
 - `.legal-hero` (badge + title + subtitle + "Last updated" line)
@@ -68,6 +70,8 @@ Footer is the legal footer pattern: navigation links to `/`, `/#features`, `/pri
 ### `LAST_UPDATED`
 
 Both pages declare a `const LAST_UPDATED = "May 21, 2026"` matching the privacy / terms convention. The constant renders verbatim in both locales (locale-aware date formatting is out of scope; existing privacy and terms already use this English-style date in RU too).
+
+Multi-session rule: if PR 2's verify-on-prod passes on a calendar date later than PR 1's, bump `LAST_UPDATED` in BOTH pages to PR 2's ship date (single shared value across docs + changelog). This keeps the two pages from drifting and avoids the "Last updated" string lying to users when the sprint spans midnight.
 
 ## 4. Page outline: Docs
 
@@ -274,9 +278,9 @@ Verifiable sources: initial scaffold commits (`9e91f3a`, `7957565`, `2860ebb`, `
 
 The changelog grows over time. For this sprint we ship 5 release sections. Future sprints follow the additive pattern:
 
-- **Prepend the newest release at the top of the `sections` array.** The new entry becomes section `01`, and every existing section's `num` shifts up by 1. The `num` is purely presentational ordering, so renumbering is safe.
-- **Anchor IDs use `r-YYYY-MM-DD`**, never `r-NN`. External bookmarks remain stable when the `num` cascade renumbers.
-- **TOC regenerates automatically** because the TOC is derived from the same `sections` array; no manual TOC edit needed.
+- **Prepend (or mid-array insert) by date.** Newest at the top; backfilled retroactive entries land at the correct chronological position. After insert, `num` re-cascades across the affected slice. The `num` is purely presentational ordering, so renumbering is safe.
+- **Anchor IDs use `r-YYYY-MM-DD`**, never `r-NN`. External bookmarks remain stable through num cascades.
+- **TOC regenerates automatically** via the dual-iteration pattern declared in § 3; no manual TOC edit needed.
 
 Trimming policy (older entries dropped, archived, or paginated) is out of scope for this sprint. Revisit when the array exceeds 20 entries.
 
@@ -391,7 +395,7 @@ docs.sections.opensource.p1_tail
 docs.sections.opensource.p2
 ```
 
-Total: 1 meta block + 1 hero block + 1 toc block + 8 sections. Counting the enumerated leaves: approximately 80 keys (the troubleshooting section grew to 5 q/a pairs after round 1 review separated the signed-in 402 path from the anonymous 429 path).
+Total: 1 meta block + 1 hero block + 1 toc block + 8 sections. Counting the enumerated leaves (excluding `#`-prefixed inline comments): 89 leaf keys for `docs.*`.
 
 ### 6.2 Changelog keys (chrome-only)
 
@@ -416,7 +420,7 @@ The existing `legal_disclaimer_ru_changelog` key is reused as-is (already shippe
 
 Follow the RU style already shipped on `/ru/privacy` and `/ru/terms` (idiomatic, not word-for-word). Three sprint-specific rules:
 
-1. **Numbers mirror the shipped RU pricing convention** (verified in `messages/ru.json`): thin-space `"1 000"`, `"5 000"`, `"100 000"` in RU; EN keeps comma `"1,000"`, `"5,000"`, `"100,000"`. Both are byte-equal to what `pricing.compare.row_monthly_*` ships in each locale. Round 2 review caught that round 1 had the direction inverted; this is the correct rule.
+1. **Numbers mirror the shipped RU pricing convention.** RU values MUST be byte-equal to the shipped `pricing.compare.row_monthly_*` cells in `messages/ru.json`. The shipped character between the thousand-groups is U+0020 (plain ASCII space, `0x20`) NOT U+00A0 NBSP NOR U+2009 thin space (verified via `jq -r '.pricing.compare.row_monthly_anon' messages/ru.json | xxd` which prints `31 20 30 30 30`). EN keeps comma `"1,000"`, `"5,000"`, `"100,000"`. The implementer should copy values directly from `messages/ru.json` to avoid typo-introducing a different space codepoint. Round 2 review caught round 1's inverted rule; this is the correct rule.
 2. **Latin-stay strings:** `TubeMine`, `CSV`, `JSON`, `Excel`, `XLSX`, `Pro`, `Free`, `Polar`, `$19` all stay latin in RU (matching the shipped `/ru/pricing`).
 3. **Quoted English error strings (§ 4.7.1):** every `err*_q` value in `messages/ru.json` MUST be byte-equal to the EN value.
 
@@ -550,9 +554,10 @@ Verify-on-prod gate:
    - No raw ICU `{token}` substrings inside `article.legal-article`.
 4. Screenshot desktop (1280x800) + mobile (375x812) for both locales. Save screenshots into the vault session path declared in § 11 item 9 (`projects/yt-comments/sessions/2026-05-21/tub-31-docs-changelog/screenshots/`) so a future audit can retrieve them.
 
-### 10.1.1 Vercel deploy poll budget
+### 10.1.1 Vercel deploy poll + Chrome MCP retry
 
-`mcp__vercel__list_deployments` is polled every 10 seconds, up to a 600-second budget per PR. If state is not READY after 600 seconds, the gate fails and the implementer escalates (check Vercel dashboard for build errors).
+- Poll `mcp__vercel__list_deployments` (filter by `target: "production"` and `meta.githubCommitSha` matching the just-pushed SHA) until `readyState === "READY"`. Default cadence: 10s interval, 600s ceiling. Beyond 600s, fail the gate and check the Vercel dashboard.
+- Chrome MCP navigate / screenshot calls retry up to 3 times with 30s backoff on transient failure (network blip, process restart). On persistent failure, fall back to `curl` plus a manual visual check rather than blocking the gate indefinitely.
 
 ### 10.2 PR 2: Changelog page
 
