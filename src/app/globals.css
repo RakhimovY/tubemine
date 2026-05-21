@@ -1278,6 +1278,9 @@ body.no-scroll { overflow: hidden; }
   --header-h: 60px;
   min-height: 100vh;
   background: var(--color-surface-base);
+  display: grid;
+  gap: var(--space-7);
+  align-content: start;
 }
 
 /* ===== Dashboard shell ===== */
