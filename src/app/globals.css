@@ -1092,6 +1092,7 @@ body.no-scroll { overflow: hidden; }
   margin-top: auto;
   display: grid;
   gap: var(--space-4);
+  min-height: 88px;
 }
 .tm-design .pricing-page .price-foot .btn { width: 100%; }
 .tm-design .pricing-page .price-note {
