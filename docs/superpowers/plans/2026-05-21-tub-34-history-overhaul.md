@@ -716,10 +716,12 @@ git commit -m "feat(tub-34): /api/extract passes tier + comments to saveAnalysis
 
 - [ ] **Step 1: Add GET handler alongside existing DELETE**
 
-In `src/app/api/analyses/[id]/route.ts`, add at top of file (alongside the existing DELETE export):
+In `src/app/api/analyses/[id]/route.ts`, the existing file already declares `UUID_RE` and imports `createClient`, `NextResponse`. Add the new import for `getAnalysisById`, then add the GET handler:
 
 ```ts
 import { getAnalysisById } from "@/lib/analyses"
+// UUID_RE is already declared at the top of this file (existing).
+// createClient, NextResponse are already imported.
 
 export async function GET(
   _request: Request,
@@ -786,9 +788,73 @@ git commit -m "feat(tub-34): add GET /api/analyses/[id]"
 
 Read `src/app/api/export/route.ts`. The existing schema is `ExportRequestSchema` with `format: z.enum(["json", "xlsx"])`. We add a discriminated union with `mode`.
 
-- [ ] **Step 2: Extract serialization into a helper**
+- [ ] **Step 2: Verify CSV serializer location**
 
-First, refactor the existing handler body into `buildExportResponse`. Lift the CSV / JSON / Excel serialization branches out of the current POST handler. Skeleton:
+Run: `rg -l "Content-Type.*text/csv|csv.*Content-Disposition" src/`. Note the file/function where CSV serialization for live extract currently lives (likely a client-side serializer in tubemine.tsx since /api/export only handles json+xlsx).
+
+- [ ] **Step 3: Add mode-OPTIONAL schema (preserves spec §10 file contract)**
+
+Critical design choice: rather than requiring `mode` on every request (which would force editing `src/components/tubemine.tsx` - forbidden by spec §10), make `mode` OPTIONAL with default `"extract"`. Existing callers (tubemine.tsx Save JSON/Excel) keep working unchanged. New cache callers explicitly send `mode: "cache"`.
+
+Replace `ExportRequestSchema` block with:
+
+```ts
+const ExtractExportRequestSchema = z.object({
+  mode: z.literal("extract").default("extract"),
+  format: z.enum(["json", "xlsx"]),
+  videoId: z.string().regex(/^[\w-]{11}$/),
+  videoTitle: z.string().max(500).optional(),
+  channelName: z.string().max(200).optional(),
+  comments: z.array(CommentSchema).max(10_000),
+})
+
+const CacheExportRequestSchema = z.object({
+  mode: z.literal("cache"),
+  analysisId: z.string().uuid(),
+  format: z.enum(["csv", "json", "xlsx"]),
+})
+
+// z.discriminatedUnion needs a literal discriminator; use z.union + manual
+// discrimination because Extract's mode has a default which makes it not
+// purely literal at the type level.
+const RequestSchema = z.union([CacheExportRequestSchema, ExtractExportRequestSchema])
+```
+
+- [ ] **Step 4: Move Pro gate BELOW schema parse + skip for cache CSV (free-tier downloads work)**
+
+Current code:
+
+```ts
+const quota = await getUserQuota(userId)
+if (quota.tier !== "pro") {
+  return NextResponse.json({ error: "Pro plan required ..." }, { status: 403 })
+}
+
+// ... json parse + zod parse later
+```
+
+Replace with the parse-first ordering. After `const parsed = RequestSchema.safeParse(body)` + 400 on failure:
+
+```ts
+const tier = quota.tier // computed earlier; keep getUserQuota call where it is
+
+// Tier-gate per format:
+//   - cache + csv  : free OR pro (Free retention promise per pricing)
+//   - cache + json/xlsx : pro only
+//   - extract + json/xlsx : pro only (existing behavior)
+const data = parsed.data
+const needsPro =
+  (data.mode === "extract" && (data.format === "json" || data.format === "xlsx")) ||
+  (data.mode === "cache" && (data.format === "json" || data.format === "xlsx"))
+
+if (needsPro && tier !== "pro") {
+  return NextResponse.json({ error: "Pro plan required for this export format" }, { status: 403 })
+}
+```
+
+- [ ] **Step 5: Add buildExportResponse helper (concrete body)**
+
+Define the helper INLINE in the route file (do NOT extract to a separate module - keeps the route self-contained). Lift the existing JSON + xlsx branches verbatim, plus a new CSV branch:
 
 ```ts
 async function buildExportResponse(
@@ -804,26 +870,91 @@ async function buildExportResponse(
       likes: number
       replies: number
       publishedAt: string
-    }>
+    }>,
   },
 ): Promise<Response> {
+  const filenameBase = `tubemine-${payload.videoId}-${todayUtc()}`
+
   if (format === "json") {
-    // existing JSON branch body, returning NextResponse.json(payload) with
-    // appropriate Content-Disposition
-  } else if (format === "xlsx") {
-    // existing ExcelJS branch body
-  } else {
-    // CSV branch: serialize payload.comments with sanitizeForSpreadsheet, set
-    // Content-Type: text/csv, Content-Disposition: attachment; filename=...
+    const out = {
+      videoId: payload.videoId,
+      videoTitle: payload.videoTitle,
+      channelName: payload.channelName,
+      exported_at: new Date().toISOString(),
+      comments: payload.comments,
+    }
+    return NextResponse.json(out, {
+      headers: {
+        "Content-Disposition": `attachment; filename="${filenameBase}.json"`,
+      },
+    })
   }
+
+  if (format === "csv") {
+    const header = ["Author", "Comment", "Sentiment", "Likes", "Replies", "Published"]
+    const escape = (v: string | number) => {
+      const s = String(v)
+      // sanitizeForSpreadsheet prepends ' to formula-leading cells
+      const safe = sanitizeForSpreadsheet(s)
+      if (/["\n,]/.test(safe)) return `"${safe.replace(/"/g, '""')}"`
+      return safe
+    }
+    const lines = [header.join(",")]
+    for (const c of payload.comments) {
+      lines.push(
+        [
+          escape(c.author),
+          escape(c.text),
+          escape(c.sentiment ?? ""),
+          c.likes,
+          c.replies,
+          escape(c.publishedAt),
+        ].join(","),
+      )
+    }
+    const csv = lines.join("\n")
+    return new NextResponse(csv, {
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename="${filenameBase}.csv"`,
+      },
+    })
+  }
+
+  // format === "xlsx" - lift the existing ExcelJS block verbatim, but read
+  // inputs from `payload` instead of locally-scoped vars. Existing block
+  // starts at "const workbook = new ExcelJS.Workbook()" - move it here and
+  // wire up returns.
+  const workbook = new ExcelJS.Workbook()
+  const sheet = workbook.addWorksheet("Comments")
+  sheet.addRow(["Author", "Comment", "Sentiment", "Likes", "Replies", "Published"])
+  const stringCols = [1, 2, 3, 6]
+  for (const c of payload.comments) {
+    const row = sheet.addRow([
+      sanitizeForSpreadsheet(c.author),
+      sanitizeForSpreadsheet(c.text),
+      sanitizeForSpreadsheet(c.sentiment ?? ""),
+      c.likes,
+      c.replies,
+      sanitizeForSpreadsheet(c.publishedAt),
+    ])
+    for (const col of stringCols) {
+      row.getCell(col).numFmt = "@"
+    }
+  }
+  const buffer = await workbook.xlsx.writeBuffer()
+  return new NextResponse(buffer, {
+    headers: {
+      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "Content-Disposition": `attachment; filename="${filenameBase}.xlsx"`,
+    },
+  })
 }
 ```
 
-Keep the existing serialization code intact; just move it into this helper. If CSV is currently implemented in a separate route (verify by `rg "Content-Type.*text/csv"` in src/), copy that serialization into this helper for the cache branch.
+- [ ] **Step 6: Branch on mode in POST handler**
 
-- [ ] **Step 3: Add discriminated union + cache branch**
-
-At the top, alongside existing schema, add (replacing the existing schema's export):
+Replace the existing format-branching tail of the POST handler:
 
 ```ts
 import { createClient } from "@/lib/supabase/server"
@@ -846,26 +977,18 @@ const RequestSchema = z.discriminatedUnion("mode", [
 ])
 ```
 
-Then in the POST handler, branch on `mode`:
-
 ```ts
-const body = await request.json()
-const parsed = RequestSchema.safeParse(body)
-if (!parsed.success) {
-  return NextResponse.json({ error: "invalid_request", issues: parsed.error.issues }, { status: 400 })
-}
-
-if (parsed.data.mode === "cache") {
-  const { analysisId, format } = parsed.data
+// (Tier gate already applied above per Step 4.)
+if (data.mode === "cache") {
+  // Use the userId already resolved by authUserId() at the top of the
+  // handler. Spawn a fresh user-scoped client for the row read so RLS
+  // applies (authUserId() returns a bare userId; for SELECT under RLS we
+  // need the cookie-bound supabase client).
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
-  }
   const { data: row, error } = await supabase
     .from("analyses")
     .select("video_id, video_title, channel_name, comments, comments_blob_path")
-    .eq("id", analysisId)
+    .eq("id", data.analysisId)
     .maybeSingle()
   if (error || !row) {
     return NextResponse.json({ error: "not_found" }, { status: 404 })
@@ -882,8 +1005,6 @@ if (parsed.data.mode === "cache") {
   if (!comments) {
     return NextResponse.json({ error: "comments_not_stored" }, { status: 410 })
   }
-  // Reuse existing serializers; convert StoredComment shape to the export shape
-  // (existing serializers expect { author, text, sentiment, likes, replies, publishedAt }).
   const exportComments = comments.map((c) => ({
     author: c.authorName ?? "",
     text: c.text,
@@ -892,7 +1013,7 @@ if (parsed.data.mode === "cache") {
     replies: c.replies ?? 0,
     publishedAt: c.publishedAt ?? "",
   }))
-  return buildExportResponse(format, {
+  return buildExportResponse(data.format, {
     videoId: row.video_id as string,
     videoTitle: (row.video_title as string | null) ?? undefined,
     channelName: (row.channel_name as string | null) ?? undefined,
@@ -900,12 +1021,16 @@ if (parsed.data.mode === "cache") {
   })
 }
 
-// mode === "extract" - existing flow
-// (refactor existing handler body into a buildExportResponse helper or
-// keep inline; either way, do NOT regress current behavior)
+// data.mode === "extract" - reuse the helper with payload built from request.
+return buildExportResponse(data.format, {
+  videoId: data.videoId,
+  videoTitle: data.videoTitle,
+  channelName: data.channelName,
+  comments: data.comments,
+})
 ```
 
-You will need to refactor the existing extract flow into a `buildExportResponse(format, { videoId, videoTitle, channelName, comments })` helper that wraps the CSV/JSON/Excel serialization. Read the current handler carefully and lift the serialization branch into the helper so both `cache` and `extract` modes reuse it.
+Imports to add at top of file: `import { createClient } from "@/lib/supabase/server"`, `import { downloadCommentsBlob } from "@/lib/supabase/storage"`, `import type { StoredComment } from "@/lib/comments"`.
 
 - [ ] **Step 3: Build**
 
@@ -919,45 +1044,34 @@ git add src/app/api/export/route.ts
 git commit -m "feat(tub-34): /api/export gains cache mode (zero-YT-quota export from cached comments)"
 ```
 
-### Task 1.9b: Update live extract callers with mode: "extract" (CRITICAL)
+### Task 1.9b: Sanity-check existing export tests still pass
 
 **Files:**
-- Modify: `src/components/tubemine.tsx`
-- Modify: `src/app/api/export/__tests__/route.test.ts`
+- Modify (optional): `src/app/api/export/__tests__/route.test.ts`
 
-The discriminated union added in Task 1.9 requires `mode` on EVERY request. Without this task, the existing live export flow (Save JSON / Save Excel from the live extract view) breaks immediately on PR 1 deploy.
+Because `mode` defaults to `"extract"` (Task 1.9 Step 3), the existing test bodies (which omit `mode`) should still pass the schema. Verify.
 
-- [ ] **Step 1: Update tubemine.tsx fetch calls**
-
-Open `src/components/tubemine.tsx` and locate both `fetch("/api/export", ...)` calls (~lines 288 and 317 per recon). For each, add `mode: "extract"` to the JSON body. Example:
-
-```ts
-// Before:
-body: JSON.stringify({ format: "xlsx", videoId, videoTitle, channelName, comments })
-// After:
-body: JSON.stringify({ mode: "extract", format: "xlsx", videoId, videoTitle, channelName, comments })
-```
-
-Apply to both call sites.
-
-- [ ] **Step 2: Update existing route test**
-
-Open `src/app/api/export/__tests__/route.test.ts`. Update each test's request body to include `mode: "extract"` matching the new schema. The tests currently send `format` + `videoId` + `comments` without `mode`; they must add `mode: "extract"` to pass the new discriminated union.
-
-- [ ] **Step 3: Build + run tests**
+- [ ] **Step 1: Run existing export route tests**
 
 ```bash
-pnpm build
 pnpm vitest run src/app/api/export/__tests__/route.test.ts
 ```
 
-Expected: both PASS.
+Expected: PASS (no test changes needed). If a test fails because the Pro gate now happens AFTER schema parse, you may need to adjust an expected status code or test setup; address only on actual failure.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 2: Build**
 
 ```bash
-git add src/components/tubemine.tsx src/app/api/export/__tests__/route.test.ts
-git commit -m "fix(tub-34): live extract callers send mode: extract to /api/export (avoid breaking discriminated union)"
+pnpm build
+```
+
+Expected: SUCCESS.
+
+- [ ] **Step 3: Commit (if any test changes)**
+
+```bash
+git add src/app/api/export/__tests__/route.test.ts
+git commit -m "test(tub-34): adjust export route tests for new schema/gate order"
 ```
 
 ### Task 1.10: PR 1 verify-on-prod (BLOCKER)
@@ -1235,18 +1349,16 @@ import { useRouter } from "@/i18n/navigation"
 import { TopWordsPanel } from "@/components/top-words"
 import { CommentsTable } from "@/components/comments-table"
 import { Button } from "@/components/ui/button"
-import type { StoredComment } from "@/lib/comments"
-import type { AnalysisRow, TopWord, EmojiFreq } from "@/lib/analyses"
+import type { TopWord, EmojiFreq } from "@/lib/analyses"
 import type { SentimentAggregate } from "@/lib/sentiment"
 
 type Tier = "free" | "pro"
 
+import type { AnalysisDetailRow } from "@/lib/analyses"
+
 export type AnalysisDetailViewProps = {
   tier: Tier
-  row: AnalysisRow & {
-    comments: StoredComment[] | null
-    has_comments: boolean
-  }
+  row: AnalysisDetailRow & { has_comments: boolean }
 }
 
 export function AnalysisDetailView({ tier, row }: AnalysisDetailViewProps) {
@@ -1447,11 +1559,15 @@ export default async function Page({
   if (!user) notFound()
 
   const result = await getAnalysisById(supabase, id)
-  if (!result.ok && result.reason === "not_found") notFound()
-  // For comments_unavailable, still render the page with comments=null;
-  // detail view shows the legacy/unavailable placeholder per spec §7.
+  if (!result.ok && result.reason === "not_found") {
+    notFound()
+  }
+  // After the narrow above, result is { ok: true, row } OR
+  // { ok: false, reason: "comments_unavailable", row }. Both shapes have `row`.
   const row = result.ok ? result.row : result.row
   const quota = await getUserQuota(user.id)
+  // getUserQuota returns Tier ("free" | "pro"). The expression below is type-safe
+  // but explicit for self-documentation: only "pro" gets Pro-tier rendering.
   const tier: "free" | "pro" = quota.tier === "pro" ? "pro" : "free"
   const has_comments = row.comments != null || row.comments_blob_path != null
 
@@ -1835,38 +1951,11 @@ git add src/components/analyses-list.tsx
 git commit -m "feat(tub-34): unified AnalysesList with delete-with-undo"
 ```
 
-### Task 3.3: Dispatch tubemine:analysis-saved on extract success
+### Task 3.3: (REMOVED) Rapid re-extract during pending delete
 
-**Files:**
-- Modify: `src/components/tubemine.tsx`
+Spec §10 forbids touching `src/components/tubemine.tsx`. The rapid-re-extract data-loss guard (custom event dispatch from extract success) cannot be wired without modifying tubemine.tsx. Documented in spec §5.3 as an accepted MVP limitation: very low likelihood (user must delete from /history, navigate to dashboard, and re-extract same video within 5s). The AnalysesList `tubemine:analysis-saved` event listener remains harmless dead code that will activate when this guard ships in a follow-up PR.
 
-- [ ] **Step 1: Locate extract-success handler**
-
-Open `src/components/tubemine.tsx` and find where the extract response is received (likely in the onExtract handler or a useEffect after successful fetch). At that point, the component already has `videoId` in scope.
-
-- [ ] **Step 2: Dispatch event after success**
-
-Right after the analyses save would have completed (i.e. after successful extract response):
-
-```ts
-if (typeof window !== "undefined") {
-  window.dispatchEvent(
-    new CustomEvent("tubemine:analysis-saved", { detail: { videoId } }),
-  )
-}
-```
-
-- [ ] **Step 3: Build**
-
-Run: `pnpm build`
-Expected: SUCCESS.
-
-- [ ] **Step 4: Commit**
-
-```bash
-git add src/components/tubemine.tsx
-git commit -m "feat(tub-34): dispatch tubemine:analysis-saved on extract success (cancels pending delete)"
-```
+No tasks here. Skip to Task 3.4.
 
 ### Task 3.4: Refactor recent-analyses to use AnalysesList
 
@@ -1913,51 +2002,154 @@ git add src/components/recent-analyses.tsx
 git commit -m "refactor(tub-34): RecentAnalyses uses unified AnalysesList (10 items, no actions)"
 ```
 
-### Task 3.5: Refactor history-client to use AnalysesList
+### Task 3.5: Add new actions in-place to existing history-client (preserve visual port)
 
 **Files:**
 - Modify: `src/app/[locale]/(app)/history/history-client.tsx`
 
-Recon-confirmed: the existing history-client accepts `{ tier, locale, initialItems, initialNextCursor }`. The `<AnalysesList>` prop is named `initialCursor` (NOT `initialNextCursor`); map between them.
+`history-client.tsx` is 1007 lines of locked-in TUB-1 visual-port markup (.history-row / .history-table / .empty-state-card / tm-toast-host classes). Wholesale replacement with `<AnalysesList>` would destroy the design port. Instead, **add the new behaviors in-place** to the existing component, leaving the visual structure intact. The `<AnalysesList>` unified component shipped in Task 3.2 is used for the DASHBOARD recent block only (Task 3.4); the /history page gets minimal in-place additions here.
 
-- [ ] **Step 1: Replace render body**
+Scope of in-place changes:
+1. Add a "Detail" row link target so clicking any history row navigates to `/history/:id`.
+2. Add per-row Download menu (CSV for all, +JSON/+Excel for Pro) that POSTs `/api/export` with `mode: "cache"`.
+3. Add delete-with-undo logic: 5s `setTimeout` + Sonner toast + committed-flag race guard + unmount clear-and-drop. Reuse the same pattern as `<AnalysesList>` (Task 3.2) but inline into history-client.
 
-Replace the entire `src/app/[locale]/(app)/history/history-client.tsx` contents:
+- [ ] **Step 1: Read the existing row-render block**
+
+Open `src/app/[locale]/(app)/history/history-client.tsx`. Locate the `.history-row` render block (likely inside a `.map(item => ...)` over `items`). Identify the exact JSX node for one row.
+
+- [ ] **Step 2: Wrap row in /history/:id link**
+
+If the row is not already wrapped in a Next-i18n `<Link href={`/history/${item.id}`}>`, wrap it (or wrap the thumbnail+title sub-block; not the action buttons). Use the `Link` from `@/i18n/navigation`.
+
+- [ ] **Step 3: Add action buttons**
+
+Inside each `.history-row` (next to existing controls, or in a new `.history-row__actions` cluster), add:
 
 ```tsx
-"use client"
+<button
+  type="button"
+  className="tm-action-btn"
+  onClick={() => downloadFromCache(item, "csv")}
+>
+  {t("download_csv")}
+</button>
+{tier === "pro" && (
+  <>
+    <button type="button" className="tm-action-btn" onClick={() => downloadFromCache(item, "json")}>
+      {t("download_json")}
+    </button>
+    <button type="button" className="tm-action-btn" onClick={() => downloadFromCache(item, "xlsx")}>
+      {t("download_excel")}
+    </button>
+  </>
+)}
+<button type="button" className="tm-action-btn tm-action-btn--ghost" onClick={() => scheduleDelete(item)}>
+  {t("delete")}
+</button>
+```
 
-import { AnalysesList } from "@/components/analyses-list"
-import type { AnalysisRow } from "@/lib/analyses"
+`t` comes from `useTranslations("history_detail")` (add the import + hook call near the top of the component).
 
-type Tier = "free" | "pro"
+- [ ] **Step 4: Add delete-with-undo + download helpers**
 
-type Props = {
-  tier: Tier
-  locale: string
-  initialItems: AnalysisRow[]
-  initialNextCursor: string | null
+Inside the existing HistoryClient component body, add (mirroring Task 3.2 pattern):
+
+```ts
+type PendingDelete = { timer: ReturnType<typeof setTimeout>; committed: boolean; videoId: string }
+const pendingRef = useRef<Map<string, PendingDelete>>(new Map())
+const [pendingIds, setPendingIds] = useState<Set<string>>(new Set())
+const t = useTranslations("history_detail")
+
+useEffect(() => {
+  return () => {
+    for (const entry of pendingRef.current.values()) clearTimeout(entry.timer)
+    pendingRef.current.clear()
+  }
+}, [])
+
+function scheduleDelete(item: AnalysisRow) {
+  if (pendingRef.current.has(item.id)) return
+  setPendingIds((prev) => new Set(prev).add(item.id))
+  const timer = setTimeout(async () => {
+    const entry = pendingRef.current.get(item.id)
+    if (!entry) return
+    entry.committed = true
+    try {
+      await fetch(`/api/analyses/${item.id}`, { method: "DELETE" })
+      track("history_deleted", { analysis_id_prefix: item.id.slice(0, 8) })
+    } finally {
+      pendingRef.current.delete(item.id)
+    }
+  }, 5000)
+  pendingRef.current.set(item.id, { timer, committed: false, videoId: item.video_id })
+  toast(t("delete_pending", { title: item.video_title ?? item.video_id }), {
+    action: { label: t("undo"), onClick: () => undoDelete(item.id) },
+    duration: 5000,
+  })
 }
 
-export function HistoryClient({ tier, initialItems, initialNextCursor }: Props) {
-  return (
-    <div className="mx-auto max-w-5xl px-4 py-8">
-      <h1 className="mb-6 text-2xl font-semibold">History</h1>
-      <AnalysesList
-        initialItems={initialItems}
-        initialCursor={initialNextCursor}
-        tier={tier}
-        compact={false}
-        showActions={true}
-        paginated={true}
-        limit={20}
-      />
-    </div>
-  )
+function undoDelete(id: string) {
+  const entry = pendingRef.current.get(id)
+  if (!entry) return
+  if (entry.committed) {
+    toast.error(t("undo_too_late"))
+    return
+  }
+  clearTimeout(entry.timer)
+  pendingRef.current.delete(id)
+  setPendingIds((prev) => {
+    const next = new Set(prev)
+    next.delete(id)
+    return next
+  })
+  track("history_delete_undone", { analysis_id_prefix: id.slice(0, 8) })
+}
+
+async function downloadFromCache(item: AnalysisRow, format: "csv" | "json" | "xlsx") {
+  try {
+    const res = await fetch("/api/export", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: "cache", analysisId: item.id, format }),
+    })
+    if (!res.ok) {
+      toast.error(t("export_failed_transient"))
+      return
+    }
+    const blob = await res.blob()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `${item.video_id}.${format === "xlsx" ? "xlsx" : format}`
+    a.click()
+    URL.revokeObjectURL(url)
+    track("history_downloaded", { analysis_id_prefix: item.id.slice(0, 8), format })
+  } catch {
+    toast.error(t("export_failed_transient"))
+  }
 }
 ```
 
-`locale` prop is accepted (existing server page passes it) but no longer used internally; this preserves the server-component call site without requiring server-side changes.
+Add imports at top of file: `import { useRef, useState, useEffect } from "react"`, `import { useTranslations } from "next-intl"`, `import { toast } from "sonner"`, `import { track } from "@vercel/analytics"`, `import { Link } from "@/i18n/navigation"` (if not already present).
+
+- [ ] **Step 5: Filter pendingIds from rendered items**
+
+Locate the `items.map((item) => ...)` block. Wrap with a filter:
+
+```ts
+items.filter((item) => !pendingIds.has(item.id)).map((item) => ...)
+```
+
+This implements optimistic-remove.
+
+- [ ] **Step 6: Build**
+
+```bash
+pnpm build
+```
+
+Expected: SUCCESS. If TypeScript errors in unrelated parts of history-client.tsx surface (the file is 1007 lines), fix only ones caused by the new imports/identifiers. Pre-existing issues are out of scope.
 
 - [ ] **Step 3: Build**
 
