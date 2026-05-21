@@ -958,5 +958,32 @@
         "p1_tail": "Каждое письмо читает живой человек."
       }
     }
+  },
+  "history_detail": {
+    "title": "Детали анализа",
+    "back_to_history": "Назад к истории",
+    "processed_at_label": "Обработано",
+    "expires_at_label": "Истекает",
+    "comment_count_label": "комментариев",
+    "download_csv": "Скачать CSV",
+    "download_json": "Скачать JSON",
+    "download_excel": "Скачать Excel",
+    "delete": "Удалить",
+    "legacy_no_comments": "Для старых анализов комментарии не сохранены. Переанализируйте, чтобы увидеть их.",
+    "not_found_title": "Анализ не найден",
+    "not_found_body": "Возможно, он истёк или был удалён.",
+    "back_to_history_link": "Назад к истории",
+    "comments_table_heading": "Комментарии",
+    "comments_table_empty": "Комментарии не сохранены",
+    "column_author": "Автор",
+    "column_text": "Комментарий",
+    "column_sentiment": "Тональность",
+    "column_likes": "Лайки",
+    "column_published": "Опубликовано",
+    "delete_pending": "Удаляем {title}",
+    "undo": "Отменить",
+    "undo_too_late": "Отмена недоступна - удаление уже отправлено",
+    "export_failed_legacy": "Комментарии не сохранены для этого анализа",
+    "export_failed_transient": "Не удалось загрузить кешированные комментарии - попробуйте снова"
   }
 }

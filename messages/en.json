@@ -958,5 +958,32 @@
         "p1_tail": "One human reads every message."
       }
     }
+  },
+  "history_detail": {
+    "title": "Analysis detail",
+    "back_to_history": "Back to history",
+    "processed_at_label": "Processed",
+    "expires_at_label": "Expires",
+    "comment_count_label": "comments",
+    "download_csv": "Download CSV",
+    "download_json": "Download JSON",
+    "download_excel": "Download Excel",
+    "delete": "Delete",
+    "legacy_no_comments": "Comments aren't stored for analyses from before this update. Re-extract to view them.",
+    "not_found_title": "Analysis not found",
+    "not_found_body": "It may have expired or been deleted.",
+    "back_to_history_link": "Back to history",
+    "comments_table_heading": "Comments",
+    "comments_table_empty": "No comments stored",
+    "column_author": "Author",
+    "column_text": "Comment",
+    "column_sentiment": "Sentiment",
+    "column_likes": "Likes",
+    "column_published": "Published",
+    "delete_pending": "Deleting {title}",
+    "undo": "Undo",
+    "undo_too_late": "Undo unavailable - delete already submitted",
+    "export_failed_legacy": "Comments not stored for this analysis",
+    "export_failed_transient": "Couldn't load cached comments - try again"
   }
 }
