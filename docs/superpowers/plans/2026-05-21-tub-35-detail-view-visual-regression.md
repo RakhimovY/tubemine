@@ -259,15 +259,23 @@ Expected: push accepted, Vercel deploy starts.
 
 - [ ] **Step 2.1: Wait for Vercel deploy READY**
 
-Run: `mcp__vercel__list_deployments` with `projectId` for tubemine (find via `mcp__vercel__list_projects` if not cached). Poll until the deploy for the latest commit reaches `READY` (`state: "READY"` or `readyState: "READY"`). If still `BUILDING` after first check, wait ~45s and re-poll. Hard fail if `ERROR` or `CANCELED`; in that case fetch `get_deployment_build_logs` and fix.
+Run `mcp__vercel__list_projects` if the tubemine project slug is not yet cached. Vercel project slug for this app is `tubemine` (deployed at `https://tubemine.tech` via custom domain; canonical Vercel URL is `tubemine.vercel.app`).
 
-- [ ] **Step 2.2: Open detail view on prod**
+Then run `mcp__vercel__list_deployments` with `projectId: "tubemine"` (or the id returned from list_projects). Inspect the deploy whose `meta.githubCommitSha` matches the PR 1 HEAD sha from Step 1.8.
 
-Run: `mcp__chrome-devtools__list_pages`. If a tubemine.tech tab already exists from main-session work, select it via `select_page`. Otherwise `new_page` with `url: "https://tubemine.tech/en/history"`.
+Poll until that deployment reaches `state: "READY"` or `readyState: "READY"`. If still `BUILDING` after first check, wait ~45s and re-poll (max 6 polls = ~4.5 min). Hard fail if `ERROR` or `CANCELED`; in that case fetch `mcp__vercel__get_deployment_build_logs` and surface the error to the user before proceeding.
 
-Take screenshot via `mcp__chrome-devtools__take_screenshot` with `format: "png"`. Snapshot via `take_snapshot`. Verify the History list renders.
+- [ ] **Step 2.2a: Open or select prod page**
 
-Pick the first analysis row link and `click` it. Wait via `wait_for` for the detail-route heading to appear (text in `h1.truncate` or page selector returns the analysis title).
+Run `mcp__chrome-devtools__list_pages`. If a `https://tubemine.tech` tab already exists, call `mcp__chrome-devtools__select_page` with its pageIdx. Otherwise call `mcp__chrome-devtools__new_page` with `url: "https://tubemine.tech/en/history"`.
+
+If login wall is shown (presence of `/login` in URL or login form on page), document "verify deferred, session not authed" in the Linear comment in Step 2.7 and skip directly to Task 3. The detail view styling fix still ships; visual verify will happen on the next authed visit.
+
+- [ ] **Step 2.2b: Drill into a detail view**
+
+Take snapshot via `mcp__chrome-devtools__take_snapshot`. From snapshot, find the first analysis row link (anchor whose href matches `/history/[a-z0-9-]+`). Capture its uid.
+
+Run `mcp__chrome-devtools__click` with that uid. Then `mcp__chrome-devtools__wait_for` with `text` set to a substring you expect on the detail page (for example, the partial video title visible on the row, or the localized string "Download CSV"). Timeout default is fine; fail fast if it never appears.
 
 - [ ] **Step 2.3: Assert detail view visual fidelity**
 
@@ -333,17 +341,23 @@ Expected: at minimum `hasCSV: true`. If logged in as Pro: JSON and Excel buttons
 
 Run `take_screenshot` of the detail page (full page if possible). Save as `/tmp/tub-35-detail-after.png` (`filePath` arg). This is the visual evidence for the Linear comment.
 
-- [ ] **Step 2.5: Bug B verification: dashboard 4-panel render after fresh extract**
+- [ ] **Step 2.5a: Navigate to dashboard**
 
-Navigate via Chrome MCP to `https://tubemine.tech/en/dashboard`. If session not authed (login wall visible), document deferral in Linear and skip 2.6 + 2.7.
+Run `mcp__chrome-devtools__navigate_page` to `https://tubemine.tech/en/dashboard`. If login wall (URL contains `/login` or login form visible), document "Bug B deferred, session not authed" in Step 2.7 Linear comment and skip 2.5b through 2.6.
 
-If authed:
+- [ ] **Step 2.5b: Snapshot, find input uid, fill URL**
 
-a. Locate the Quick analyze input. `fill` with `https://youtu.be/PHqshQPRxt4`. Wait 1s via `wait_for` for the debounced preview auto-load (preview thumbnail appears).
+Run `mcp__chrome-devtools__take_snapshot`. From snapshot, find the Quick analyze input element (an `<input>` with placeholder containing "youtube" or "url" or "youtu.be", or a labelled input near a "Paste" or "Quick analyze" heading). Capture its uid.
 
-b. Click "Analyze N comments" button (text varies with N). Use `take_snapshot` to find the button uid by partial text match.
+Run `mcp__chrome-devtools__fill` with that uid and `value: "https://youtu.be/PHqshQPRxt4"`. Then `mcp__chrome-devtools__wait_for` with `text: "comments"` (or a thumbnail selector for preview), timeout ~5s, to confirm the debounced preview loaded.
 
-c. Wait for extract to complete: poll via `wait_for` for an element selector that appears when results render (e.g., the Results panel header or any TopWords bar).
+- [ ] **Step 2.5c: Find Analyze button uid and click**
+
+Re-snapshot (the preview just rendered, DOM changed). Find the button with text matching `/Analyze \d+ comments/`. Capture its uid. Click it.
+
+- [ ] **Step 2.5d: Wait for extract to complete**
+
+Run `mcp__chrome-devtools__wait_for` with `text: "Results"` (or another panel heading text confirmed to render only after extract). Set timeout to ~60s; extraction over comment_count=200 default usually completes within 20-30s but can be slower on cold compute. If timeout, take screenshot, log network failures via `mcp__chrome-devtools__list_network_requests` with `resourceTypes: ["xhr", "fetch"]`, and document as Bug B real regression in Linear before continuing.
 
 - [ ] **Step 2.6: Assert dashboard renders 4 panels**
 
@@ -402,9 +416,9 @@ If the file does not exist, create it with appropriate frontmatter (see vault co
 
 - [ ] **Step 3.2: Append TC-CSS-008 entry**
 
-Run `mcp__obsidian__patch_note` with:
-- `filepath: "projects/yt-comments/qa/test-cases.md"`
-- `operation: "append"`
+Run `mcp__obsidian__write_note` with:
+- `path: "projects/yt-comments/qa/test-cases.md"`
+- `mode: "append"`
 - `content` (verbatim, no em-dash):
 
 ```markdown
@@ -447,9 +461,9 @@ Run `mcp__obsidian__read_note` with `filepath: "playbooks/saas-roadmap/13-qa-use
 
 - [ ] **Step 4.2: Append visual fidelity gate sub-section**
 
-Run `mcp__obsidian__patch_note` with:
-- `filepath: "playbooks/saas-roadmap/13-qa-user-flows-and-test-cases.md"`
-- `operation: "append"`
+Run `mcp__obsidian__write_note` with:
+- `path: "playbooks/saas-roadmap/13-qa-user-flows-and-test-cases.md"`
+- `mode: "append"`
 - `content` (verbatim, no em-dash):
 
 ```markdown
@@ -502,9 +516,9 @@ Run `mcp__claude_ai_Linear__list_issue_statuses` to confirm the "Done" status id
 
 - [ ] **Step 6.1: Append daily-note session summary**
 
-Run `mcp__obsidian__patch_note` with:
-- `filepath: "daily/2026-05-21.md"`
-- `operation: "append"`
+Run `mcp__obsidian__write_note` with:
+- `path: "daily/2026-05-21.md"`
+- `mode: "append"`
 - `content` (template per global CLAUDE.md, RU language):
 
 ```markdown
@@ -549,32 +563,25 @@ Expected: only "scan complete" output. If any `EM-DASH IN` line: open the file, 
 
 For vault notes (not on local disk), spot-check via the read_note output captured in earlier steps.
 
-- [ ] **Step 6.3: Verify clean final state**
+- [ ] **Step 6.3: Verify clean git state**
 
 Run:
 ```bash
-git status
-git log --oneline -5
+git status --porcelain
+git log --oneline -8
 ```
 
 Expected:
-- Working tree clean.
-- Recent commits include the PR 1 commit, the spec commit (5e76d51), spec creation (9725fb9), and the plan commit (this session, see Task 0.4 if added; otherwise the plan was committed at brainstorming time and not now).
+- `git status --porcelain` outputs nothing (working tree clean).
+- Recent log includes: the PR 1 fix commit, plan commit (`45745bd` or later), spec commits (`5e76d51`, `9725fb9`).
 
-If the plan file is not yet committed (created at writing-plans time without an explicit commit), commit it now:
+The plan file is already committed by the turbo session (commits `cc0bbd1` and `45745bd`). Do NOT add another commit for it.
 
-```bash
-git add docs/superpowers/plans/2026-05-21-tub-35-detail-view-visual-regression.md
-git commit -m "$(cat <<'EOF'
-docs(tub-35): plan for detail view visual regression sweep
+If `git status --porcelain` shows uncommitted files: surface them to the user; do NOT auto-commit unless they are explicitly part of this TUB-35 scope.
 
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
-)"
-git push origin main
-```
+- [ ] **Step 6.4: STOP**
 
-Then STOP.
+Pipeline complete. No further work in this session.
 
 ---
 
