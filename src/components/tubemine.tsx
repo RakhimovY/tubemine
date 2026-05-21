@@ -433,10 +433,10 @@ export function TubeMine({ tier: initialTier }: { tier: ExtractTier }) {
           </div>
 
           <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <Button
+            <button
+              type="button"
               onClick={onExtract}
-              size="lg"
-              className="h-11"
+              className={`btn btn--primary btn-lg${extractLoading ? " is-loading" : ""}`}
               disabled={
                 extractLoading ||
                 preview.commentCount === 0 ||
@@ -452,17 +452,16 @@ export function TubeMine({ tier: initialTier }: { tier: ExtractTier }) {
               ) : (
                 <>{tEx("analyze_n_comments", { count: extractCount })}</>
               )}
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
+            </button>
+            <button
+              type="button"
               onClick={reset}
               disabled={extractLoading}
-              className="text-muted-foreground"
+              className="btn btn--ghost btn-sm"
             >
               <RotateCcw className="size-3.5" />
               {tEx("try_another_url")}
-            </Button>
+            </button>
           </div>
         </div>
       )}
