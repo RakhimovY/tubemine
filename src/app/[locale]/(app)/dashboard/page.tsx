@@ -67,7 +67,7 @@ export default async function DashboardPage({
 
   const [quota, recent, trial] = await Promise.all([
     getUserQuota(user.id),
-    listAnalyses(supabase, null, 5),
+    listAnalyses(supabase, null, 10),
     loadTrialState(user.id),
   ])
 
@@ -209,37 +209,43 @@ export default async function DashboardPage({
                   }
                 }
                 return (
-                  <article key={item.id} className="recent-row">
-                    {item.thumbnail_url ? (
-                      <div className="recent-thumb">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={item.thumbnail_url} alt="" />
+                  <Link
+                    key={item.id}
+                    href={`/history/${item.id}`}
+                    className="recent-row-link"
+                  >
+                    <article className="recent-row">
+                      {item.thumbnail_url ? (
+                        <div className="recent-thumb">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={item.thumbnail_url} alt="" />
+                        </div>
+                      ) : (
+                        <div
+                          className="recent-thumb is-placeholder"
+                          aria-hidden="true"
+                        />
+                      )}
+                      <div className="recent-body">
+                        <div className="recent-title">
+                          {item.video_title ?? item.video_id}
+                        </div>
+                        <div className="recent-sub">
+                          {t("recent_sub", {
+                            channel: item.channel_name ?? "-",
+                            when: formatDateRelative(item.processed_at),
+                            count: item.comment_count,
+                          })}
+                        </div>
                       </div>
-                    ) : (
-                      <div
-                        className="recent-thumb is-placeholder"
-                        aria-hidden="true"
-                      />
-                    )}
-                    <div className="recent-body">
-                      <div className="recent-title">
-                        {item.video_title ?? item.video_id}
-                      </div>
-                      <div className="recent-sub">
-                        {t("recent_sub", {
-                          channel: item.channel_name ?? "-",
-                          when: formatDateRelative(item.processed_at),
-                          count: item.comment_count,
-                        })}
-                      </div>
-                    </div>
-                    {sentLabel ? (
-                      <span className={`recent-sent ${sentClass}`}>
-                        <span className="dot" />
-                        {sentLabel}
-                      </span>
-                    ) : null}
-                  </article>
+                      {sentLabel ? (
+                        <span className={`recent-sent ${sentClass}`}>
+                          <span className="dot" />
+                          {sentLabel}
+                        </span>
+                      ) : null}
+                    </article>
+                  </Link>
                 )
               })}
             </div>

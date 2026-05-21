@@ -10,8 +10,9 @@ import {
   type KeyboardEvent,
 } from "react"
 // useMemo retained for stable Intl formatters; do not remove.
-import { useRouter } from "@/i18n/navigation"
+import { Link, useRouter } from "@/i18n/navigation"
 import { useTranslations } from "next-intl"
+import { track } from "@vercel/analytics"
 import type { AnalysisRow } from "@/lib/analyses"
 import {
   deriveDistribution,
@@ -328,6 +329,44 @@ export function HistoryClient({
     return `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`
   }
 
+  async function downloadFromCache(
+    row: AnalysisRow,
+    format: "csv" | "json" | "xlsx",
+  ) {
+    try {
+      const res = await fetch("/api/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "cache", analysisId: row.id, format }),
+      })
+      if (!res.ok) {
+        showToast({
+          variant: "error",
+          title: t("toast_delete_error_title"),
+          duration: 4000,
+        })
+        return
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `${row.video_id}.${format === "xlsx" ? "xlsx" : format}`
+      a.click()
+      URL.revokeObjectURL(url)
+      track("history_downloaded", {
+        analysis_id_prefix: row.id.slice(0, 8),
+        format,
+      })
+    } catch {
+      showToast({
+        variant: "error",
+        title: t("toast_delete_error_title"),
+        duration: 4000,
+      })
+    }
+  }
+
   // ===== Empty state (zero saved analyses across the account) =====
   if (items.length === 0) {
     return (
@@ -490,17 +529,45 @@ export function HistoryClient({
                   )}
                 </div>
                 <div className="row-actions">
-                  <a
-                    href={watchUrl(row.video_id)}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <Link
+                    href={`/history/${row.id}`}
                     className="icon-only"
                     aria-label={t("action_view")}
                   >
                     <EyeIcon />
-                  </a>
+                  </Link>
+                  <button
+                    type="button"
+                    className="icon-only"
+                    aria-label="Download CSV"
+                    onClick={() => downloadFromCache(row, "csv")}
+                  >
+                    CSV
+                  </button>
+                  {tier === "pro" && (
+                    <>
+                      <button
+                        type="button"
+                        className="icon-only"
+                        aria-label="Download JSON"
+                        onClick={() => downloadFromCache(row, "json")}
+                      >
+                        JSON
+                      </button>
+                      <button
+                        type="button"
+                        className="icon-only"
+                        aria-label="Download Excel"
+                        onClick={() => downloadFromCache(row, "xlsx")}
+                      >
+                        XLS
+                      </button>
+                    </>
+                  )}
                   <a
-                    href={`/${locale}/dashboard`}
+                    href={watchUrl(row.video_id)}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="icon-only"
                     aria-label={t("action_reanalyze")}
                   >
