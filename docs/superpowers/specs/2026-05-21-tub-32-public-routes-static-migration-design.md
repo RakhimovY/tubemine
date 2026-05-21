@@ -108,7 +108,7 @@ The TUB-30 `SiteHeader` to `SiteHeaderClient` split established the public-page 
 ┌─ PricingTierAware ("use client") ──────────────────────────────┐
 │ const t = useTranslations("pricing")                           │
 │ const searchParams = useSearchParams()                         │
-│ const intent = searchParams.get("intent")                      │
+│ const intent = searchParams?.get("intent") ?? null             │
 │                                                                │
 │ const [state, setState] = useState({                           │
 │   signedIn: false,                                             │
@@ -146,7 +146,9 @@ The TUB-30 `SiteHeader` to `SiteHeaderClient` split established the public-page 
 │   })()                                                         │
 │ }, [])                                                         │
 │                                                                │
-│ sb.auth.onAuthStateChange listener:                            │
+│ sb.auth.onAuthStateChange listener (inside the SAME useEffect, │
+│ subscribed BEFORE the IIFE begins to ensure INITIAL_SESSION    │
+│ cannot fire between subscribe and IIFE start):                 │
 │   uses a useRef `requestId` counter: each listener fire and    │
 │   the IIFE increment the counter and capture their snapshot;   │
 │   only the latest snapshot is allowed to setState. This        │
@@ -154,7 +156,9 @@ The TUB-30 `SiteHeader` to `SiteHeaderClient` split established the public-page 
 │   subscribe) arrives after the IIFE's manual getUser           │
 │   resolved with a stale anonymous result (cold supabase-js     │
 │   hydration). The listener accepts ALL events including        │
-│   INITIAL_SESSION and runs the same resolve helper             │
+│   INITIAL_SESSION and runs the same resolve helper. Cleanup    │
+│   unsubscribes; the IIFE has no cancel path (acceptable: the   │
+│   requestId discards any late setState from an unmounted run)  │
 │                                                                │
 │ Render (the full pricing-grid block, not CTA-only):            │
 │   <div className="pricing-grid">                               │
@@ -414,7 +418,7 @@ Verification step in plan phase: build locally and inspect the route table from 
 | `router.replace("/dashboard")` throws or hangs | Caller does not await; failure is silent. User stays on landing | next-intl's router uses Next.js's router under the hood; navigation failure is exceptional and acceptable to log-and-continue |
 | `sb.auth.onAuthStateChange` returns `undefined` (no subscription object) | Defensive null-check; skip listener setup; render proceeds without cross-tab sync | Defensive guard NEW to this work; `site-header-client.tsx` destructures without a guard. The signature is `{ data: { subscription: Subscription }}` and Supabase JS guarantees it under normal init, but if `createClient()` succeeded partway and returned a stub, the guard prevents a runtime null-deref |
 | `onAuthStateChange` fires `INITIAL_SESSION` after the manual IIFE resolve completes (cold supabase-js hydration race) | Listener and IIFE share a `useRef` `requestId` counter; each captures its own id on entry and only `setState` if `id === currentRef.current`. Latest snapshot wins. Listener processes ALL events including INITIAL_SESSION (no event filter) | Earlier round-2 spec used an `INITIAL_SESSION` filter, but that would lose the true session when IIFE races and resolves before supabase-js hydrates the cookie. The requestId counter pattern is robust to both orderings |
-| Locale switch (e.g. /en/pricing -> /ru/pricing) while signed-in | `PricingTierAware` remounts due to the new URL; resolve flow runs again, anonymous CTAs visible for 100-500ms during the second resolve | Acceptable cosmetic cost. The signed-in user already paid the anonymous-flash on first visit; locale switch is infrequent (typically once per session). Mitigation deferred (would require a module-level memo or sessionStorage cache keyed by user id) until field data shows it matters |
+| Locale switch (e.g. /en/pricing -> /ru/pricing) while signed-in | If next-intl's locale switch causes a `[locale]` segment remount, `PricingTierAware` re-resolves and anonymous CTAs are visible for 100-500ms. If the segment is preserved across locale switch, state is kept and no re-resolve happens. Plan-phase empirical check determines which | Acceptable either way: remount-and-reflash is cosmetic cost; no-remount is even better. Mitigation deferred (would require a module-level memo or sessionStorage cache keyed by user id) until field data shows it matters |
 | Stale hint says `signed-in` but session has been server-revoked (admin force-logout, password reset elsewhere) AND this is a normal /pricing visit (no `?intent=signup`) | Anonymous initial state -> async resolves -> getUser error path clears hint + sets state to anonymous within ~100-500ms. CTAs show anonymous variant after resolve. If user clicked a signed-in CTA between mount and resolve, the click hits the anonymous-default link (Get started for free -> /login?intent=signup) which the login server gate handles correctly | Recovery path: any stale-hint state self-heals on first /pricing visit. Trade-off: ~100-500ms of "anonymous CTA" rendered to a user whose hint claims signed-in (acceptable because the click target is the safe-default login page) |
 | `localStorage.getItem` throws (private browsing, quota) | `getAuthHint` returns null; fall through to async resolve | Existing `auth-hint.ts` behaviour |
 | `localStorage.setItem` throws | Silently ignore; state still in React | Existing `auth-hint.ts` behaviour |
@@ -521,9 +525,10 @@ Run these after both PRs land:
 - Auth + tier resolution per §3.1 pseudocode (async IIFE inside `useEffect` to handle await without making the effect async)
 - `useSearchParams()` defensive read: `searchParams?.get("intent") ?? null`. The Suspense boundary should ensure non-null, but the guard removes a runtime crash risk
 - `onAuthStateChange` listener with defensive null-check on `data.subscription` before calling `.unsubscribe()` in cleanup. Handler processes ALL events; race protection is via a `useRef requestId` counter (both IIFE and listener increment + capture; only the snapshot whose id equals the current ref value commits state). This is robust to: (a) supabase-js cold hydration where IIFE's getUser returns null before INITIAL_SESSION fires with the real session, and (b) any subsequent SIGNED_IN/SIGNED_OUT/TOKEN_REFRESHED while a resolve is still in flight
-- Renders:
+- Renders the full `<div className="pricing-grid">` wrapper containing:
   1. Both `<article className="price-card">` cards (Free and Pro), with feature lists and tier-conditional `.price-foot` CTA blocks
   2. `<PricingIntentRedirect intent={intent} signedIn={state.signedIn} tier={state.tier} />`, gated on `state.resolved`
+- Effect setup order: inside the single `useEffect`, listener subscribe (`sb.auth.onAuthStateChange`) must run BEFORE the IIFE starts its async `getUser()` call, so that `INITIAL_SESSION` fires from subscribe synchronously and is captured by the requestId counter mechanism
 - The hero/badge ABOVE the pricing-grid and the comparison table BELOW the pricing-grid both stay in the server page (see §8.1 restructuring instructions)
 - Each CTA variant uses the SAME `t("free.cta_anon")` etc. keys as the current server component
 - Link component mapping (CTAs):
