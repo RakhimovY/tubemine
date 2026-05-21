@@ -397,31 +397,30 @@ Replace ONLY the `<div className="pricing-grid">...</div>` block with the Suspen
 
 The `<div className="compare-wrap">...</div>` and `<p className="trust-line">...</p>` blocks stay untouched (PRESERVE existing JSX). The result is:
 
-```tsx
+Structure illustration (note: the `<div className="compare-wrap">` and `<p className="trust-line">` blocks below are PRESERVED FROM THE EXISTING SOURCE; do not retype their children):
+
+```
 <section className="pricing-section">
   <div className="container">
     <Suspense fallback={null}>
       <PricingTierAware />
     </Suspense>
 
-    {/* PRESERVE: existing comparison table JSX (current page.tsx lines 289-571) */}
-    <div className="compare-wrap">
-      {/* ... do not edit ... */}
-    </div>
-
-    {/* PRESERVE: existing trust-line JSX (current page.tsx lines 573-593) */}
-    <p className="trust-line">
-      {/* ... do not edit ... */}
-    </p>
+    [PRESERVE: <div className="compare-wrap">...</div> from current page.tsx lines 289-571, no edits]
+    [PRESERVE: <p className="trust-line">...</p> from current page.tsx lines 573-593, no edits]
   </div>
 </section>
 ```
+
+Operationally, this step is implemented by replacing ONLY the `<div className="pricing-grid">...</div>` block (lines 149-287) with `<Suspense fallback={null}><PricingTierAware /></Suspense>`. The `<div className="compare-wrap">...</div>` and `<p className="trust-line">...</p>` blocks are NOT touched.
 
 The other sections (hero at lines 137-144, FAQ section at lines 597-617, final CTA at lines 619-637, and `<PricingFooter tLanding={tLanding} />` at line 641) stay unchanged.
 
 - [ ] **Step 5: Update the page signature (drop `searchParams` from props)**
 
 The current signature destructures `{ params, searchParams }`. After this task, the body no longer needs `searchParams` (the new client island reads `useSearchParams()`). Update the signature to:
+
+The final signature is:
 
 ```tsx
 export default async function PricingPage({
@@ -434,12 +433,14 @@ export default async function PricingPage({
   const t = await getTranslations("pricing")
   const tLanding = await getTranslations("landing")
 
-  const faqItems = [
-    /* PRESERVE: existing faqItems array (current page.tsx lines 83-125) */
-  ]
+  // PRESERVE: existing faqItems array (current page.tsx lines 83-125),
+  // do NOT modify; the body of the function continues unchanged from
+  // this point except for the section-restructure done in Step 4.
   ...
 }
 ```
+
+Do NOT delete or modify the `faqItems` declaration; only the function-parameter destructure changes (drop `searchParams`).
 
 Also delete the `const sp = await searchParams` line near current line 77 if it survived the previous step.
 
@@ -657,7 +658,7 @@ Run: `pnpm dev` in one terminal. Wait for "Ready".
 
 Use `mcp__claude-in-chrome__navigate` to load `http://localhost:3000/en/login`. Click "Continue with Google" (or skip if user already signed in via dev session cookies). Once signed-in, navigate to `http://localhost:3000/en/pricing`.
 
-- [ ] **Step 3: Assert client-resolved CTAs**
+- [ ] **Step 3: Assert client-resolved CTAs and no i18n missing-message warnings**
 
 Run via `mcp__claude-in-chrome__javascript_tool` (in localhost tab):
 
@@ -677,11 +678,43 @@ Expected for a free-tier signed-in user: `freeCtaText` includes "Open dashboard"
 
 If anonymous variant still shows after 2s, the resolver did not run. Open browser console, check for errors related to `createClient` or RLS denials.
 
-- [ ] **Step 4: Stop dev server**
+Then read console messages to confirm next-intl has all required namespaces forwarded to the client (spec § 12 item 2):
+
+```javascript
+// via mcp__claude-in-chrome__read_console_messages
+// search for MISSING_MESSAGE
+```
+
+Use `mcp__claude-in-chrome__read_console_messages` with `pattern: "MISSING_MESSAGE"`. Expected: zero matches. If any appear referencing the `pricing` namespace, NextIntlClientProvider is not forwarding the namespace; verify `src/app/[locale]/layout.tsx:122` is configured to provide messages to client consumers.
+
+- [ ] **Step 4: Test `?intent=signup` redirect path locally (Tier 1 revenue assertion)**
+
+Spec § 6.1 requires the post-OAuth checkout-redirect path to be exercised as a Tier 1 (automated) assertion, not deferred to manual Tier 2. Still in the localhost tab with a signed-in Free session:
+
+```javascript
+// In Chrome MCP tab, navigate to /en/pricing?intent=signup
+// then poll for the redirect to fire
+```
+
+Use `mcp__claude-in-chrome__navigate` to `http://localhost:3000/en/pricing?intent=signup`, then wait up to 3 seconds and read the current URL:
+
+```javascript
+await new Promise(r => setTimeout(r, 3000));
+return {
+  currentPath: location.pathname,
+  redirectedToCheckout: location.pathname === '/api/checkout' || location.pathname.startsWith('/api/checkout'),
+};
+```
+
+PASS criterion: `redirectedToCheckout: true`. If the path is still `/en/pricing`, the resolver completed but the redirect didn't fire. Check `PricingIntentRedirect`'s `useEffect` deps and the `state.resolved` gate.
+
+Note: a signed-in Pro session should NOT redirect (the `tier !== "pro"` check in `PricingIntentRedirect` suppresses it). If testing as Pro, expect `redirectedToCheckout: false` and the Pro card showing Manage subscription.
+
+- [ ] **Step 5: Stop dev server**
 
 `Ctrl+C` in the dev terminal, or `pkill -f "next dev"`.
 
-- [ ] **Step 5: No commit (verification step)**
+- [ ] **Step 6: No commit (verification step)**
 
 ---
 
@@ -1050,7 +1083,7 @@ Expected: `ExtractTier = "anonymous" | "free" | "pro"` (or equivalent union incl
 - [ ] **Step 2: Remove server auth imports, helpers, and dynamic directive**
 
 Remove from `src/app/[locale]/page.tsx`:
-- Line 1: `import { redirect } from "next/navigation"` (ONLY if step 1 grep showed no other usage)
+- Line 1: `import { redirect } from "next/navigation"`. If the import is a multi-name form like `import { redirect, notFound } from "next/navigation"`, remove ONLY the `redirect` symbol from the named-imports list and keep siblings. Only remove the entire line if `redirect` is the sole named import. Do not remove if Step 1's grep showed `redirect` is used elsewhere in the file.
 - Line 5: `import { createClient } from "@/lib/supabase/server"`
 - Line 6: `import { getUserQuota } from "@/lib/quota"`
 - Line 13: `export const dynamic = "force-dynamic"`
@@ -1397,7 +1430,8 @@ Tier 2 manual checks deferred to user (revenue-path verification):
 4. Start trial as Pro: /api/checkout short-circuits (no double-charge)
 5. Cross-tab sign-out: CTAs swap to anon within ~1s
 
-Subtleties surfaced during implementation: <to be filled by implementer if any>
+Subtleties surfaced during implementation:
+[REPLACE WITH bullet list of any surprises during execution. Remove this line if none.]
 ```
 
 Mark TUB-32 status: Done.
