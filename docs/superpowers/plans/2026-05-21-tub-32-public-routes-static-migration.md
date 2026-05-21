@@ -1332,5 +1332,5 @@ Replace `HH:MM`, `<Xms>`, `<Yms>`, `<Zms>` with actuals before saving.
 - The `requestId` counter pattern is shown verbatim in Task 5 step 1.
 - The `history.replaceState` call appears in Task 7 step 1.
 - The build-manifest gate appears in Tasks 3 step 4, 5 step 4, 8 step 3, 13 step 5, 14 step 1, 15 step 2; if any of these fails, the implementation is incomplete.
-- The em-dash constraint applies to commit messages and Linear comments above; verify no `—` or `–` slipped in (use `git log -p` after committing to grep). Plan body itself has been authored without em-dashes.
+- The em-dash constraint applies to commit messages and Linear comments above; verify no U+2014 or U+2013 character slipped in (use `git log -p` after committing to grep). Plan body itself has been authored without em-dashes.
 - `/login` dynamic justification is in the Linear comment template (Task 18), matching spec §2.3.
