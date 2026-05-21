@@ -116,9 +116,11 @@ No fabricated experience claims ("most users find" etc).
 
 ### 4.4 Section 04: Pro flow
 
-Source: README plans table Pro column, pricing `pricing.pro.price` (`$19`) + `pricing.pro.unit` (`/month`) + `pricing.pro.b4` (3-day trial), `pricing.faq.a5` (cancel anytime, 7-day refund window, no trial-and-refund stacking), comparison `row_monthly_pro` (verbatim `"100,000"`), `row_saved_pro` (`"Last 100"`), `row_export_pro` (verbatim `"CSV, JSON, Excel (API coming soon)"`), `compare.row_sentiment_dir_pro` (`"Exact % and trend"`).
+Source: README plans table Pro column, pricing `pricing.pro.price` (verbatim `"19"`) + `pricing.pro.unit` (verbatim `"/ month"` with leading space) + `pricing.faq.a5` (cancel anytime, 7-day refund window, no trial-and-refund stacking, 3-day free trial), comparison `row_monthly_pro` (verbatim `"100,000"` in EN, `"100 000"` thin-space in RU), `row_saved_pro` (`"Last 100"`), `row_export_pro` (verbatim `"CSV, JSON, Excel (API coming soon)"`), `compare.row_sentiment_dir_pro` (`"Exact % and trend"`).
 
-Note on the "API coming soon" qualifier: this refers to a planned public REST API for external developers, NOT the file downloads. JSON and Excel exports are downloadable from `/dashboard` and `/history` today via `src/app/api/export/route.ts`. Docs prose must clarify this so readers do not misread the pricing-table qualifier.
+The 3-day trial wording is sourced ONLY from `pricing.faq.a5` (not from `pricing.pro.b4`; round 2 review caught that `pricing.pro.b4` is actually the export-formats bullet).
+
+Note on the "API coming soon" qualifier: this refers to a planned public REST API for external developers, NOT the file downloads. JSON and Excel exports are downloadable from `/dashboard` and `/history` today via `src/app/api/export/route.ts`. The clarification is folded into the `json_text` and `xlsx_text` strings in § 4.5 (no separate `p3_api_note` key).
 
 Content shape:
 
@@ -137,7 +139,7 @@ Content shape (every bullet is rendered as `<strong>{csv_strong}</strong> {csv_t
 
 - `p1` formats available per tier.
 - `csv_strong` + `csv_text` CSV columns (`author, text, likes, replies, publishedAt`) and which tiers get it (Anonymous + Free + Pro). Downloaded client-side via Papa Parse.
-- `json_strong` + `json_text` JSON download for Pro from `/dashboard` and `/history`. Same record schema as CSV plus the analysis aggregates (sentiment percentages, top words, top emoji). Route: `src/app/api/export/route.ts`.
+- `json_strong` + `json_text` JSON download for Pro from `/dashboard` and `/history`. Same record schema as CSV plus the analysis aggregates (sentiment percentages, top words, top emoji). Route: `src/app/api/export/route.ts`. The "API coming soon" qualifier on the pricing comparison cell refers to a planned public REST API for external developers; the JSON file download itself works today.
 - `xlsx_strong` + `xlsx_text` Excel download for Pro, generated server-side via ExcelJS. Same route as JSON.
 - `p2_security` cells starting with `=`, `+`, `-`, `@` (and full-width Unicode variants) are sanitized in CSV and XLSX so opening the file in Excel or Sheets cannot execute formula injection. Shipped on 2026-05-21 (TUB-23).
 
@@ -268,9 +270,15 @@ Verifiable sources: initial scaffold commits (`9e91f3a`, `7957565`, `2860ebb`, `
 
 - Added: First public release (Phase 0). YouTube URL preview shows title, channel, view, like, and comment counts. Anonymous comment analysis with monthly per-IP budget enforced via Vercel KV. CSV download client-side via Papa Parse. MIT license.
 
-### 5.3 Trim policy
+### 5.3 Trim policy and additive maintenance pattern
 
-The changelog grows over time. For this sprint we ship 5 release sections. Future sprints add new entries at the top; trimming policy is out of scope for this sprint (no auto-archive, no separate `/changelog/archive` route).
+The changelog grows over time. For this sprint we ship 5 release sections. Future sprints follow the additive pattern:
+
+- **Prepend the newest release at the top of the `sections` array.** The new entry becomes section `01`, and every existing section's `num` shifts up by 1. The `num` is purely presentational ordering, so renumbering is safe.
+- **Anchor IDs use `r-YYYY-MM-DD`**, never `r-NN`. External bookmarks remain stable when the `num` cascade renumbers.
+- **TOC regenerates automatically** because the TOC is derived from the same `sections` array; no manual TOC edit needed.
+
+Trimming policy (older entries dropped, archived, or paginated) is out of scope for this sprint. Revisit when the array exceeds 20 entries.
 
 ## 6. i18n key namespace
 
@@ -344,8 +352,7 @@ docs.sections.formats.json_text
 docs.sections.formats.xlsx_strong
 docs.sections.formats.xlsx_text
 docs.sections.formats.p2_security
-docs.sections.formats.p3_api_note
-# p3_api_note clarifies that "API coming soon" in the pricing table refers to a planned public REST API, not the file downloads (which work today).
+# The "API coming soon" qualifier from pricing is addressed inside json_text/xlsx_text strings; no separate key. (Round 2 YAGNI fix.)
 
 docs.sections.limits.toc_label
 docs.sections.limits.title
@@ -371,8 +378,10 @@ docs.sections.troubleshoot.err4_a
 docs.sections.troubleshoot.err5_q
 docs.sections.troubleshoot.err5_a
 docs.sections.troubleshoot.p_contact_prefix
+docs.sections.troubleshoot.p_contact_link
 docs.sections.troubleshoot.p_contact_tail
 # err*_q values are English-quoted error strings; they MUST NOT be translated in messages/ru.json. See § 4.7.1.
+# p_contact_link is the visible link text (e.g., "hello@tubemine.app"); href uses the SUPPORT_EMAIL constant.
 
 docs.sections.opensource.toc_label
 docs.sections.opensource.title
@@ -405,13 +414,11 @@ The existing `legal_disclaimer_ru_changelog` key is reused as-is (already shippe
 
 ### 6.3 RU translation conventions
 
-These rules apply to every new RU value added in this sprint. The plan must surface them; the implementer must follow them; the review must verify them.
+Follow the RU style already shipped on `/ru/privacy` and `/ru/terms` (idiomatic, not word-for-word). Three sprint-specific rules:
 
-- **Number formatting:** keep numeric values verbatim from the source pricing keys (`1,000`, `5,000`, `100,000`). Do NOT convert to RU thin-space style (`1 000`, `5 000`, `100 000`) because that would diverge from `/pricing` on `/ru` (where the pricing comparison cells use the comma format unchanged). Single source of truth.
-- **Format names:** `CSV`, `JSON`, `Excel`, `XLSX` stay latin in RU. Do NOT transliterate or translate.
-- **Quoted error strings (§ 4.7.1):** every `err*_q` value in `messages/ru.json` MUST be byte-equal to the EN value. The surrounding prose (`err*_a`) is translated.
-- **Brand and price strings:** `TubeMine`, `$19`, `Pro`, `Free`, `Polar` stay latin in RU.
-- **Idiomatic RU prose:** the surrounding prose body (everything that is not a quoted English string) MUST read as natural RU, not as a literal word-for-word translation of the EN. This matches the pattern shipped on `/ru/privacy` and `/ru/terms`.
+1. **Numbers mirror the shipped RU pricing convention** (verified in `messages/ru.json`): thin-space `"1 000"`, `"5 000"`, `"100 000"` in RU; EN keeps comma `"1,000"`, `"5,000"`, `"100,000"`. Both are byte-equal to what `pricing.compare.row_monthly_*` ships in each locale. Round 2 review caught that round 1 had the direction inverted; this is the correct rule.
+2. **Latin-stay strings:** `TubeMine`, `CSV`, `JSON`, `Excel`, `XLSX`, `Pro`, `Free`, `Polar`, `$19` all stay latin in RU (matching the shipped `/ru/pricing`).
+3. **Quoted English error strings (§ 4.7.1):** every `err*_q` value in `messages/ru.json` MUST be byte-equal to the EN value.
 
 ## 7. Component boundaries
 
@@ -541,7 +548,11 @@ Verify-on-prod gate:
    - DOM contains 8 numbered `<section>` blocks under `article.legal-article`.
    - Em-dash + en-dash count in the article body equals 0: `Array.from(document.querySelector('article.legal-article').textContent).filter(c => c.charCodeAt(0) === 0x2014 || c.charCodeAt(0) === 0x2013).length === 0`. Scoping to `article.legal-article` (instead of `document.body`) prevents the shared SiteHeader / footer from blocking the gate on pre-existing chrome dashes.
    - No raw ICU `{token}` substrings inside `article.legal-article`.
-4. Screenshot desktop (1280x800) + mobile (375x812) for both locales.
+4. Screenshot desktop (1280x800) + mobile (375x812) for both locales. Save screenshots into the vault session path declared in § 11 item 9 (`projects/yt-comments/sessions/2026-05-21/tub-31-docs-changelog/screenshots/`) so a future audit can retrieve them.
+
+### 10.1.1 Vercel deploy poll budget
+
+`mcp__vercel__list_deployments` is polled every 10 seconds, up to a 600-second budget per PR. If state is not READY after 600 seconds, the gate fails and the implementer escalates (check Vercel dashboard for build errors).
 
 ### 10.2 PR 2: Changelog page
 
@@ -565,19 +576,18 @@ Verify-on-prod gate: same protocol as PR 1, applied to `/en/changelog` and `/ru/
 
 ### 10.3 Linear TUB-31 lifecycle
 
-Created in Linear team Tubemine after spec is committed (the prompt referenced this as "TUB-31" but Linear auto-assigned **TUB-31** because TUB-31 was claimed by an earlier issue this morning). Title: "Docs + Changelog content sprint". Description: link to this spec file path. Priority: 3 (Medium). State: In Progress immediately.
+Created in Linear team Tubemine after spec is committed. The original user prompt referenced "TUB-30" but Linear auto-assigned **TUB-31** (TUB-30 was claimed by an earlier issue earlier the same morning). The spec filename (`2026-05-21-tub-30-docs-changelog-content-design.md`) keeps the TUB-30 historical slug for git-history continuity; in-spec references and the Linear issue itself are TUB-31. Title: "Docs + Changelog content sprint". Description: link to this spec file path. Priority: 3 (Medium). State: In Progress immediately.
 
 After both PRs are pushed and both verify-on-prod gates pass: move TUB-31 to Done with a comment listing the two commit SHAs and a one-line summary.
 
 ### 10.4 Hotfix-forward protocol for partial verify-on-prod failure
 
-If the verify-on-prod gate of a single PR passes EN but fails RU (or vice versa), the response is **hotfix-forward, never revert**:
+If a single PR passes one locale but fails another (or fails a structural acceptance check like § 11 item 7), respond hotfix-forward, never revert. Matches the existing TubeMine convention (commits `ddcb2a6`, `cdc17c3` from TUB-11). Two failure modes:
 
-1. Diagnose the RU failure (typically: untranslated quoted error string, missed ICU arg, em-dash slipped into a value).
-2. Open a single-commit hotfix on `main` with message `fix(docs|changelog): hotfix RU <description>`. The hotfix touches ONLY the failing locale's keys; the EN portion of the PR stays in production.
-3. Re-run the same verify-on-prod gate on the affected URL.
+- **Translation-key failure** (untranslated quoted error string, em-dash in a value): hotfix touches only the failing locale's keys.
+- **Structural JSX failure** (missing `role="note"`, missing `lang="en"`): hotfix touches the shared page component file and re-deploys both locales.
 
-This matches the existing TubeMine convention (commits `ddcb2a6`, `cdc17c3` from TUB-11 Phase 1 hotfixes show the pattern). Do NOT use `git revert` on either PR; that would also strip the EN copy from production, which serves users in the meantime.
+Do NOT use `git revert` on either PR; reverting would strip the working portion of the page from production while users still need it.
 
 ## 11. Acceptance criteria
 
@@ -593,48 +603,32 @@ The sprint is Done when ALL of the following are true:
 8. Linear TUB-31 is in Done state with both commit SHAs listed in a comment.
 9. `~/vault/daily/2026-05-21.md` has a session-end summary appended (commit SHAs, verify-on-prod PASS/FAIL per URL, TUB-31 status, any deferred follow-ups). Detailed TC-CONTENT audit + omitted-claim transparency notes go into a separate vault note `projects/yt-comments/sessions/2026-05-21/tub-31-docs-changelog/` to keep the daily note scannable.
 
-### 11.1 Anti-fabrication rules and acceptance scope
+### 11.1 What the gate checks vs. what the review loop checks
 
-§ 9.1 (em-dash + en-dash) is mechanically checkable and is gated by acceptance items 4 + 5. The other anti-fabrication sub-rules (§ 9.2 fabricated experience claims, § 9.3 future-promise inflation, § 9.4 comparative claims direction-verified, § 9.5 AI-voice patterns) are content-quality rules that the 5x parallel spec / plan review loops enforce BEFORE any commit. They are not re-checked at acceptance time; the gate trusts the review loop. If a reviewer or the user spots a § 9.2-9.5 violation in the rendered page after commit, that is a hotfix-forward (§ 10.4), not an acceptance regression.
+§ 9.1 (em-dash + en-dash) is mechanically gated by acceptance items 4 + 5. The other anti-fabrication sub-rules (§ 9.2 / § 9.3 / § 9.4 / § 9.5) are content-quality rules enforced by the spec + plan review loops BEFORE commit, not re-checked at acceptance. Same for the structural counts that are NOT gate-checked: troubleshoot `err1..err5` entry count, changelog Added/Changed/Fixed/Security subsection presence per release. If any of these slip past review, treat as hotfix-forward (§ 10.4), not as an acceptance regression.
 
 ## 12. Open questions deferred to Phase 2 review
 
 None at draft time. The Phase 2 5x parallel review will surface any completeness, consistency, buildability, edge-case, or YAGNI issues. Reviewer perspectives are pre-defined by the turbo-pipeline contract; they are not re-decided here.
 
-## 13. Round 1 spec review log
+## 13. Spec review log (rounds 1+2)
 
-Round 1 of the 5x parallel spec review (Completeness, Consistency, Buildability, Edge Cases, YAGNI) surfaced 27 issues. Triage:
+Round 1 surfaced 27 issues across the 5 perspectives. Round 2 surfaced 15. Detailed per-fix log (which review flagged what, and which file lines changed) lives in the vault session note `projects/yt-comments/sessions/2026-05-21/tub-31-docs-changelog/spec-review-log.md` to keep this spec focused on what to build.
 
-### 13.1 Accepted and applied (21)
+### 13.1 Round 2 corrections of round 1 errors (load-bearing for implementer)
 
-- Buildability: HTTP codes in § 4.7 corrected (400 for commentsDisabled, 503 for quotaExceeded; not 403 in either case).
-- Buildability: § 4.7 "Monthly budget exhausted" path label corrected (it is the anonymous 429 path, not signed-in). Signed-in path documented separately with its 402 error strings.
-- Buildability: § 4.4 nonexistent key `compare.row_sentiment_exact_pro` replaced with `compare.row_sentiment_dir_pro` (`"Exact % and trend"`).
-- Buildability: § 10 DOM em-dash assertion rescoped from `document.body` to `article.legal-article` so shared chrome cannot falsely fail the gate.
-- Consistency: § 4.2 `row_monthly_anon` corrected to verbatim `"1,000"` (not `"1,000 / video"`); /video semantic now sourced from `row_monthly` label.
-- Consistency: § 4.3 `row_sentiment_dir_free` corrected to verbatim `"Qualitative bar (no %)"`.
-- Consistency: § 4.4 `row_export_pro` corrected to verbatim `"CSV, JSON, Excel (API coming soon)"` with new `p3_api_note` key clarifying that the qualifier refers to a planned public REST API, not the file downloads.
-- Consistency: § 4.4 link target corrected from `/pricing` to `/pricing#faq`.
-- Consistency: § 4.6 vs § 4.7 YouTube-quota duplication resolved by scope split (§ 4.6 names the quota; § 4.7 handles user recovery wording).
-- Consistency: § 6.1 leaf-key count corrected to "approximately 80" after troubleshooting grew from 4 q/a to 5.
-- Completeness: missing keys `csv_text`, `json_text`, `xlsx_text` added to § 4.5 narrative and § 6.1 enumeration. `p3_api_note` added.
-- Completeness: missing `err5_q`/`err5_a` keys added for the anonymous 429 path.
-- Completeness: § 11 acceptance criteria expanded to cover RU `role="note"` + `lang="en"` (item 7); § 8 demoted from "mandatory" to "convention" instead of adding a gate.
-- Edge Cases: § 5.1 RU disclaimer banner now requires `role="note"`.
-- Edge Cases: § 5.1.1 added: `lang="en" dir="ltr"` on `article.legal-article` for the changelog body on both locales.
-- Edge Cases: § 6.3 added: RU translation conventions (number formatting verbatim from pricing keys; latin format names; quoted error strings byte-equal to EN).
-- Edge Cases: § 4.7.1 added: explicit rule that quoted English error strings stay English in RU prose (matches what users see at runtime).
-- Edge Cases: § 9.1 grep rescoped to diff hunk via `git diff --staged | grep -nP '^\+...'` so pre-existing dashes in unrelated keys of `messages/*.json` cannot falsely block.
-- Edge Cases: § 10.4 added: hotfix-forward protocol for partial verify-on-prod failure (matches TUB-11 hotfix convention).
-- YAGNI: § 4.6 infrastructure terms (Vercel KV, Upstash, Supabase Postgres, `bump_usage` RPC) replaced with neutral user-facing language.
-- YAGNI: § 8 source-attribution comments demoted from "mandatory" to "convention".
-- YAGNI: § 11 acceptance item 9 (vault note) trimmed; TC-CONTENT audit detail moved to separate session note.
-- Misc: Linear TUB-30 reference corrected to TUB-31 (the actual auto-assigned ID).
+- **RU number formatting** (§ 6.3) was inverted in round 1: spec said "RU mirrors EN comma format" but shipped `messages/ru.json` actually uses thin-space (`"1 000"`, etc.). Round 2 reversed the rule. **Implementer: follow the round-2 rule. RU thin-space, EN comma.**
+- **`pricing.pro.b4` citation** (§ 4.4) was wrong: round 1 said b4 contained the 3-day trial; the actual b4 contains the export-formats bullet. The 3-day trial wording is in `pricing.faq.a5` only.
+- **`pricing.pro.unit` quote** (§ 4.4): correct verbatim is `"/ month"` (with leading space), not `"/month"`.
+- **`p3_api_note` key removed** (§ 4.5 / § 6.1): round 1 added it; round 2 YAGNI feedback collapsed the qualifier into the `json_text` and `xlsx_text` strings instead.
+- **`p_contact_link` key added** (§ 6.1): round 1 referenced it in § 4.7 narrative but forgot to enumerate it.
 
-### 13.2 Pushed back (2)
+### 13.2 Pushed back across both rounds
 
-- **YAGNI #2 (merge 05-19 and 05-17 changelog entries):** kept as 5 separate sections. The 2026-05-17 release shipped sentiment + pricing + CSV gating; the 2026-05-19 release shipped trial + tiered exports + RU sentiment labels. These are meaningfully different user-impact events. Merging would lose information without saving meaningful page weight (changelog entries are short).
-- **Completeness #5 partial (acceptance coverage of § 9.2-9.5):** § 11.1 added to document the gating scope honestly. § 9.2-9.5 are content-quality rules that the 5x review loops gate before commit; they are not re-checkable at acceptance time without an AI-judge, which is out of scope for this sprint.
+- **Round 1 YAGNI #2 (merge 05-19 + 05-17 changelog entries):** kept 5 separate sections. The 2026-05-17 release shipped sentiment + pricing + CSV gating; the 2026-05-19 release shipped trial + tiered exports + RU sentiment labels. Meaningfully different user-impact events.
+- **Round 1 Completeness #5 (acceptance coverage of § 9.2-9.5):** § 11.1 documents the gating scope honestly. § 9.2-9.5 are review-loop-gated, not acceptance-gated.
+- **Round 2 YAGNI #1 (delete § 10.4 hotfix protocol):** kept (compressed to 8 lines). Documents a real failure mode (don't revert) that has bitten TUB-11 already.
+- **Round 2 YAGNI #2 (delete § 11.1):** kept (compressed to 1 paragraph). Documents the gate-vs-review split for future readers.
 
 ## 14. Hand-off
 
