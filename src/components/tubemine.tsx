@@ -9,7 +9,6 @@ import { toast } from "sonner"
 import { track } from "@vercel/analytics"
 import { Loader2, RotateCcw, Link as LinkIcon } from "lucide-react"
 import { useTranslations } from "next-intl"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
