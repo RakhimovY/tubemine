@@ -3971,3 +3971,19 @@ body.no-scroll { overflow: hidden; }
 }
 .tm-design .legal-page .legal-article .callout p { font-size: var(--font-size-md); }
 .tm-design .legal-page .legal-article .callout p:last-child { margin-bottom: 0; }
+
+/* TUB-32: shown by LandingAuthGate while the warm-hint redirect to
+   /dashboard is in flight. Replaces a bare null render so screen
+   readers can announce the state change. */
+.landing-redirect-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100dvh;
+  background: var(--color-background, #0a0a0c);
+}
+.landing-redirect-indicator .brand-mark {
+  width: 32px;
+  height: 32px;
+  opacity: 0.5;
+}
