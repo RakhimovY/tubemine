@@ -120,13 +120,35 @@ export function TubeMine({ tier: initialTier }: { tier: ExtractTier }) {
   useEffect(() => {
     if (previewSourceUrl === null) return
     if (watchedUrl === previewSourceUrl) return
+    // Clearing preview state when URL changes is a legitimate sync effect:
+    // the URL identity is the source of truth, all derived state must reset.
+    /* eslint-disable react-hooks/set-state-in-effect */
     setPreview(null)
     setPreviewSourceUrl(null)
     setComments([])
     setSentiment(null)
     setDistribution(null)
     setAnalytics(EMPTY_ANALYTICS)
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [watchedUrl, previewSourceUrl])
+
+  // Auto-fetch preview after URL change/paste (debounced).
+  // Removes the "click twice" friction: user pastes URL, preview appears
+  // without explicit action; the main Analyze button then triggers extract
+  // on a single click.
+  useEffect(() => {
+    if (!watchedUrl || watchedUrl.length < 8) return
+    if (watchedUrl === previewSourceUrl) return
+    if (extractLoading || previewLoading) return
+    if (extractVideoId(watchedUrl) === null) return
+    const handle = setTimeout(() => {
+      void onPreview({ url: watchedUrl })
+    }, 600)
+    return () => clearTimeout(handle)
+    // onPreview is stable enough for our purposes (closes over latest state
+    // via refs); guarding via watchedUrl change is the intent.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watchedUrl, previewSourceUrl, extractLoading, previewLoading])
 
   async function onPreview(values: FormValues) {
     previewRequestIdRef.current += 1
@@ -232,16 +254,6 @@ export function TubeMine({ tier: initialTier }: { tier: ExtractTier }) {
     } finally {
       setExtractLoading(false)
     }
-  }
-
-  function reset() {
-    setPreview(null)
-    setPreviewSourceUrl(null)
-    setComments([])
-    setSentiment(null)
-    setDistribution(null)
-    setAnalytics(EMPTY_ANALYTICS)
-    form.reset({ url: "" })
   }
 
   function triggerDownload(blob: Blob, filename: string) {

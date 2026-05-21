@@ -538,7 +538,7 @@ export function HistoryClient({
                   </Link>
                   <button
                     type="button"
-                    className="icon-only"
+                    className="icon-only text-btn"
                     aria-label="Download CSV"
                     onClick={() => downloadFromCache(row, "csv")}
                   >
@@ -548,7 +548,7 @@ export function HistoryClient({
                     <>
                       <button
                         type="button"
-                        className="icon-only"
+                        className="icon-only text-btn"
                         aria-label="Download JSON"
                         onClick={() => downloadFromCache(row, "json")}
                       >
@@ -556,7 +556,7 @@ export function HistoryClient({
                       </button>
                       <button
                         type="button"
-                        className="icon-only"
+                        className="icon-only text-btn"
                         aria-label="Download Excel"
                         onClick={() => downloadFromCache(row, "xlsx")}
                       >
