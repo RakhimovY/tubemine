@@ -542,17 +542,35 @@ Run each TC below as its own sub-checklist item. Record PASS/FAIL. If ANY TC fai
 
 - [ ] **2.14.1: TC #1 - SideNav highlights current page.** (Use the same JS snippet as step 1.11a.)
 - [ ] **2.14.2: TC #2 - AppShell persists across navigation.** (Same as 1.11b.)
-- [ ] **2.14.3: TC #3 - saveAnalysis persists non-null fields.**
-  a) Run a fresh analysis on a test video via the dashboard quick-analyze form (or `/api/extract`).
-  b) Obtain your user UUID. From the authed Chrome MCP tab, in `mcp__claude-in-chrome__javascript_tool`:
+- [ ] **2.14.3a: TC #3 - run a fresh analysis.**
+
+  Use the dashboard quick-analyze form on `/en/dashboard` to analyze any test YouTube video. Wait for the analysis to complete (the page shows top words / sentiment / emoji panels).
+
+- [ ] **2.14.3b: TC #3 - obtain your user UUID.**
+
+  Navigate to `/en/profile` in the authed Chrome MCP tab. Run in `mcp__claude-in-chrome__javascript_tool`:
+
   ```js
   (async () => {
-    const userMeta = document.querySelector('.field-row .mono')
-    return userMeta?.textContent ?? null
+    // Profile page renders TWO .field-row .mono spans:
+    //   index 0 = user.email at page.tsx line 140
+    //   index 1 = user.id (UUID) at page.tsx line 171
+    // Index-based selection is stable because no other .mono spans live
+    // in .field-row on the profile page.
+    const monos = document.querySelectorAll('.field-row .mono')
+    return {
+      email: monos[0]?.textContent ?? null,
+      userId: monos[1]?.textContent ?? null,
+    }
   })()
   ```
-  This reads the Account ID from `/profile` (navigate there first if needed). Alternatively use a known test account UUID from your records.
-  c) Query via `mcp__claude_ai_Supabase__execute_sql` with the SQL:
+
+  Expected: `email` is your authed email, `userId` is a UUID string. Copy `userId` for step 2.14.3c. If `userId` is undefined or not a UUID-shape string: STOP, the page markup may have drifted; do not proceed with an invalid value.
+
+- [ ] **2.14.3c: TC #3 - query DB and assert non-null fields.**
+
+  Run via `mcp__claude_ai_Supabase__execute_sql` (paste the UUID from 2.14.3b in place of `<your-uuid>`):
+
   ```sql
   select video_title, channel_name, thumbnail_url
   from analyses
@@ -560,7 +578,8 @@ Run each TC below as its own sub-checklist item. Record PASS/FAIL. If ANY TC fai
   order by processed_at desc
   limit 1
   ```
-  Expected: all three fields non-null on the latest row.
+
+  Expected: exactly one row, all three fields non-null. If any field is null or zero rows return: TC #3 FAILS; invoke "Rollback procedure".
 - [ ] **2.14.4: TC #4 - Recent Analyses row has no `.is-placeholder` class for real data.**
   ```js
   (async () => {
@@ -992,7 +1011,9 @@ Re-run all 9 sub-checks from step 2.14 (2.14.1 through 2.14.9). The auth-touchin
 
 - [ ] **3.16.1: TC #1.** Same JS as 2.14.1.
 - [ ] **3.16.2: TC #2.** Same JS as 2.14.2.
-- [ ] **3.16.3: TC #3.** Same procedure as 2.14.3.
+- [ ] **3.16.3a: TC #3 - run fresh analysis.** Same as 2.14.3a.
+- [ ] **3.16.3b: TC #3 - obtain UUID.** Same JS as 2.14.3b.
+- [ ] **3.16.3c: TC #3 - query DB + assert non-null.** Same SQL as 2.14.3c.
 - [ ] **3.16.4: TC #4.** Same JS as 2.14.4.
 - [ ] **3.16.5: TC #5.** Same JS as 2.14.5.
 - [ ] **3.16.6: TC #6.** User A isolation, human-driven (see 2.14.6 caveat).
