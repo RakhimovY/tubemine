@@ -4,9 +4,14 @@ import { useEffect } from "react"
 
 /**
  * Client island that runs the post-OAuth checkout redirect.
- * When pricing/page.tsx detects ?intent=signup AND signedIn AND tier !== "pro",
- * it mounts this island; the useEffect fires window.location.assign("/api/checkout")
- * once on mount. Single round-trip; no auth-callback edit needed.
+ * PricingTierAware mounts this child only when client auth has
+ * resolved (state.resolved === true), so signedIn + tier are the
+ * final values, not the optimistic-anonymous initial state.
+ *
+ * Before navigating to /api/checkout, this strips ?intent=signup
+ * from the current history entry via history.replaceState so the
+ * back-button from Polar (or from /api/checkout if it errors)
+ * lands on /pricing without ?intent, preventing a redirect loop.
  */
 export function PricingIntentRedirect({
   intent,
@@ -19,6 +24,7 @@ export function PricingIntentRedirect({
 }) {
   useEffect(() => {
     if (intent === "signup" && signedIn && tier !== "pro") {
+      window.history.replaceState(null, "", window.location.pathname)
       window.location.assign("/api/checkout")
     }
   }, [intent, signedIn, tier])
