@@ -142,11 +142,24 @@ if (useBlob) {
 
 Bucket creation: created out-of-band via Supabase MCP (`mcp__claude_ai_Supabase__execute_sql` running `insert into storage.buckets (id, name, public) values ('analyses-comments', 'analyses-comments', false) on conflict do nothing;`) at PR 1 deploy time, NOT in the SQL migration file (avoids ordering issues with hosted Supabase migration runner that may not have privileges on the `storage` schema in all configurations). The PR 1 verify checklist must include "confirm bucket exists in Supabase dashboard before extract test." No storage RLS policies on `storage.objects` are created. Since service role bypasses RLS and no authenticated/anon policy exists, default behavior is deny for non-service callers - which is exactly what we want.
 
-On `deleteAnalysis`: if row has `comments_blob_path` not null, after successful DELETE, fire-and-forget storage delete (best-effort). Cron `purgeExpiredAnalyses` extended to: (a) collect `comments_blob_path` of expired rows BEFORE deleting them, (b) delete the rows, (c) batch-delete the collected blob paths via storage admin client. Orphan blobs from failed deletes get swept by a follow-up scheduled sweep: `purgeExpiredAnalyses` also lists objects in the bucket and removes any whose key prefix `<userId>/<videoId>` has no matching live row. Documented in code as the orphan-sweep step. This bounds orphan-blob storage cost.
+On `deleteAnalysis`: if row has `comments_blob_path` not null, after successful DELETE, fire-and-forget storage delete (best-effort). Cron `purgeExpiredAnalyses` extended to: (a) collect `comments_blob_path` of expired rows BEFORE deleting them, (b) delete the rows, (c) batch-delete the collected blob paths via storage admin client.
+
+Orphan blobs (from rare failure paths like upsert-after-upload exception or DELETE-side fire-and-forget failures) are accepted as a known small cost. At expected scale (§8: ~$0.17/month for 1000 Pro extracts), orphan rate would have to be massive to matter. No bucket-listing sweep is needed; if orphans ever become measurable, a follow-up sweep can be added. Out of MVP scope.
+
+**Save order to prevent sweep races and dangling rows:**
+
+1. Compute `commentsBlobPath = <userId>/<videoId>.json` deterministically (no upload yet)
+2. Upsert row with `comments_blob_path = commentsBlobPath` (or `comments` inline JSONB if below threshold) - the row now references a path
+3. Upload blob to that path
+
+If step 2 fails: nothing to clean up; no blob written.
+If step 3 fails: row exists with stale `comments_blob_path` but no blob. `getAnalysisById` blob fetch returns 404; UI shows `comments_unavailable` (transient infra) error path per §7.
+
+This ordering is stable against concurrent reads, and there's no temporary state where a blob exists without a row pointer.
 
 #### 5.4 Read paths
 
-New `getAnalysisById(sb, id): Promise<AnalysisRow & { comments: StoredComment[] | null } | null>`:
+New `getAnalysisById(userSb: SupabaseClient, id: string): Promise<AnalysisRow & { comments: StoredComment[] | null } | null>`. The parameter name `userSb` is significant: this function MUST receive a user-scoped Supabase client (from `createClient()`, the request-cookie-aware factory), never the service client. The row-level SELECT is the authorization gate; if it returns nothing (RLS denied), the blob fetch never runs. Document this at the function definition and add a code comment warning against passing a service client.
 
 - SELECT row including `comments` and `comments_blob_path` columns
 - If `comments_blob_path` not null, fetch blob via service client (NOT user client; user client cannot read from private bucket without policy), parse JSON, attach as `comments`
@@ -232,9 +245,7 @@ If `has_comments === false`:
 - Download CSV/JSON/Excel buttons are visually disabled (`aria-disabled`, no click handler) with tooltip explaining why
 - Delete button still works
 
-**Empty comments vs legacy distinction:** `has_comments === true` with `comments: []` (empty array) is a different state from legacy null. It means: extraction ran, persisted zero comments (rare but possible if a video has comments disabled by the time of save - though extract path normally rejects that earlier). UI shows `comments_table_empty` i18n string, but Download buttons remain ENABLED (a CSV with zero rows is still a valid export representing the cached aggregate state).
-
-**comment_count vs comments.length invariant:** `comment_count` (existing column) is the SOURCE OF TRUTH for the header card display. `comments.length` may differ in legacy rows (where it is null) or in the future if a comment-dedupe pass runs post-save. The detail view always displays `comment_count` in the header; the comments table displays `comments.length` rows under it. If they differ visually, that is expected and acceptable (no warning shown to user). At save time, `saveAnalysis` asserts `comment_count === comments.length` and logs a warning if they diverge (defensive logging only, does not fail the save).
+**comment_count is source of truth:** Detail view header always displays the `comment_count` column. Comments table renders `comments.length` rows below it. The extract path guarantees `comment_count === comments.length` at save time (both derived from the same array), so divergence is not expected. No runtime assertion or warning log is needed. The empty-array case (`comments: []`) is unreachable in practice because `/api/extract` rejects videos with zero extractable comments before reaching `saveAnalysis`; if it ever surfaces, the comments table renders empty naturally.
 
 #### 5.11 PR 2 i18n keys (new)
 
@@ -289,8 +300,21 @@ Also added to general namespace if not present: error toasts (`export_failed_leg
 Client component, accepts props:
 
 ```ts
+type AnalysisItem = {
+  id: string
+  video_id: string
+  video_title: string | null
+  channel_name: string | null
+  thumbnail_url: string | null
+  comment_count: number
+  sentiment: SentimentAggregate | null
+  processed_at: string  // ISO string (timestamps cross server/client boundary as ISO strings)
+  expires_at: string    // ISO string
+  has_comments?: boolean  // optional; only loaded on full GET, not in list endpoint
+}
+
 type AnalysesListProps = {
-  initialItems: AnalysisRow[]
+  initialItems: AnalysisItem[]
   initialCursor: string | null
   tier: "free" | "pro"
   compact: boolean         // true: no actions, no thumbnail enlargement
@@ -300,6 +324,10 @@ type AnalysesListProps = {
   viewAllHref?: string     // "View all" link target if compact
 }
 ```
+
+**Wire-shape pin (cross-server/client):** All timestamps cross the server -> client boundary as ISO strings (supabase-js already returns `timestamptz` as ISO strings). The shared `AnalysisItem` type above uses `string` for `processed_at` / `expires_at` so both consumers (dashboard recent block and history page) serialize identically. The pre-existing `AnalysisRow` type in `src/lib/analyses.ts` already uses `string` for these fields; reuse it directly when possible.
+
+**Conditional toast imports:** Sonner/toast logic and the delete-undo `useRef` machinery are gated behind `showActions`. When `compact=true && showActions=false` (dashboard), the component renders pure-display markup with no toast subscribers. Implementation: extract the action cluster + delete-with-undo into a child `<AnalysesListActions>` component, rendered only when `showActions`. Top-level `<AnalysesList>` always renders.
 
 Renders unordered list of rows. Each row:
 
@@ -350,8 +378,11 @@ function handleDelete(id: string) {
 function undoDelete(id: string) {
   const entry = pendingRef.current.get(id)
   if (!entry) return                    // already committed and cleaned up
-  if (entry.committed) {                // committed but cleanup pending
-    toast.error(t("undo_too_late"))     // honest error: server already received DELETE
+  if (entry.committed) {                // timer fired; DELETE in flight or completed
+    toast.error(t("undo_too_late"))     // "Undo unavailable - delete already submitted"
+    // Note: we do NOT assert server-side success here. If the in-flight DELETE
+    // failed (5xx, network drop), the row will resurrect on next page load.
+    // That's acceptable: user can simply re-delete.
     return
   }
   clearTimeout(entry.timer)
@@ -397,7 +428,7 @@ Add `track()` calls (existing helper). New events:
 - `history_deleted` (props: `analysis_id_hash`) - fires only when the 5s timer commits the DELETE; never fires on undo
 - `history_delete_undone` (props: `analysis_id_hash`) - fires when user clicks Undo before commit
 
-If there's an allowed-events whitelist (check `src/lib/track.ts` or equivalent), add these entries.
+`track` is imported directly from `@vercel/analytics` (existing pattern in `sentiment.tsx`, `tubemine.tsx`, `emoji-frequency.tsx`); there is no local whitelist module. The repo's `analytics-i18n-parity.test.ts` is the actual contract enforcer: it scans call sites and asserts every event name has matching i18n parity (if applicable). Add the new event names to that test's expected list at the same time the calls land.
 
 #### 5.19 Tests
 
@@ -483,7 +514,7 @@ Client: handleDelete(id)
        -> server: delete blob if comments_blob_path set
   -> on Undo: clearTimeout, restore row
 
-Unmount: flush pending timers by firing the DELETE immediately
+Unmount: clear all pending timers WITHOUT firing the DELETE (Gmail-style undo, per §5.14). Row resurrects on next page load since the server never received the DELETE.
 ```
 
 ## 7. Error handling
@@ -497,10 +528,12 @@ Unmount: flush pending timers by firing the DELETE immediately
 | Detail page row null | `notFound()` -> Next.js 404 page |
 | Export with legacy row | 410 `comments_not_stored` |
 | Export with valid row but format invalid | 400 `invalid_format` |
-| Delete during undo window: user closes tab | flush pending timer in unmount cleanup |
+| Delete during undo window: user closes tab or navigates | clear timer WITHOUT firing DELETE; row resurrects on next page load (per §5.14 clear-and-drop) |
+| Delete fetch rejects after 5s timer fires (server 5xx) | `committed=true` was set BEFORE the fetch; user-visible behavior: row stays hidden in current page, but next page load resurrects it. Acceptable: user can re-delete. No retry, no error toast (silent fail). |
+| Blob upload fails after upsert succeeded with `comments_blob_path` set | Row exists, blob missing. `getAnalysisById` returns row with blob fetch failing -> 500 `comments_unavailable`. User can re-extract to refresh. Acceptable transient state. |
 | Delete after row already gone (race) | server returns `{ deleted: 0 }` - silent success, no error toast |
 | Storage upload fails (PR 1 write) | the whole `saveAnalysis` call fails; `/api/extract` returns 200 to the client with the extracted comments+aggregates so the LIVE extract view still works, but the row is NOT persisted. Caller logs an error. We never silently truncate (would create inconsistent `comment_count` vs cached `comments` length). User can re-extract to retry. |
-| Storage delete fails (DELETE side-effect) | log warning, swallow; orphan blobs swept by extended `purgeExpiredAnalyses` cron orphan-sweep pass |
+| Storage delete fails (DELETE side-effect) | log warning, swallow; orphan accepted (small cost at expected scale per §8) |
 | Two-tab delete race | NOT addressed in MVP. Tab A starts undo timer; Tab B (or detail page) is open on same row. If commit fires while Tab B is open, subsequent actions in Tab B will 404. Acceptable: users editing the same record from two tabs is rare for this product. Documented limitation. V2 may add BroadcastChannel coordination. |
 
 ## 8. Performance + cost
@@ -527,7 +560,7 @@ May edit:
 - `supabase/migrations/03_analyses_comments.sql` (new)
 - `src/lib/analyses.ts` (extend types, add `computeExpiresAt`, `getAnalysisById`; update `saveAnalysis`, `purgeExpiredAnalyses`)
 - `src/lib/comments.ts` (new: `StoredComment` type)
-- `src/lib/supabase/storage.ts` (new: `uploadCommentsBlob`, `downloadCommentsBlob`, `deleteCommentsBlob`)
+- `src/lib/supabase/storage.ts` (new: `uploadCommentsBlob(userId, videoId, json) -> path`, `downloadCommentsBlob(path) -> StoredComment[] | null` (null on 404 or parse error), `deleteCommentsBlob(path) -> void` (best-effort, swallows errors); all three take a service-role storage client and return promises)
 - `src/app/api/extract/route.ts` (pass `comments` + `tier` to `saveAnalysis`)
 - `src/app/api/analyses/[id]/route.ts` (add `GET`)
 - `src/app/api/export/route.ts` (accept `analysisId`)
@@ -538,7 +571,7 @@ May edit:
 - `src/components/analysis-detail-view.tsx` (new)
 - `src/components/comments-table.tsx` (new, virtualized)
 - `messages/{en,ru}.json` (new keys under `history_detail`)
-- `src/lib/track.ts` (if exists; add new event names to whitelist)
+- Update `src/__tests__/analytics-i18n-parity.test.ts` (existing test) with new event names
 - `src/components/__tests__/*` + `src/lib/__tests__/*`
 - `package.json` (add `@tanstack/react-virtual` dependency)
 
