@@ -25,6 +25,29 @@
 - No em-dash (`U+2014`) or en-dash (`U+2013`) in any code, comment, or commit message. Use `,` `.` `()` `:` `-` only.
 - `redirect` import in pages comes from `@/i18n/navigation`, not `next/navigation`.
 
+### Chrome MCP `javascript_tool` invocation contract
+
+Every JS snippet in this plan that is meant to run via `mcp__claude-in-chrome__javascript_tool` is wrapped in an async IIFE so it works whether the tool wraps the code or evals it directly. Pattern:
+
+```js
+(async () => {
+  // assertion code
+  return { /* result object */ }
+})()
+```
+
+The tool returns the resolved promise. If a snippet below shows bare top-level `return`/`await`, treat it as inside an implicit IIFE: wrap it yourself in `(async () => { ... })()` before passing to the tool.
+
+### Rollback procedure (referenced by verify-on-prod steps)
+
+Used by 1.10, 2.12, 3.14 when a verify assertion or Tier 1 TC fails on prod.
+
+1. Identify the bad deployment: `mcp__vercel__list_deployments` (filter `target=production`). The TOP entry is the bad one; the SECOND entry is the last known-good deployment. Copy the second entry's `url` (e.g., `tubemine-abc123-rakhimovy.vercel.app`).
+2. Run rollback: `vercel rollback <previous-deployment-url> -y` (the `-y` skips the confirmation prompt). Example: `vercel rollback tubemine-abc123-rakhimovy.vercel.app -y`.
+3. Wait ~5 seconds, hard-reload `https://tubemine.tech` and confirm content matches the previous known-good state.
+4. Do NOT push more commits on top of the failed branch. Open a NEW branch off the last known-good `main` SHA, fix the issue there, preview-test, then merge.
+5. Comment on TUB-28 with: "Step N rolled back (commit `<bad-SHA>`). Cause: `<short reason>`. New branch: `<new-branch>`."
+
 ---
 
 ## File Structure (locked decisions)
@@ -213,37 +236,80 @@ Expected: `readyState=READY`.
 
 Navigate to `https://tubemine.tech/en/dashboard` via `mcp__claude-in-chrome__navigate`. Sign in if not authed (this verify is best run with a real authed session in the user's main browser; if running headless-anonymous, the auth redirect will happen, still acceptable for verifying the skeleton path).
 
-Execute DOM assertion via `mcp__claude-in-chrome__javascript_tool`:
+Execute DOM assertion via `mcp__claude-in-chrome__javascript_tool` (IIFE-wrapped per Chrome MCP invocation contract above):
 
 ```js
-// Click the History nav item, capture if skeleton element exists within 100ms.
-const link = document.querySelector('aside a[href$="/history"]')
-const before = performance.now()
-link?.click()
-let skeletonSeen = false
-const start = Date.now()
-while (Date.now() - start < 200) {
-  if (document.querySelector('[data-slot="skeleton"]')) {
-    skeletonSeen = true
-    break
+(async () => {
+  // Click the History nav item, capture if skeleton element exists within 100ms.
+  const link = document.querySelector('aside a[href$="/history"]')
+  const before = performance.now()
+  link?.click()
+  let skeletonSeen = false
+  const start = Date.now()
+  while (Date.now() - start < 200) {
+    if (document.querySelector('[data-slot="skeleton"]')) {
+      skeletonSeen = true
+      break
+    }
+    await new Promise(r => setTimeout(r, 10))
   }
-  await new Promise(r => setTimeout(r, 10))
-}
-return { skeletonSeen, elapsedMs: performance.now() - before }
+  return { skeletonSeen, elapsedMs: performance.now() - before }
+})()
 ```
 
 Expected: `skeletonSeen=true`, `elapsedMs < 100`.
 
 Also take a screenshot via `mcp__claude-in-chrome__take_screenshot` for sanity.
 
-- [ ] **1.11: Run Tier 1 verify subset (Step-1 relevant subset: TC #1 SideNav highlight, TC #2 AppShell persists, TC #8 skeleton on nav).**
+- [ ] **1.11a: Tier 1 TC #1 - SideNav highlights current page.**
 
-In Chrome MCP javascript_tool:
-- TC #1: click `/dashboard`, then `/profile`, check `document.querySelector('aside a.is-active')?.href` ends with `/profile`.
-- TC #2: assert `document.querySelector('aside.sidebar')` is the same node before and after nav (record nodeRef, re-check).
-- TC #8: per 1.10 above.
+Run via Chrome MCP javascript_tool:
 
-If any TC fails: **STOP**, run `vercel rollback` immediately (`mcp__vercel__list_deployments` to find previous READY deployment id, then redeploy that target via CLI or dashboard), diagnose locally, fix on a NEW branch, do NOT push more commits on top of failing main.
+```js
+(async () => {
+  // Navigate to /profile from current page.
+  const profileLink = document.querySelector('aside a[href$="/profile"]')
+  profileLink?.click()
+  await new Promise(r => setTimeout(r, 800)) // allow page transition
+  const active = document.querySelector('aside a.is-active')
+  return {
+    activeHref: active?.getAttribute('href') ?? null,
+    pass: active?.getAttribute('href')?.endsWith('/profile') ?? false,
+  }
+})()
+```
+
+Expected: `pass=true`. If `pass=false`: invoke "Rollback procedure" section above.
+
+- [ ] **1.11b: Tier 1 TC #2 - AppShell persists across navigation (no remount).**
+
+Run:
+
+```js
+(async () => {
+  // Capture sidebar nodeRef before navigation.
+  const sidebarBefore = document.querySelector('aside.sidebar')
+  const beforeId = sidebarBefore?.getAttribute('id') ?? null
+  // Navigate to /history.
+  document.querySelector('aside a[href$="/history"]')?.click()
+  await new Promise(r => setTimeout(r, 800))
+  const sidebarAfter = document.querySelector('aside.sidebar')
+  // Same DOM node = AppShell preserved.
+  return {
+    sameNode: sidebarBefore === sidebarAfter,
+    sameId: beforeId === sidebarAfter?.getAttribute('id'),
+    pass: sidebarBefore === sidebarAfter,
+  }
+})()
+```
+
+Expected: `pass=true` (sidebar is the same JS object, AppShell not remounted). If `pass=false`: invoke "Rollback procedure".
+
+- [ ] **1.11c: Tier 1 TC #8 - Skeleton flashes on nav.**
+
+This was already executed in 1.10. If 1.10 passed, mark TC #8 PASS here and proceed.
+
+If 1.11a/b/c all PASS: proceed to 1.12. If any FAIL: invoke "Rollback procedure" section above.
 
 - [ ] **1.12: Comment on TUB-28 with Task 1 result.**
 
@@ -446,13 +512,15 @@ Same pattern as Task 1 steps 1.8-1.9.
 Navigate to `https://tubemine.tech/en/dashboard` authed. Run JS assertion:
 
 ```js
-const aside = document.querySelector('aside.sidebar')
-const countSpan = aside?.querySelector('a[href$="/history"] .count')
-return {
-  hasSidebar: !!aside,
-  countSpanText: countSpan?.textContent ?? null,
-  countSpanPresent: !!countSpan,
-}
+(async () => {
+  const aside = document.querySelector('aside.sidebar')
+  const countSpan = aside?.querySelector('a[href$="/history"] .count')
+  return {
+    hasSidebar: !!aside,
+    countSpanText: countSpan?.textContent ?? null,
+    countSpanPresent: !!countSpan,
+  }
+})()
 ```
 
 Expected:
@@ -468,11 +536,39 @@ Open new incognito tab (`mcp__claude-in-chrome__tabs_create_mcp` if supported, o
 
 If incognito automation is unavailable in the current Chrome MCP setup, ask the user to verify manually with a second account.
 
-- [ ] **2.14: Tier 1 verify subset (full 9 TCs this round, since Step 2 is the data-shape change).**
+- [ ] **2.14: Tier 1 verify (full 9 TCs).**
 
-Run each TC #1-9 from spec § 7 via Chrome MCP javascript_tool. Record PASS/FAIL for each.
+Run each TC below as its own sub-checklist item. Record PASS/FAIL. If ANY TC fails: invoke "Rollback procedure" section.
 
-If any TC fails: `vercel rollback`, diagnose, fix on new branch.
+- [ ] **2.14.1: TC #1 - SideNav highlights current page.** (Use the same JS snippet as step 1.11a.)
+- [ ] **2.14.2: TC #2 - AppShell persists across navigation.** (Same as 1.11b.)
+- [ ] **2.14.3: TC #3 - saveAnalysis persists non-null fields.**
+  Run a fresh analysis on a test video via the dashboard quick-analyze form (or `/api/extract`). Then via supabase SQL: `select video_title, channel_name, thumbnail_url from analyses where user_id='<your-uid>' order by processed_at desc limit 1`. Expected: all three non-null.
+- [ ] **2.14.4: TC #4 - Recent Analyses row has no `.is-placeholder` class for real data.**
+  ```js
+  (async () => {
+    const rows = document.querySelectorAll('.recent-list .recent-row')
+    const placeholders = document.querySelectorAll('.recent-list .recent-row .is-placeholder')
+    return { rowCount: rows.length, placeholderCount: placeholders.length, pass: placeholders.length === 0 || rows.length > 0 }
+  })()
+  ```
+  Expected: `pass=true`. (Placeholders only allowed on thumbnails when source row has no thumbnail_url.)
+- [ ] **2.14.5: TC #5 - History row video_title renders real title.**
+  Navigate to `/en/history`. Run:
+  ```js
+  (async () => {
+    const titles = Array.from(document.querySelectorAll('.history-row .video-title, .history-card .title')).map(el => el.textContent?.trim())
+    const looksLikeVideoId = titles.some(t => t && /^[A-Za-z0-9_-]{11}$/.test(t))
+    return { titlesSample: titles.slice(0, 5), pass: !looksLikeVideoId }
+  })()
+  ```
+  Expected: `pass=true` (no row shows a raw 11-char videoId as the title).
+- [ ] **2.14.6: TC #6 - User A in regular browser sees only own data.**
+  In regular browser tab (User A): sidebar count `N`, dashboard Recent Analyses 5 rows owned by User A.
+- [ ] **2.14.7: TC #7 - User B in incognito sees own data, no User A leakage.**
+  In incognito (User B): sidebar count `M` (different), Recent Analyses owned by User B.
+- [ ] **2.14.8: TC #8 - Skeleton on nav.** (Same JS as 1.10 step.)
+- [ ] **2.14.9: TC #9 - Sidebar count badge.** (Same JS as step 2.12.)
 
 - [ ] **2.15: Comment on TUB-28 + append to daily note.**
 
@@ -544,39 +640,119 @@ export const getCachedUser = cache(async () => {
 })
 ```
 
-- [ ] **3.3: Wrap `getUserQuota` in `react.cache` in `src/lib/quota.ts`.**
+- [ ] **3.3.pre: Pre-check existing mocks of `@/lib/quota`.**
 
-Read the current file. At the top of the imports section (line 1 area, after `import "server-only"`), add:
-```ts
-import { cache } from "react"
+Run:
+```bash
+grep -rn 'vi\.mock.*"@/lib/quota"\|from "@/lib/quota"' src --include='*.test.ts' --include='*.test.tsx'
 ```
 
-Find the existing `export async function getUserQuota(userId: string): Promise<UserQuota>` declaration. Convert it from `export async function` to an unexported `const` + a cached export. The body stays identical.
+Expected output (at time of plan authoring):
+```
+src/app/api/export/__tests__/route.test.ts:6:vi.mock("@/lib/quota", () => ({
+src/app/api/export/__tests__/route.test.ts:7:  getUserQuota: vi.fn(),
+src/app/api/export/__tests__/route.test.ts:13:import { getUserQuota } from "@/lib/quota"
+```
 
-Before:
+This single test mocks the module via `vi.mock("@/lib/quota", () => ({ getUserQuota: vi.fn() }))` which replaces the module export with a fresh vi.fn(). The cache wrap is transparent to this style of mock because the mock entirely overrides the export. **No test change is required.** If the grep returns ANY OTHER mock pattern (e.g., `vi.spyOn(quotaModule, 'getUserQuota')`), pause and consult with the user before proceeding; spy-on-import-binding may need updating.
+
+- [ ] **3.3a: Add `react.cache` import to `src/lib/quota.ts`.**
+
+In `src/lib/quota.ts`, line 1-2 currently reads:
+```ts
+import "server-only"
+import { createServiceClient } from "@/lib/supabase/server"
+```
+
+Change to:
+```ts
+import "server-only"
+import { cache } from "react"
+import { createServiceClient } from "@/lib/supabase/server"
+```
+
+- [ ] **3.3b: Replace `export async function getUserQuota` with cached export.**
+
+The current declaration (lines 55-77 of `src/lib/quota.ts`) is:
+
 ```ts
 export async function getUserQuota(userId: string): Promise<UserQuota> {
-  // ... existing body unchanged ...
+  const sb = createServiceClient()
+  const [tier, usageRes] = await Promise.all([
+    effectiveTier(userId),
+    sb
+      .from("usage")
+      .select("comments_used")
+      .eq("user_id", userId)
+      .eq("month", currentMonth())
+      .maybeSingle(),
+  ])
+
+  const cap = tier === "pro" ? PRO_MONTHLY_CAP : FREE_MONTHLY_CAP
+  const used = usageRes.data?.comments_used ?? 0
+
+  return {
+    tier,
+    cap,
+    used,
+    remaining: Math.max(0, cap - used),
+    resetAt: nextMonthFirstIso(),
+  }
 }
 ```
 
-After:
+Replace it verbatim with:
+
 ```ts
 const _getUserQuota = async (userId: string): Promise<UserQuota> => {
-  // ... same body, indented identically ...
+  const sb = createServiceClient()
+  const [tier, usageRes] = await Promise.all([
+    effectiveTier(userId),
+    sb
+      .from("usage")
+      .select("comments_used")
+      .eq("user_id", userId)
+      .eq("month", currentMonth())
+      .maybeSingle(),
+  ])
+
+  const cap = tier === "pro" ? PRO_MONTHLY_CAP : FREE_MONTHLY_CAP
+  const used = usageRes.data?.comments_used ?? 0
+
+  return {
+    tier,
+    cap,
+    used,
+    remaining: Math.max(0, cap - used),
+    resetAt: nextMonthFirstIso(),
+  }
 }
 
 export const getUserQuota = cache(_getUserQuota)
 ```
 
-When transcribing the body, preserve every line, every comment, every blank line. Do not refactor.
+- [ ] **3.3c: Diff-check the edit touched only the expected lines.**
+
+Run: `git diff src/lib/quota.ts`
+
+Expected change set:
+- One added line at the imports: `import { cache } from "react"`
+- The `export async function getUserQuota(...)` -> `const _getUserQuota = async (...)`  rename
+- A new line appended after the function body: `export const getUserQuota = cache(_getUserQuota)`
+
+Nothing else in the file should change. If you see whitespace-only diffs, formatting changes, or unrelated edits, undo them: `git checkout -- src/lib/quota.ts` then redo step 3.3a/b.
 
 - [ ] **3.4: Run tests to confirm wrap didn't break anything.**
 
 Run: `pnpm test`
-Expected: all tests pass. If any test mocked `getUserQuota` by importing the function directly, it still resolves because `cache(fn)` returns a callable with the same `(userId: string) => Promise<UserQuota>` signature.
+Expected: all tests pass, including `src/app/api/export/__tests__/route.test.ts` (the one test that mocks `@/lib/quota`).
 
-If a test fails because it spied on the original function reference: open that test and look for `vi.spyOn` / `vi.mock` patterns. The wrap preserves the export name; mocks targeting `@/lib/quota` -> `getUserQuota` should still work. If a test mocked the inner `_getUserQuota`, that's not in scope and shouldn't happen.
+If the export route test fails, the mock pattern is incompatible. Recovery:
+1. Open `src/app/api/export/__tests__/route.test.ts`.
+2. Look at the `vi.mock("@/lib/quota", () => ({ getUserQuota: vi.fn() }))` block.
+3. The mock entirely replaces the module, so the cache wrap should not interfere. If it still fails, the failure is a different bug; report the exact error message and pause.
+
+If any OTHER test fails (not the export route test): the failure is unrelated to this wrap; capture the error and pause for analysis.
 
 - [ ] **3.5: Modify `(app)/layout.tsx`.**
 
@@ -765,12 +941,14 @@ Same pattern as Task 1 / 2.
 Sign in to `https://tubemine.tech/en/dashboard`. Run:
 
 ```js
-// Assert basic page works (auth flowed through getCachedUser correctly).
-return {
-  hasMain: !!document.querySelector('main.main'),
-  hasUserAvatar: !!document.querySelector('.topbar-user .avatar'),
-  hasUsageCard: !!document.querySelector('.usage-card'),
-}
+(async () => {
+  // Assert basic page works (auth flowed through getCachedUser correctly).
+  return {
+    hasMain: !!document.querySelector('main.main'),
+    hasUserAvatar: !!document.querySelector('.topbar-user .avatar'),
+    hasUsageCard: !!document.querySelector('.usage-card'),
+  }
+})()
 ```
 
 Expected: all three `true`.
@@ -788,7 +966,17 @@ If User A sees User B's quota or vice versa: **CRITICAL** - rollback immediately
 
 - [ ] **3.16: Tier 1 verify (all 9 TCs).**
 
-Same as Task 2 step 2.14.
+Re-run all 9 sub-checks from step 2.14 (2.14.1 through 2.14.9). The auth-touching TCs (#6, #7) are especially important here because Step 4 changed how `getUser()` and `getUserQuota` are reached. If any TC fails: invoke "Rollback procedure" section.
+
+- [ ] **3.16.1: TC #1.** Same JS as 2.14.1.
+- [ ] **3.16.2: TC #2.** Same JS as 2.14.2.
+- [ ] **3.16.3: TC #3.** Same procedure as 2.14.3.
+- [ ] **3.16.4: TC #4.** Same JS as 2.14.4.
+- [ ] **3.16.5: TC #5.** Same JS as 2.14.5.
+- [ ] **3.16.6: TC #6.** User A isolation - same as 2.14.6.
+- [ ] **3.16.7: TC #7.** User B incognito isolation - same as 2.14.7.
+- [ ] **3.16.8: TC #8.** Same as 2.14.8.
+- [ ] **3.16.9: TC #9.** Same as 2.14.9.
 
 - [ ] **3.17: Comment on TUB-28 + append to daily note.**
 
