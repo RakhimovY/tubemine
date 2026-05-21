@@ -50,21 +50,34 @@ export function qualitativeSummary(dist: SentimentDistribution): SentimentLabelK
 }
 
 /**
- * Exact "{pct}% {dominant}" label for Pro tier. Picks the argmax over
- * positive/neutral/negative with tie-break order positive > neutral >
- * negative (per spec locked decision). pct is Math.round'd.
+ * Argmax over positive/neutral/negative with tie-break order positive >
+ * neutral > negative (per spec locked decision). pct is Math.round'd.
+ * Caller decides how to render (translate, format) — see proSentimentLabel
+ * for the legacy EN-only formatter or use tSent("pro_<key>", {pct}) for i18n.
  */
-export function proSentimentLabel(dist: SentimentDistribution): string {
-  // Tie-break order: positive > neutral > negative (strict `>` keeps earlier winner).
-  let bestKey: "positive" | "neutral" | "negative" = "positive"
+export function proSentimentDominant(dist: SentimentDistribution): {
+  key: "positive" | "neutral" | "negative"
+  pct: number
+} {
+  let key: "positive" | "neutral" | "negative" = "positive"
   let bestVal = dist.positive
   if (dist.neutral > bestVal) {
-    bestKey = "neutral"
+    key = "neutral"
     bestVal = dist.neutral
   }
   if (dist.negative > bestVal) {
-    bestKey = "negative"
+    key = "negative"
     bestVal = dist.negative
   }
-  return `${Math.round(bestVal * 100)}% ${bestKey}`
+  return { key, pct: Math.round(bestVal * 100) }
+}
+
+/**
+ * Legacy EN-only "{pct}% {dominant}" label. Kept for back-compat with
+ * existing tests; new code should use proSentimentDominant + tSent for
+ * locale-correct rendering.
+ */
+export function proSentimentLabel(dist: SentimentDistribution): string {
+  const { key, pct } = proSentimentDominant(dist)
+  return `${pct}% ${key}`
 }

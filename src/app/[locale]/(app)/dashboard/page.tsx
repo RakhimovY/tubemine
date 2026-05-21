@@ -12,7 +12,7 @@ import { formatNumber, formatDateRelative } from "@/lib/format"
 import { listAnalyses } from "@/lib/analyses"
 import {
   deriveDistribution,
-  proSentimentLabel,
+  proSentimentDominant,
   qualitativeSummary,
   type SentimentDistribution,
 } from "@/lib/sentiment-summary"
@@ -201,11 +201,15 @@ export default async function DashboardPage({
               {items.map((item) => {
                 const dist = deriveDistribution(item.sentiment)
                 const sentClass = sentClassFor(dist)
-                const sentLabel = dist
-                  ? tier === "free"
-                    ? tSent(qualitativeSummary(dist))
-                    : proSentimentLabel(dist)
-                  : ""
+                let sentLabel = ""
+                if (dist) {
+                  if (tier === "free") {
+                    sentLabel = tSent(qualitativeSummary(dist))
+                  } else {
+                    const dom = proSentimentDominant(dist)
+                    sentLabel = tSent(`pro_${dom.key}`, { pct: dom.pct })
+                  }
+                }
                 return (
                   <article key={item.id} className="recent-row">
                     {item.thumbnail_url ? (

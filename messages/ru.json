@@ -487,7 +487,7 @@
       "pro_cap": "{cap, number} комментариев в месяц",
       "usage": "{used, number} из {cap, number} комментариев в этом месяце",
       "used_line": "{used, number} / {cap, number} использовано",
-      "used_percent": "использовано {percent}%",
+      "used_percent": "{percent}%",
       "open_dashboard": "Открыть дашборд",
       "see_plans": "Посмотреть тарифы",
       "upgrade": "Перейти на Pro",
@@ -591,7 +591,10 @@
     "leans_negative": "Скорее негатив",
     "mostly_negative": "В основном негатив",
     "polarized": "Поляризованная аудитория",
-    "mostly_neutral": "В основном нейтрально"
+    "mostly_neutral": "В основном нейтрально",
+    "pro_positive": "{pct}% позитивных",
+    "pro_neutral": "{pct}% нейтральных",
+    "pro_negative": "{pct}% негативных"
   },
   "legal_disclaimer_ru_changelog": "Журнал изменений ведётся на английском.",
   "footer": {
