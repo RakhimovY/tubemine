@@ -152,6 +152,14 @@ export async function POST(req: NextRequest) {
   const comments: Comment[] = []
   let pageToken: string | undefined
 
+  // Fetch video metadata in parallel with comments (1 quota unit, ~0 added latency).
+  // Used downstream for saveAnalysis so History + Recent Analyses render thumbnails
+  // and titles instead of just the video id placeholder. Best-effort: a failure
+  // here must not block the extract.
+  const metaPromise = yt.videos
+    .list({ part: ["snippet"], id: [videoId] })
+    .catch(() => null)
+
   try {
     while (comments.length < limit) {
       const res = await yt.commentThreads.list({
@@ -254,12 +262,17 @@ export async function POST(req: NextRequest) {
         .slice(0, STORAGE_TOP_EMOJIS)
         .map((e) => ({ emoji: e.emoji, count: e.count, percent: e.share * 100 }))
 
+      const metaSnippet = (await metaPromise)?.data.items?.[0]?.snippet ?? null
       await saveAnalysis({
         userId,
         videoId,
-        videoTitle: null,
-        channelName: null,
-        thumbnailUrl: null,
+        videoTitle: metaSnippet?.title ?? null,
+        channelName: metaSnippet?.channelTitle ?? null,
+        thumbnailUrl:
+          metaSnippet?.thumbnails?.high?.url ??
+          metaSnippet?.thumbnails?.medium?.url ??
+          metaSnippet?.thumbnails?.default?.url ??
+          `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
         commentCount: comments.length,
         sentiment: sentimentAggregate,
         topWords: topWordsStored,
