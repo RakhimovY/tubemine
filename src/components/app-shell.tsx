@@ -78,7 +78,7 @@ export function AppShell({
   }, [])
 
   return (
-    <div className="shell">
+    <div className="dashboard-page shell">
       <header className="topbar">
         <div className="topbar-left">
           <button
