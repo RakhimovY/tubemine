@@ -256,9 +256,15 @@ html {
 .tm-design *::before,
 .tm-design *::after { box-sizing: border-box; }
 .tm-design ::selection { background: rgba(245,245,247,0.18); }
-.tm-design a { color: inherit; text-decoration: none; }
-.tm-design button { font: inherit; color: inherit; cursor: pointer; }
-.tm-design img { display: block; max-width: 100%; }
+/* :where() keeps zero specificity so Tailwind utility classes (text-*,
+   underline, max-w-*, etc.) still win. Without :where() the design-system
+   tag defaults beat utilities. Example: .tm-design img max-width: 100%
+   beat max-w-[180px] and blew up the Quick Analyze preview thumbnail.
+   Same class of risk applies to a, button, form elements where utilities
+   commonly override color, font, spacing. */
+:where(.tm-design a) { color: inherit; text-decoration: none; }
+:where(.tm-design button) { font: inherit; color: inherit; cursor: pointer; }
+:where(.tm-design img) { display: block; max-width: 100%; }
 
 /* ===== Layout ===== */
 .tm-design .container {

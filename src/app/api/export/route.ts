@@ -3,6 +3,7 @@ import { z } from "zod"
 import ExcelJS from "exceljs"
 import { authUserId } from "@/lib/auth"
 import { getUserQuota } from "@/lib/quota"
+import { sanitizeForSpreadsheet } from "@/lib/csv-safe"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -86,15 +87,23 @@ export async function POST(req: NextRequest) {
     const workbook = new ExcelJS.Workbook()
     const sheet = workbook.addWorksheet("Comments")
     sheet.addRow(["Author", "Comment", "Sentiment", "Likes", "Replies", "Published"])
+    // String columns: 1 (Author), 2 (Comment), 3 (Sentiment), 6 (Published).
+    // Sanitize user-controlled strings against formula injection AND force
+    // the numFmt to "@" (text) so Excel does not re-interpret the cell as a
+    // formula on save/reopen. See src/lib/csv-safe.ts for rationale.
+    const stringCols = [1, 2, 3, 6]
     for (const c of comments) {
-      sheet.addRow([
-        c.author,
-        c.text,
-        c.sentiment ?? "",
+      const row = sheet.addRow([
+        sanitizeForSpreadsheet(c.author),
+        sanitizeForSpreadsheet(c.text),
+        sanitizeForSpreadsheet(c.sentiment ?? ""),
         c.likes,
         c.replies,
-        c.publishedAt,
+        sanitizeForSpreadsheet(c.publishedAt),
       ])
+      for (const col of stringCols) {
+        row.getCell(col).numFmt = "@"
+      }
     }
     const buffer = await workbook.xlsx.writeBuffer()
     return new Response(buffer as unknown as BodyInit, {

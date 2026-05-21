@@ -21,6 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { extractVideoId, type Comment, type VideoMeta } from "@/lib/types"
+import { sanitizeCommentRowForSpreadsheet } from "@/lib/csv-safe"
 import type { BudgetStatus } from "@/lib/budget"
 import type { WordCount } from "@/lib/top-words"
 import type { EmojiCount } from "@/lib/emoji-frequency"
@@ -239,7 +240,18 @@ export function TubeMine({ tier: initialTier }: { tier: ExtractTier }) {
       count: comments.length,
       tier,
     })
-    const csv = Papa.unparse(comments, {
+    // Sanitize user-controlled string fields against spreadsheet formula
+    // injection (OWASP CSV Injection) before serialization. See
+    // src/lib/csv-safe.ts for rationale + test coverage.
+    const safeRows = comments.map((c) =>
+      sanitizeCommentRowForSpreadsheet(c, [
+        "author",
+        "text",
+        "sentiment",
+        "publishedAt",
+      ]),
+    )
+    const csv = Papa.unparse(safeRows, {
       columns: ["author", "text", "sentiment", "likes", "replies", "publishedAt"],
     })
     const today = new Date().toISOString().slice(0, 10)
