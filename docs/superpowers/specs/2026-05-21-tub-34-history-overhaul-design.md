@@ -152,6 +152,8 @@ if (useBlob) {
 
 `uploadCommentsBlob` lives in new `src/lib/supabase/storage.ts`. Bucket: `analyses-comments` (PRIVATE, service-role write, NO public reads). Object key: `<userId>/<videoId>.json`. Stored as `application/json` (uncompressed for MVP simplicity; gzip is V2).
 
+**Path-traversal hardening:** `uploadCommentsBlob` MUST validate inputs at the boundary even though callers are server-only: assert `userId` matches uuid regex (`/^[0-9a-f-]{36}$/i`) and `videoId` matches YouTube id regex (`/^[A-Za-z0-9_-]{11}$/`). Throw early on mismatch. Same validation in `downloadCommentsBlob(path)` (split path on `/`, validate both segments). Defense in depth against a future caller passing an unvalidated string.
+
 Bucket creation: created out-of-band via Supabase MCP (`mcp__claude_ai_Supabase__execute_sql` running `insert into storage.buckets (id, name, public) values ('analyses-comments', 'analyses-comments', false) on conflict do nothing;`) at PR 1 deploy time, NOT in the SQL migration file (avoids ordering issues with hosted Supabase migration runner that may not have privileges on the `storage` schema in all configurations). The PR 1 verify checklist must include "confirm bucket exists in Supabase dashboard before extract test." No storage RLS policies on `storage.objects` are created. Since service role bypasses RLS and no authenticated/anon policy exists, default behavior is deny for non-service callers - which is exactly what we want.
 
 On `deleteAnalysis`: if row has `comments_blob_path` not null, after successful DELETE, fire-and-forget storage delete (best-effort). Cron `purgeExpiredAnalyses` extended to: (a) collect `comments_blob_path` of expired rows BEFORE deleting them, (b) delete the rows, (c) batch-delete the collected blob paths via storage admin client.
@@ -176,6 +178,8 @@ This ordering is stable against most concurrent reads, and there's no permanent 
 **Re-extract during pending delete (DATA LOSS guard):** `saveAnalysis` is keyed `UNIQUE (user_id, video_id)`. If the user has an optimistic-delete timer pending for row R and then triggers a fresh extract of the same video, the upsert REFRESHES R in place. The pending timer (unaware of the re-extract) will fire and DELETE the freshly-refreshed row. To prevent this, the `<AnalysesList>` delete-with-undo must cancel any pending timer keyed by `videoId` when the user navigates back to dashboard and triggers a new extract. Mechanism: pending timers are also indexed by `video_id`; the extract-success client event (already exists) clears any pending timer with the matching videoId via `window.dispatchEvent(new CustomEvent('tubemine:analysis-saved', { detail: { videoId } }))`. `<AnalysesList>` mounts a listener that cancels pending deletes for matching videoId.
 
 #### 5.4 Read paths
+
+**Performance pin for list queries:** `listAnalyses` MUST keep its existing column projection (already does not select `comments`; verify before changing). New `comments` column must NEVER be in list-endpoint SELECTs - it would force TOAST decompression of multi-MB JSONB per row across every recent-block / history-page render. Only `getAnalysisById` and the export cache branch SELECT it.
 
 New `getAnalysisById(userSb: SupabaseClient, id: string): Promise<AnalysisRow & { comments: StoredComment[] | null } | null>`. The parameter name `userSb` is significant: this function MUST receive a user-scoped Supabase client (from existing `createClient()` factory in `src/lib/supabase/server.ts`, the request-cookie-aware factory), never the service client. The row-level SELECT is the authorization gate; if it returns nothing (RLS denied), the blob fetch never runs. Document this at the function definition and add a code comment warning against passing a service client.
 
@@ -294,7 +298,7 @@ column_text
 column_sentiment
 column_likes
 column_published
-delete_pending
+delete_pending     # interpolated: "Deleting {title}" so rapid-multi-delete toasts are distinguishable
 undo
 undo_too_late
 ```
@@ -335,7 +339,9 @@ type AnalysesListProps = {
   showActions: boolean     // true: per-row Download menu / Delete (no separate View button; row link handles nav)
   paginated: boolean       // true: load-more pagination via cursor
   limit: number            // page size hint (10 for compact, 20 for full)
-  viewAllHref?: string     // "View all" link target if compact
+  // No viewAllHref: when compact=true the component hardcodes <Link href="/history">
+  // with label sourced from the existing `dashboard.view_all` i18n key (already
+  // present in messages/{en,ru}.json; reused as-is, no new key needed).
 }
 ```
 
@@ -385,7 +391,7 @@ function handleDelete(id: string) {
   //    Note: toast duration matches timer; if user manually dismisses the toast
   //    via Sonner's close button, the timer still fires (we treat dismiss as
   //    "I see it, accept the delete"). This matches Gmail's Undo Send pattern.
-  toast(t("delete_pending"), {
+  toast(t("delete_pending", { title: videoTitle ?? videoId }), {
     action: { label: t("undo"), onClick: () => undoDelete(id) },
     duration: 5000,
   })
@@ -412,7 +418,7 @@ Unmount cleanup: in `useEffect` cleanup, **clear all pending timers WITHOUT firi
 
 #### 5.15 Refactor existing consumers
 
-- `src/components/recent-analyses.tsx`: convert from inline rendering to thin wrapper that fetches first 10 server-side then mounts `<AnalysesList compact limit={10} showActions={false} initialItems={...} viewAllHref="/history" />`.
+- `src/components/recent-analyses.tsx`: convert from inline rendering to thin wrapper that fetches first 10 server-side then mounts `<AnalysesList compact limit={10} showActions={false} initialItems={...} />`.
 - `src/app/[locale]/(app)/history/history-client.tsx`: refactor to use `<AnalysesList paginated showActions limit={20} initialItems={...} />`. Existing pagination cursor logic moves into AnalysesList.
 
 Both consumers keep their existing data-fetching server boundary (RLS-scoped supabase client). Only the row-rendering is unified.
@@ -464,7 +470,7 @@ Append to `~/vault/projects/yt-comments/qa/test-cases.md`:
 - TC-HISTORY-005: Legacy row (`comments IS NULL`) shows placeholder, Download buttons disabled, no JS error
 - TC-HISTORY-006: Tier-aware TTL: Free row `expires_at = processed_at + 30d`, Pro row `+ 100d`
 - TC-HISTORY-007: `<AnalysesList>` renders correctly in both compact (dashboard) and full (history) contexts
-- TC-HISTORY-008: Detail view comments table renders a 50K-row analysis without UI jank during scroll (closes legacy TC-0039). Verify via Chrome MCP: smooth scrolling, no console errors, no obvious DOM bloat (DOM node count for the table region stays in the low hundreds, not tens of thousands; exact number not asserted to avoid flakiness from overscan/sticky-header variations).
+- TC-HISTORY-008: Detail view comments table virtualization smoke (closes legacy TC-0039). Verify with a synthetic ~2000-row mock analysis (component-level test or temporary dev fixture; no need to generate a real 50K extract just for QA): smooth scrolling, no console errors, DOM node count for the table region stays in the low hundreds (relying on `@tanstack/react-virtual` guarantees). The real 50K stress test is deferred until a Pro user reports jank.
 - TC-HISTORY-009: Mobile responsive at 375px: detail view usable, no horizontal page scroll
 - TC-HISTORY-010: RLS: user A cannot GET or DELETE `/api/analyses/:id` for user B's analysis
 
@@ -552,6 +558,8 @@ Unmount (including any in-app navigation away from /history, e.g. click into /hi
 | Storage delete fails (DELETE side-effect) | log warning, swallow; orphan accepted (small cost at expected scale per §8) |
 | Comments payload exceeds Supabase storage hard limit (~45MB+) | `saveAnalysis` skips persistence and logs warning; `/api/extract` response still streams comments to client (live view works); user can re-extract with a lower limit if they want history. Acceptable degraded case for outlier 100K-comment extracts with very long text. |
 | Concurrent delete from two devices (multi-device user) | Device B's immediate DELETE wins. Device A's 5s timer fires later, server returns `{deleted: 0}` (idempotent), no error shown to A. A's `pendingIds` set still has the id so the row stays hidden until page reload. Acceptable: identical end state. |
+| Account deletion cascade (ON DELETE CASCADE on user_id) | DB cascades the row removal but the app-layer `deleteAnalysis` blob cleanup is bypassed - orphaned blobs in storage remain. Known limitation. GDPR mitigation: when wiring account deletion in a future PR, add an explicit storage cleanup pass (list bucket by `<userId>/` prefix, delete matching objects) BEFORE the DB cascade. Out of MVP scope. |
+| Cursor pagination + pending delete row in next-page anchor | If the last visible row in page N has a pending delete and the user clicks "load more", the keyset cursor `{processed_at, id}` is computed from the still-rendered (non-pending) last row. Deleted rows are excluded from pendingIds in the rendered list before cursor extraction. No duplicate or skipped rows. |
 | Browser background-tab throttling during 5s undo window | Chrome may delay `setTimeout` in background tabs. Effect: row stays hidden in active tab until the (delayed) timer fires; DELETE commits whenever the browser unthrottles. Acceptable: user-initiated delete eventually completes; F5 confirms state. |
 | Two-tab delete race | NOT addressed in MVP. Tab A starts undo timer; Tab B (or detail page) is open on same row. If commit fires while Tab B is open, subsequent actions in Tab B will 404. Acceptable: users editing the same record from two tabs is rare for this product. Documented limitation. V2 may add BroadcastChannel coordination. |
 
