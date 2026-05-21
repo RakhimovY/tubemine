@@ -1,41 +1,11 @@
-import NextLink from "next/link"
+import { Suspense } from "react"
 import { getTranslations, setRequestLocale } from "next-intl/server"
 import { Link as IntlLink } from "@/i18n/navigation"
 import { LandingFaq } from "@/components/landing-faq"
-import { PricingIntentRedirect } from "@/components/pricing-intent-redirect"
-import { createClient } from "@/lib/supabase/server"
-import { getUserQuota } from "@/lib/quota"
+import { PricingTierAware } from "@/components/pricing-tier-aware"
 
 const REPO_URL = "https://github.com/RakhimovY/tubemine"
 const SUPPORT_EMAIL = "hello@tubemine.app"
-
-type AuthTier = "anonymous" | "free" | "pro"
-type AuthState = {
-  signedIn: boolean
-  tier: AuthTier
-}
-
-async function loadAuthState(): Promise<AuthState> {
-  if (
-    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  ) {
-    return { signedIn: false, tier: "anonymous" }
-  }
-  try {
-    const supabase = await createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) return { signedIn: false, tier: "anonymous" }
-    const quota = await getUserQuota(user.id)
-    return { signedIn: true, tier: quota.tier }
-  } catch {
-    return { signedIn: false, tier: "anonymous" }
-  }
-}
-
-export const dynamic = "force-dynamic"
 
 export async function generateMetadata({
   params,
@@ -68,17 +38,13 @@ export async function generateMetadata({
 */
 export default async function PricingPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ locale: string }>
-  searchParams: Promise<{ intent?: string; plan?: string; next?: string }>
 }) {
   const { locale } = await params
-  const sp = await searchParams
   setRequestLocale(locale)
   const t = await getTranslations("pricing")
   const tLanding = await getTranslations("landing")
-  const state = await loadAuthState()
 
   const faqItems = [
     { q: t("faq.q1"), a: t("faq.a1") },
@@ -126,13 +92,6 @@ export default async function PricingPage({
 
   return (
     <div className="pricing-page">
-      {/* Client island: post-OAuth ?intent=signup&plan=pro -> /api/checkout */}
-      <PricingIntentRedirect
-        intent={sp.intent ?? null}
-        signedIn={state.signedIn}
-        tier={state.tier}
-      />
-
       <main>
         {/* ===================== HERO ===================== */}
         <section className="hero">
@@ -146,145 +105,9 @@ export default async function PricingPage({
         {/* ===================== PRICING ===================== */}
         <section className="pricing-section">
           <div className="container">
-            <div className="pricing-grid">
-              {/* FREE */}
-              <article className="price-card" aria-labelledby="plan-free">
-                <div className="price-head">
-                  <span className="price-name" id="plan-free">
-                    {t("free.name")}
-                  </span>
-                  <span className="badge badge--outline">
-                    {t("free.badge")}
-                  </span>
-                </div>
-                <div className="price-num">
-                  <span className="currency">{t("free.currency")}</span>
-                  {t("free.price")}
-                  <span className="unit">{t("free.unit")}</span>
-                </div>
-                <ul className="price-list">
-                  {[
-                    t("free.b1"),
-                    t("free.b2"),
-                    t("free.b3"),
-                    t("free.b4"),
-                    t("free.b5"),
-                  ].map((b, i) => (
-                    <li key={i}>
-                      <span className="price-check">
-                        <CheckIcon />
-                      </span>
-                      <span>{b}</span>
-                    </li>
-                  ))}
-                </ul>
-
-                <div className="price-foot">
-                  {state.tier === "anonymous" ? (
-                    <IntlLink
-                      href="/login?intent=signup"
-                      className="btn btn--primary"
-                      style={{ gap: 10 }}
-                    >
-                      <GoogleIcon />
-                      {t("free.cta_anon")}
-                    </IntlLink>
-                  ) : null}
-                  {state.tier === "free" ? (
-                    <>
-                      <IntlLink
-                        href="/dashboard"
-                        className="btn btn--secondary"
-                      >
-                        {t("free.cta_free")}
-                      </IntlLink>
-                      <p className="price-note">{t("free.note_free")}</p>
-                    </>
-                  ) : null}
-                  {state.tier === "pro" ? (
-                    <>
-                      <IntlLink
-                        href="/dashboard"
-                        className="btn btn--secondary"
-                      >
-                        {t("free.cta_pro")}
-                      </IntlLink>
-                      <p className="price-note">{t("free.note_pro")}</p>
-                    </>
-                  ) : null}
-                </div>
-              </article>
-
-              {/* PRO */}
-              <article
-                className="price-card is-popular"
-                aria-labelledby="plan-pro"
-              >
-                <div className="price-head">
-                  <span className="price-name" id="plan-pro">
-                    {t("pro.name")}
-                  </span>
-                  <span className="badge badge--default">
-                    <span className="badge-dot" />
-                    {t("pro.badge")}
-                  </span>
-                </div>
-                <div className="price-num">
-                  <span className="currency">{t("pro.currency")}</span>
-                  {t("pro.price")}
-                  <span className="unit">{t("pro.unit")}</span>
-                </div>
-                <ul className="price-list">
-                  {[
-                    t("pro.b1"),
-                    t("pro.b2"),
-                    t("pro.b3"),
-                    t("pro.b4"),
-                    t("pro.b5"),
-                  ].map((b, i) => (
-                    <li key={i}>
-                      <span className="price-check">
-                        <CheckIcon />
-                      </span>
-                      <span>{b}</span>
-                    </li>
-                  ))}
-                </ul>
-
-                <div className="price-foot">
-                  {state.tier === "anonymous" ? (
-                    <>
-                      <IntlLink
-                        href="/login?intent=signup&plan=pro"
-                        className="btn btn--primary"
-                      >
-                        {t("pro.cta_anon")}
-                      </IntlLink>
-                      <p className="price-note">{t("pro.note_anon")}</p>
-                    </>
-                  ) : null}
-                  {state.tier === "free" ? (
-                    <>
-                      <form action="/api/checkout" method="POST">
-                        <button type="submit" className="btn btn--primary">
-                          {t("pro.cta_free")}
-                          <ArrowRightIcon />
-                        </button>
-                      </form>
-                      <p className="price-note">{t("pro.note_free")}</p>
-                    </>
-                  ) : null}
-                  {state.tier === "pro" ? (
-                    <>
-                      <NextLink href="/api/portal" className="btn btn--secondary">
-                        {t("pro.cta_pro")}
-                      </NextLink>
-                      <p className="price-note">{t("pro.note_pro")}</p>
-                    </>
-                  ) : null}
-                </div>
-              </article>
-            </div>
+            <Suspense fallback={null}>
+              <PricingTierAware />
+            </Suspense>
 
             {/* ===== Comparison ===== */}
             <div className="compare-wrap">
@@ -841,14 +664,6 @@ const SOCIALS: Array<{ label: string; url: string; icon: React.ReactNode }> = [
   },
 ]
 
-function CheckIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-      <path d="m4 12 5 5L20 6" />
-    </svg>
-  )
-}
-
 function ArrowRightIcon() {
   return (
     <svg
@@ -884,31 +699,3 @@ function GithubInlineIcon() {
   )
 }
 
-function GoogleIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width={16}
-      height={16}
-      aria-hidden="true"
-      style={{ flexShrink: 0 }}
-    >
-      <path
-        d="M21.6 12.227c0-.708-.064-1.39-.182-2.045H12v3.868h5.382a4.6 4.6 0 0 1-1.995 3.018v2.51h3.232c1.891-1.742 2.98-4.305 2.98-7.351Z"
-        fill="#4285F4"
-      />
-      <path
-        d="M12 22c2.7 0 4.964-.895 6.619-2.422l-3.232-2.51c-.895.6-2.04.955-3.387.955-2.605 0-4.81-1.76-5.596-4.123H3.064v2.59A9.997 9.997 0 0 0 12 22Z"
-        fill="#34A853"
-      />
-      <path
-        d="M6.404 13.9A6.013 6.013 0 0 1 6.09 12c0-.66.114-1.3.314-1.9V7.51H3.064A9.997 9.997 0 0 0 2 12c0 1.614.386 3.14 1.064 4.49l3.34-2.59Z"
-        fill="#FBBC05"
-      />
-      <path
-        d="M12 5.977c1.468 0 2.787.505 3.824 1.498l2.868-2.868C16.96 2.99 14.695 2 12 2A9.997 9.997 0 0 0 3.064 7.51l3.34 2.59C7.19 7.737 9.395 5.977 12 5.977Z"
-        fill="#EA4335"
-      />
-    </svg>
-  )
-}
