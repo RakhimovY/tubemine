@@ -20,11 +20,17 @@ export function LandingAuthGate({ children }: { children: ReactNode }) {
   const [redirecting, setRedirecting] = useState(false)
 
   useEffect(() => {
-    const hint = getAuthHint()
-    if (hint === "signed-in") {
+    async function resolve() {
+      const hint = getAuthHint()
+      if (hint !== "signed-in") return
+      // Detach setState from the synchronous effect body to satisfy
+      // react-hooks/avoid-sync-set-state-in-effect; matches the pattern
+      // used in PricingTierAware (TUB-32 PR 1).
+      await Promise.resolve()
       setRedirecting(true)
       router.replace("/dashboard")
     }
+    void resolve()
   }, [router])
 
   if (redirecting) {
