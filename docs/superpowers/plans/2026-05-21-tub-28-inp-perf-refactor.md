@@ -543,7 +543,24 @@ Run each TC below as its own sub-checklist item. Record PASS/FAIL. If ANY TC fai
 - [ ] **2.14.1: TC #1 - SideNav highlights current page.** (Use the same JS snippet as step 1.11a.)
 - [ ] **2.14.2: TC #2 - AppShell persists across navigation.** (Same as 1.11b.)
 - [ ] **2.14.3: TC #3 - saveAnalysis persists non-null fields.**
-  Run a fresh analysis on a test video via the dashboard quick-analyze form (or `/api/extract`). Then via supabase SQL: `select video_title, channel_name, thumbnail_url from analyses where user_id='<your-uid>' order by processed_at desc limit 1`. Expected: all three non-null.
+  a) Run a fresh analysis on a test video via the dashboard quick-analyze form (or `/api/extract`).
+  b) Obtain your user UUID. From the authed Chrome MCP tab, in `mcp__claude-in-chrome__javascript_tool`:
+  ```js
+  (async () => {
+    const userMeta = document.querySelector('.field-row .mono')
+    return userMeta?.textContent ?? null
+  })()
+  ```
+  This reads the Account ID from `/profile` (navigate there first if needed). Alternatively use a known test account UUID from your records.
+  c) Query via `mcp__claude_ai_Supabase__execute_sql` with the SQL:
+  ```sql
+  select video_title, channel_name, thumbnail_url
+  from analyses
+  where user_id = '<your-uuid>'
+  order by processed_at desc
+  limit 1
+  ```
+  Expected: all three fields non-null on the latest row.
 - [ ] **2.14.4: TC #4 - Recent Analyses row has no `.is-placeholder` class for real data.**
   ```js
   (async () => {
@@ -554,19 +571,24 @@ Run each TC below as its own sub-checklist item. Record PASS/FAIL. If ANY TC fai
   ```
   Expected: `pass=true`. (Placeholders only allowed on thumbnails when source row has no thumbnail_url.)
 - [ ] **2.14.5: TC #5 - History row video_title renders real title.**
-  Navigate to `/en/history`. Run:
+  Navigate to `/en/history`. Run (selectors verified against `src/app/[locale]/(app)/history/history-client.tsx`: desktop rows use `.video-title-link`, mobile cards use `.hcr-title`):
   ```js
   (async () => {
-    const titles = Array.from(document.querySelectorAll('.history-row .video-title, .history-card .title')).map(el => el.textContent?.trim())
+    const titles = Array.from(document.querySelectorAll('.history-row .video-title-link, .history-card-row .hcr-title')).map(el => el.textContent?.trim())
     const looksLikeVideoId = titles.some(t => t && /^[A-Za-z0-9_-]{11}$/.test(t))
-    return { titlesSample: titles.slice(0, 5), pass: !looksLikeVideoId }
+    return {
+      titlesSample: titles.slice(0, 5),
+      titlesCount: titles.length,
+      pass: titles.length > 0 && !looksLikeVideoId,
+    }
   })()
   ```
-  Expected: `pass=true` (no row shows a raw 11-char videoId as the title).
+  Expected: `pass=true` (at least one title rendered AND none of them is a raw 11-char videoId).
+  If `titles.length === 0`: account has no saved analyses yet. Run TC #3 first to seed an analysis, then re-run this assertion.
 - [ ] **2.14.6: TC #6 - User A in regular browser sees only own data.**
-  In regular browser tab (User A): sidebar count `N`, dashboard Recent Analyses 5 rows owned by User A.
+  Human-driven (requires two real user accounts; coordinate with user via the same pattern as step 2.13 if Chrome MCP cannot drive a second isolated session). In regular browser tab (User A): sidebar count `N`, dashboard Recent Analyses 5 rows owned by User A.
 - [ ] **2.14.7: TC #7 - User B in incognito sees own data, no User A leakage.**
-  In incognito (User B): sidebar count `M` (different), Recent Analyses owned by User B.
+  Human-driven (same pattern as 2.14.6). In incognito (User B): sidebar count `M` (different), Recent Analyses owned by User B.
 - [ ] **2.14.8: TC #8 - Skeleton on nav.** (Same JS as 1.10 step.)
 - [ ] **2.14.9: TC #9 - Sidebar count badge.** (Same JS as step 2.12.)
 
@@ -973,8 +995,8 @@ Re-run all 9 sub-checks from step 2.14 (2.14.1 through 2.14.9). The auth-touchin
 - [ ] **3.16.3: TC #3.** Same procedure as 2.14.3.
 - [ ] **3.16.4: TC #4.** Same JS as 2.14.4.
 - [ ] **3.16.5: TC #5.** Same JS as 2.14.5.
-- [ ] **3.16.6: TC #6.** User A isolation - same as 2.14.6.
-- [ ] **3.16.7: TC #7.** User B incognito isolation - same as 2.14.7.
+- [ ] **3.16.6: TC #6.** User A isolation, human-driven (see 2.14.6 caveat).
+- [ ] **3.16.7: TC #7.** User B incognito isolation, human-driven (see 2.14.7 caveat).
 - [ ] **3.16.8: TC #8.** Same as 2.14.8.
 - [ ] **3.16.9: TC #9.** Same as 2.14.9.
 
