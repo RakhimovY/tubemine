@@ -387,7 +387,10 @@ export function TubeMine({ tier: initialTier }: { tier: ExtractTier }) {
         </button>
       </form>
 
-      {quotaLine && (
+      {/* Show the quota meta only for anonymous users. Authed users (free
+          and pro) see their canonical Monthly usage card on /dashboard,
+          so showing the same info inside the form is redundant noise. */}
+      {tier === "anonymous" && quotaLine && (
         <div className="demo-quota" role="status">
           <span>{quotaLine}</span>
         </div>

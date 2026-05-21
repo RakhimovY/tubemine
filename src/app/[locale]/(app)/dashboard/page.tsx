@@ -366,20 +366,22 @@ export default async function DashboardPage({
           </section>
         )}
 
-        {/* Free-tier quota footer note (small text) */}
-        <p
-          style={{
-            textAlign: "center",
-            fontSize: 12,
-            color: "var(--color-text-tertiary)",
-            fontFamily: "var(--font-family-mono)",
-            margin: 0,
-          }}
-        >
-          {tier === "free"
-            ? `Free: ${formatNumber(FREE_MONTHLY_CAP)} / month · Pro: ${formatNumber(PRO_MONTHLY_CAP)} / month`
-            : `Pro: ${formatNumber(PRO_MONTHLY_CAP)} / month`}
-        </p>
+        {/* Free-tier footer with implicit Pro upsell. Hidden for Pro users
+            since the Monthly usage card + tier-card already show their cap;
+            repeating it as small footer text is pure noise. */}
+        {tier === "free" && (
+          <p
+            style={{
+              textAlign: "center",
+              fontSize: 12,
+              color: "var(--color-text-tertiary)",
+              fontFamily: "var(--font-family-mono)",
+              margin: 0,
+            }}
+          >
+            {`Free: ${formatNumber(FREE_MONTHLY_CAP)} / month · Pro: ${formatNumber(PRO_MONTHLY_CAP)} / month`}
+          </p>
+        )}
     </div>
   )
 }
