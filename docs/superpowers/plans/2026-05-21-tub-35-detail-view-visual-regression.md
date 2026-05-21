@@ -434,7 +434,7 @@ Expected: patch returns success, file updated.
 
 Run `mcp__obsidian__read_note` again and verify the TC-CSS-008 section appears at the bottom (or wherever append placed it) with the acceptance criterion intact and no em-dash characters.
 
-Run em-dash sanity check by reading the relevant section and visually scanning for `—` or `–`.
+Run em-dash sanity check by reading the relevant section and visually scanning for U+2014 or U+2013 codepoints.
 
 ### Task 4: Extend playbook 13 with visual fidelity gate
 
@@ -476,7 +476,7 @@ Expected: patch returns success.
 
 Run `mcp__obsidian__read_note` and scroll/grep through the file for "Visual fidelity gate". Confirm:
 - The sub-section is present with all three numbered items.
-- No `—` (em-dash) or `–` (en-dash) characters.
+- No em-dash (U+2014) or en-dash (U+2013) characters.
 
 ### Task 5: File final Linear comment + move TUB-35 to Done
 
