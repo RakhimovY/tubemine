@@ -421,6 +421,10 @@ html {
 .tm-design .nav-link.is-active { color: var(--color-text-primary); background: rgba(245,245,247,0.06); }
 .tm-design .nav-link:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-border-focus); }
 .tm-design .nav-actions { display: inline-flex; align-items: center; gap: var(--space-3); }
+/* TUB-30: reserve nav-actions width so anon->signed-in client swap does not cause CLS. Desktop only; mobile collapses .nav-actions children below at <1024px. */
+@media (min-width: 1024px) {
+  .tm-design .nav-actions { min-width: 300px; justify-content: flex-end; }
+}
 .tm-design .nav-ghost-icon { width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--radius-xs); color: var(--color-text-secondary); transition: color var(--motion-duration-fast) var(--motion-ease), background var(--motion-duration-fast) var(--motion-ease); }
 .tm-design .nav-ghost-icon:hover { color: var(--color-text-primary); background: rgba(245,245,247,0.06); }
 
