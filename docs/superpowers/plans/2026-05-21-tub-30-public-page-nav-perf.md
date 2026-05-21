@@ -730,20 +730,34 @@ EOF
 
 - [ ] **Step 4: Wait for Vercel preview READY**
 
-The PR triggers a Vercel preview deployment automatically. Use the Vercel MCP tool to confirm READY status:
+The PR triggers a Vercel preview deployment automatically.
+
+First, look up the team and project IDs (both are required by the Vercel MCP):
 
 ```
-mcp__vercel__list_deployments {
-  projectId: "tubemine",
-  limit: 5
+mcp__vercel__list_teams {}
+```
+
+Capture the `id` of the team that owns the `tubemine` project. Then:
+
+```
+mcp__vercel__list_projects {
+  teamId: "<team-id-from-previous-call>"
 }
 ```
 
-Find the deployment whose `gitSource.ref` matches the branch `erkebulan622/tub-30-public-page-nav-perf`. Confirm `readyState` is `READY` (poll every ~30 seconds if still `BUILDING`).
+Find the project whose `name` is `tubemine` and capture its `id`. Then poll deployments:
 
-Capture the preview URL (`url` field) for the next task.
+```
+mcp__vercel__list_deployments {
+  projectId: "<project-id>",
+  teamId: "<team-id>"
+}
+```
 
-If the Vercel MCP is not available, fall back to `gh pr checks <pr-number>` and watch for the Vercel check to turn green. The PR number is visible in the URL from Step 3 or via `gh pr list --head erkebulan622/tub-30-public-page-nav-perf --json number,url`.
+In the returned array, find the deployment whose `meta.githubCommitRef` or `gitSource.ref` matches `erkebulan622/tub-30-public-page-nav-perf`. If its `readyState` is `BUILDING` or `QUEUED`, wait ~30 seconds and re-call `list_deployments`. Repeat until `readyState` is `READY`. Capture the `url` field (the preview URL).
+
+Fallback if the Vercel MCP is unavailable: run `gh pr checks <pr-number>` and wait for the Vercel check to flip green. Find the PR number via `gh pr list --head erkebulan622/tub-30-public-page-nav-perf --json number,url`. Then read the Vercel preview URL from the PR comment that the Vercel GitHub App posts automatically (`gh pr view <pr-number> --json comments --jq '.comments[].body' | grep -oE 'https://[^ ]*vercel.app[^ ]*' | head -1`).
 
 - [ ] **Step 5: Squash-merge the PR to main**
 
@@ -765,23 +779,42 @@ This task is the verification-on-prod gate per `~/vault/feedback/qa-verify-on-pr
 
 ### Task 5 steps
 
-- [ ] **Step 1: Open the deploy URL in a Chrome MCP-controlled tab**
+- [ ] **Step 1: Get the existing tab context, then open the deploy URL**
 
 Verification runs first against the Vercel preview URL captured in Task 4 Step 4, then again on production after merge. The same tool sequence applies to both; substitute the URL.
 
-Use the MCP tool sequence:
+The claude-in-chrome MCP requires getting tab context first to discover existing tab IDs. Then create a new tab and navigate it:
 
 ```
-mcp__claude-in-chrome__tabs_create_mcp { url: "<PREVIEW_OR_PROD_URL>/en/pricing" }
+mcp__claude-in-chrome__tabs_context_mcp {}
 ```
 
-Wait for page load with an explicit JavaScript-based delay (the claude-in-chrome MCP does not expose a `wait_for` tool; use `javascript_tool` with a Promise-based sleep):
+Capture the resulting tab list (each entry has a numeric `id`). Choose to either reuse an existing about:blank tab or create a fresh one:
+
+```
+mcp__claude-in-chrome__tabs_create_mcp {}
+```
+
+Capture the new tab's id from the response. Call it `TAB_ID` for the rest of Task 5. Then navigate it to the test URL:
+
+```
+mcp__claude-in-chrome__navigate {
+  tabId: <TAB_ID>,
+  url: "<PREVIEW_OR_PROD_URL>/en/pricing"
+}
+```
+
+Wait for page settle with a Promise-based sleep (the claude-in-chrome MCP does not expose a `wait_for` tool):
 
 ```
 mcp__claude-in-chrome__javascript_tool {
-  code: "await new Promise(r => setTimeout(r, 3000)); 'ready'"
+  action: "javascript_exec",
+  tabId: <TAB_ID>,
+  text: "new Promise(r => setTimeout(r, 3000)).then(() => 'ready')"
 }
 ```
+
+Note: `javascript_tool` returns the value of the last expression and does NOT support `return` statements. All inline code uses expression form, not statement form.
 
 - [ ] **Step 2: Confirm signed-in baseline state (or anon, per scenario)**
 
@@ -790,7 +823,9 @@ The brief and spec want both states verified. Start with signed-in.
 Run:
 ```
 mcp__claude-in-chrome__javascript_tool {
-  code: "document.cookie.split(';').map(c=>c.trim()).filter(c=>c.startsWith('sb-'))"
+  action: "javascript_exec",
+  tabId: <TAB_ID>,
+  text: "document.cookie.split(';').map(c=>c.trim()).filter(c=>c.startsWith('sb-'))"
 }
 ```
 
@@ -798,21 +833,28 @@ Expected for signed-in: array of one or more `sb-...` cookies present. If empty,
 
 - [ ] **Step 3: Run the verification measurement script (5 alternating navigations)**
 
-Run the inlined script via:
+Run the inlined script via `javascript_tool`. The expression form is required (no `return` statement at top level):
 
 ```
 mcp__claude-in-chrome__javascript_tool {
-  code: "(async () => { const samples = []; for (let i = 0; i < 5; i++) { performance.clearResourceTimings(); const startTime = performance.now(); const target = i % 2 === 0 ? '/docs' : '/changelog'; const link = document.querySelector(`a[href*=\"${target}\"]`); if (!link) { samples.push({ iter: i, error: `no link for ${target}` }); continue; } const startUrl = location.pathname; link.click(); await new Promise(r => { const iv = setInterval(() => { if (location.pathname !== startUrl) { setTimeout(() => { clearInterval(iv); r(); }, 300); } }, 20); setTimeout(r, 6000); }); const rsc = performance.getEntriesByType('resource').find(r => r.name.includes(location.hostname) && r.initiatorType === 'fetch' && !r.name.includes('/view') && r.transferSize > 1000); samples.push({ total_ms: Math.round(performance.now() - startTime), ttfb: rsc ? Math.round(rsc.responseStart - rsc.requestStart) : null }); await new Promise(r => setTimeout(r, 800)); } console.table(samples); return samples; })()"
+  action: "javascript_exec",
+  tabId: <TAB_ID>,
+  text: "(async () => { const samples = []; for (let i = 0; i < 5; i++) { performance.clearResourceTimings(); const startTime = performance.now(); const target = i % 2 === 0 ? '/docs' : '/changelog'; const link = document.querySelector(`a[href*=\"${target}\"]`); if (!link) { samples.push({ iter: i, error: `no link for ${target}` }); continue; } const startUrl = location.pathname; link.click(); await new Promise(r => { const iv = setInterval(() => { if (location.pathname !== startUrl) { setTimeout(() => { clearInterval(iv); r(); }, 300); } }, 20); setTimeout(r, 6000); }); const rsc = performance.getEntriesByType('resource').find(r => r.name.includes(location.hostname) && r.initiatorType === 'fetch' && !r.name.includes('/view') && r.transferSize > 1000); samples.push({ total_ms: Math.round(performance.now() - startTime), ttfb: rsc ? Math.round(rsc.responseStart - rsc.requestStart) : null }); await new Promise(r => setTimeout(r, 800)); } console.table(samples); samples; })()"
 }
 ```
 
-The script (sourced from `~/vault/references/tubemine-public-page-nav-perf-2026-05-21.md` §"Verification methodology", with two small hardenings: hostname-derived match instead of hardcoded `tubemine.tech` so the same script works on the Vercel preview domain, and an early-out if the link element is not found) clicks 5 alternating links between `/docs` and `/changelog`, prints a `console.table(samples)` with `total_ms` and `ttfb` columns, and returns the array as the tool result for direct capture.
+The script (sourced from `~/vault/references/tubemine-public-page-nav-perf-2026-05-21.md` §"Verification methodology", with three hardenings: hostname-derived match instead of hardcoded `tubemine.tech` so the same script works on the Vercel preview domain, an early-out if the link element is not found, and the IIFE's trailing expression returns the samples array so `javascript_tool` captures it as the tool result) clicks 5 alternating links between `/docs` and `/changelog` and returns the sampled array of `{ total_ms, ttfb }` objects.
 
 - [ ] **Step 4: Capture the table output**
 
-Run:
+The samples are already returned as the result of Step 3's tool call (the IIFE's trailing expression `samples`). Read them from the tool result directly. If you also want the formatted `console.table` rows for debug capture, run:
+
 ```
-mcp__claude-in-chrome__read_console_messages { pattern: "total_ms|ttfb" }
+mcp__claude-in-chrome__read_console_messages {
+  tabId: <TAB_ID>,
+  pattern: "total_ms|ttfb",
+  limit: 50
+}
 ```
 
 Record the 5 samples. Compute:
@@ -826,55 +868,122 @@ Compare against acceptance:
 
 - [ ] **Step 5: Run additional smoke tests**
 
-For each of the following, take a screenshot via `mcp__claude-in-chrome__take_screenshot` and verify visually + via `mcp__claude-in-chrome__get_page_text`:
+For each of the following, capture a screenshot via `mcp__claude-in-chrome__take_screenshot { tabId: <TAB_ID> }` and verify the page state via `mcp__claude-in-chrome__javascript_tool` reads of DOM text.
 
 (a) **Anonymous, fresh incognito, hard reload /en/pricing:**
 
+For the anonymous case, the simplest path is to delete the `sb-...` cookies and reload, simulating an incognito state without spinning up a separate browser profile:
+
 ```
-mcp__claude-in-chrome__tabs_create_mcp { url: "https://tubemine.tech/en/pricing" }
+mcp__claude-in-chrome__javascript_tool {
+  action: "javascript_exec",
+  tabId: <TAB_ID>,
+  text: "document.cookie.split(';').filter(c => c.trim().startsWith('sb-')).forEach(c => { const name = c.split('=')[0].trim(); document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; domain=${location.hostname}`; }); localStorage.removeItem('tubemine:auth-hint'); 'cleared'"
+}
 ```
 
-Use an incognito profile (the Chrome MCP browser config; ensure cookies are empty). Verify header shows `Get started` button. Verify no `Dashboard` text. Open DevTools console, confirm no `Hydration failed` or `Warning: Text content did not match` errors.
+Then reload via re-navigation:
+
+```
+mcp__claude-in-chrome__navigate {
+  tabId: <TAB_ID>,
+  url: "<PREVIEW_OR_PROD_URL>/en/pricing"
+}
+```
+
+Wait 3s settle. Verify header text:
+
+```
+mcp__claude-in-chrome__javascript_tool {
+  action: "javascript_exec",
+  tabId: <TAB_ID>,
+  text: "({ getStarted: !!document.querySelector('header a[href*=\"login\"]'), dashboard: !!document.querySelector('header a[href*=\"dashboard\"]'), text: (document.querySelector('header .nav-actions, header')?.innerText ?? '').slice(0, 200) })"
+}
+```
+
+Expected: `getStarted: true`, `dashboard: false` (or text contains `Get started` and not `Dashboard`).
+
+Check console for hydration errors:
+
+```
+mcp__claude-in-chrome__read_console_messages {
+  tabId: <TAB_ID>,
+  pattern: "Hydration|did not match|Warning",
+  onlyErrors: false,
+  limit: 50
+}
+```
+
+Expected: zero matching messages.
 
 (b) **Anonymous, click /docs from header, verify transition:**
 
 ```
-mcp__claude-in-chrome__click { selector: "header a[href*='/docs']" }
-mcp__claude-in-chrome__wait_for { selector: "h1, [class*='docs']" }
-```
-
-Verify header still shows `Get started` (no flicker visible).
-
-(c) **Signed-in, hard reload /en/changelog:**
-
-Switch to the signed-in profile. Navigate to `/en/changelog`, hard-reload. Verify header shows `Dashboard` + avatar with initials. Verify no console errors. Verify localStorage:
-
-```
-mcp__claude-in-chrome__javascript_tool {
-  code: "localStorage.getItem('tubemine:auth-hint')"
+mcp__claude-in-chrome__click {
+  tabId: <TAB_ID>,
+  selector: "header a[href*='/docs']"
 }
 ```
 
-Expected: `"signed-in"`.
-
-(d) **CLS measurement:**
+Wait 1.5s for the RSC fetch + paint:
 
 ```
-mcp__claude-in-chrome__performance_start_trace { reload: true }
+mcp__claude-in-chrome__javascript_tool {
+  action: "javascript_exec",
+  tabId: <TAB_ID>,
+  text: "new Promise(r => setTimeout(r, 1500)).then(() => location.pathname)"
+}
 ```
 
-Wait, then stop:
+Expected returned string contains `/docs`. Verify header still shows `Get started` via the same DOM-text read pattern as Step 5a.
+
+(c) **Signed-in, hard reload /en/changelog:**
+
+Log back in via the production UI (manual step in a separate browser window if needed; the cookies will sync to the Chrome MCP tab if it shares the profile, otherwise re-navigate to /login and complete OAuth in the Chrome MCP tab itself). Then:
 
 ```
-mcp__claude-in-chrome__performance_stop_trace
+mcp__claude-in-chrome__navigate {
+  tabId: <TAB_ID>,
+  url: "<PREVIEW_OR_PROD_URL>/en/changelog"
+}
 ```
 
-Run:
+Wait 3s settle. Verify header shows `Dashboard` + initials avatar:
+
 ```
-mcp__claude-in-chrome__performance_analyze_insight { insightName: "CLS" }
+mcp__claude-in-chrome__javascript_tool {
+  action: "javascript_exec",
+  tabId: <TAB_ID>,
+  text: "({ dashboard: !!document.querySelector('header a[href*=\"dashboard\"]'), hasAvatar: !!document.querySelector('header .nav-actions span[style*=\"linear-gradient\"]'), hint: localStorage.getItem('tubemine:auth-hint') })"
+}
 ```
 
-Expected: CLS score < 0.01. If higher, investigate the `.nav-actions` `min-width` value picked in Task 3.
+Expected: `dashboard: true`, `hasAvatar: true`, `hint: "signed-in"`.
+
+(d) **CLS measurement (inline PerformanceObserver):**
+
+Reload the page, then immediately install a PerformanceObserver for `layout-shift` and let it run for 3 seconds:
+
+```
+mcp__claude-in-chrome__navigate {
+  tabId: <TAB_ID>,
+  url: "<PREVIEW_OR_PROD_URL>/en/pricing"
+}
+```
+
+Then in a single javascript_tool call right after navigation completes (the observer needs to be attached before layout settles):
+
+```
+mcp__claude-in-chrome__javascript_tool {
+  action: "javascript_exec",
+  tabId: <TAB_ID>,
+  text: "new Promise(resolve => { let cls = 0; const observer = new PerformanceObserver(list => { for (const entry of list.getEntries()) { if (!entry.hadRecentInput) cls += entry.value; } }); try { observer.observe({ type: 'layout-shift', buffered: true }); } catch { resolve({ supported: false, cls: null }); return; } setTimeout(() => { observer.disconnect(); resolve({ supported: true, cls: Math.round(cls * 10000) / 10000 }); }, 3000); })"
+}
+```
+
+Expected returned object: `{ supported: true, cls: < 0.01 }`. If `supported: false`, fall back to running a Lighthouse audit via `mcp__claude-in-chrome__lighthouse_audit` (if available) or accept the smoke-test result and document in the Linear comment.
+
+If `cls >= 0.01`, investigate the `.nav-actions` `min-width` value picked in Task 3. Re-measure the signed-in layout, increase the rule, redeploy.
 
 - [ ] **Step 6: Record all numbers and screenshots**
 
