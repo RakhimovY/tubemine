@@ -195,10 +195,14 @@ export function clearAuthHint(): void {
 The `(app)/` route group renders `AppShell`, not `SiteHeaderClient`. So when a user logs in and is redirected to `/dashboard`, no `SiteHeaderClient` mounts and no hint is written. The first post-login visit to a public page would then start with no hint, briefly show anon shell, and flicker to signed-in once `INITIAL_SESSION` fires. To eliminate that flicker:
 
 1. Import `setAuthHint` from `@/lib/auth-hint`.
-2. Inside the successful-login callback (after the supabase sign-in / OAuth completes and before any navigation), call `setAuthHint("signed-in")`.
-3. If the login page also handles sign-out (typically it does not, but if there is any path that explicitly clears the session from this file), pair it with `clearAuthHint()` or `setAuthHint("anonymous")`. Existing logout buttons live in `(app)/` (`src/app/[locale]/(app)/profile` and similar) and are explicitly out of scope per the brief; the first-public-visit-post-logout flicker is documented in Risk register as accepted.
+2. Write `setAuthHint("signed-in")` ONLY on confirmed-success paths, where a real session was returned. Concretely:
+   - **Email/password (or magic link) flow:** inside the branch that handles the resolved `signInWithPassword`/`signInWithOtp` response, after asserting `data.session != null` and `error == null`. Do NOT write before the network call returns. Do NOT write in an optimistic pre-redirect path.
+   - **OAuth flow:** the initial click that calls `signInWithOAuth` is a redirect to the provider; do NOT write the hint there (no session exists yet). The hint must be written in the OAuth callback handler that processes `?code=...` and exchanges it for a session. If that callback handler is on the server side and `login-client.tsx` itself does not see the callback, then the post-OAuth-redirect lands the user in `(app)/` (out of scope), so the OAuth case may fall back to the same flicker-once behavior as post-logout. Inspect the current login flow during implementation to choose: write hint in the OAuth callback if the callback is client-side, otherwise accept the one-time post-OAuth flicker and document in the Linear comment.
+3. Do NOT write `setAuthHint("anonymous")` from `login-client.tsx`. The `SiteHeaderClient` listener writes that on its own when `applySession(null)` runs.
 
-This is the only edit outside the SiteHeader family. It is a 2-line change (import + one call) co-located with where the auth state actually changes. No new dependency, no scope creep.
+This is the only edit outside the SiteHeader family. It is a small additive change (import + one call inside a confirmed-success branch) co-located with where the auth state actually changes. No new dependency, no scope creep.
+
+The point of constraining the write to confirmed-success branches: avoid a stale `"signed-in"` hint when a client-side success path is followed by a server-side rejection. The accepted edge case (listener fires SIGNED_OUT, hint corrected) covers the residual risk if a session is server-revoked after this point.
 
 ### Hydration walkthrough
 
@@ -231,6 +235,18 @@ This is the only edit outside the SiteHeader family. It is a 2-line change (impo
 2. `onAuthStateChange` fires in this tab (via `@supabase/ssr` cross-tab storage broadcast) with `session = null`.
 3. `applySession(null)`: `setAuthState("anonymous")` + `setAuthHint("anonymous")`.
 4. UI swaps Dashboard → Get started.
+
+**Sign-in in another tab (same browser):**
+
+Symmetric to sign-out. Tab B is open on /pricing as anonymous; user signs in on Tab A.
+
+1. Tab A's `login-client.tsx` completes the successful sign-in, calls `setAuthHint("signed-in")` and triggers Supabase session storage write.
+2. `@supabase/ssr` broadcasts the SIGNED_IN event cross-tab via its own auth-storage key (separate mechanism from our hint key).
+3. Tab B's `onAuthStateChange` fires with the new session.
+4. `applySession(user)`: `setAuthState("signed-in")` + `setInitials(...)` + `setAuthHint("signed-in")`.
+5. UI swaps Get started → Dashboard.
+
+Note: the `tubemine:auth-hint` localStorage key also fires a `storage` event in Tab B, but we do NOT subscribe to native `storage` events. We only react to Supabase's own broadcast via `onAuthStateChange`. This is intentional: Supabase's broadcast includes the session payload, so Tab B can compute initials without re-fetching. The hint key is a render-acceleration artifact, not a coordination channel.
 
 **Cross-device or admin-revoked sign-out (out of cross-tab broadcast scope):**
 
@@ -326,8 +342,8 @@ Pass criteria (Phase B target from Linear TUB-30 body), evaluated on these 5 nav
 
 ### Functional (smoke tests on prod)
 
-- **Anonymous user (fresh incognito, no localStorage hint), hard reload `/en/pricing`:** header renders `Get started` CTA. No `Dashboard` shown. No console error.
-- **Anonymous user (fresh incognito), click `/docs`:** transition completes, header still shows `Get started`. No flicker (initial state = "anonymous" matches SSR, and `applySession(null)` leaves state unchanged).
+- **Anonymous user (fresh incognito, no localStorage hint), hard reload `/en/pricing`:** header renders `Get started` CTA. No `Dashboard` shown. No console error. After the listener fires, `localStorage["tubemine:auth-hint"]` is set to `"anonymous"` (this is intentional: the listener always writes the truth after firing, so subsequent visits also skip any initial-render ambiguity). This is not a regression - it is the expected steady-state.
+- **Anonymous user (fresh incognito), click `/docs`:** transition completes, header still shows `Get started`. No flicker (initial state = "anonymous" matches SSR, and `applySession(null)` produces the same value).
 - **Anonymous user with stale "signed-in" hint** (clear cookies but keep localStorage, then visit /pricing): initial render briefly shows Dashboard CTA, then `onAuthStateChange` fires with `session = null`, state flips to anonymous within one render. The hint also clears (overwritten to "anonymous"). This brief incorrect-state flicker is expected and acceptable; the next visit shows correct state immediately.
 - **Sign in via `/login` flow:** immediately after the login callback completes (BEFORE the redirect to `/dashboard` finishes navigation), `localStorage["tubemine:auth-hint"]` is set to `"signed-in"`. Verify in DevTools Application → Local Storage on the `/login` URL itself, or on `/dashboard` right after landing. The hint is written by `login-client.tsx`, not by `SiteHeaderClient` (which never mounts on `/dashboard`).
 - **Signed-in user, click `/pricing` from header:** Dashboard CTA + avatar appear without flicker (hint hit on first client render).
