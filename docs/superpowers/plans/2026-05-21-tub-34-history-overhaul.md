@@ -432,6 +432,11 @@ export async function saveAnalysis(input: AnalysisInsert): Promise<void> {
     try {
       await uploadCommentsBlob(input.userId, input.videoId, serialized)
     } catch (e) {
+      // Per spec §7: on blob upload failure with row already upserted, the row
+      // points at a missing blob. Detail view shows comments_unavailable on
+      // read. We log but do NOT roll back the row, because the live extract
+      // response has already returned to the client; rolling back would leave
+      // them with aggregates only and no cache reference. Accepted transient.
       console.warn("[analyses] blob upload failed after row upsert", {
         error: (e as Error).message,
         path: commentsBlobPathValue,
@@ -461,10 +466,8 @@ export type AnalysisRow = {
   expires_at: string
 }
 
-export type AnalysisRowWithComments = AnalysisRow & {
-  comments: StoredComment[] | null
-  comments_blob_path?: string | null
-}
+// (Detail-row type with comments is defined in Task 1.6 as AnalysisDetailRow.
+// Do not add a parallel AnalysisRowWithComments type here to avoid drift.)
 ```
 
 - [ ] **Step 3: Confirm listAnalyses NEVER selects comments**
@@ -505,17 +508,26 @@ git commit -m "feat(tub-34): tier-aware TTL + comments persistence in saveAnalys
 
 - [ ] **Step 1: Add getAnalysisById**
 
+At the top of `src/lib/analyses.ts` add (if not already present):
+
+```ts
+import type { SupabaseClient } from "@supabase/supabase-js"
+import { downloadCommentsBlob, deleteCommentsBlob } from "@/lib/supabase/storage"
+import type { StoredComment } from "@/lib/comments"
+```
+
 Append to `src/lib/analyses.ts`:
 
 ```ts
-import { downloadCommentsBlob, deleteCommentsBlob } from "@/lib/supabase/storage"
-
-const UUID_FULL_RE = UUID_RE
-
 export type AnalysisDetailRow = AnalysisRow & {
   comments: StoredComment[] | null
   comments_blob_path: string | null
 }
+
+export type GetAnalysisByIdResult =
+  | { ok: true; row: AnalysisDetailRow }
+  | { ok: false; reason: "not_found" }
+  | { ok: false; reason: "comments_unavailable"; row: AnalysisDetailRow }
 
 /**
  * Load a single analysis for the detail view, including comments.
@@ -524,12 +536,17 @@ export type AnalysisDetailRow = AnalysisRow & {
  * The row-level SELECT through RLS is the authorization gate. If RLS returns
  * nothing, blob fetch never runs. Passing a service client here would
  * silently expose cross-user comments.
+ *
+ * Returns a discriminated result so callers can distinguish:
+ *  - row missing -> 404
+ *  - row present but blob fetch failed -> 500 comments_unavailable
+ *  - happy path -> 200 with comments attached
  */
 export async function getAnalysisById(
   userSb: SupabaseClient,
   id: string,
-): Promise<AnalysisDetailRow | null> {
-  if (!UUID_FULL_RE.test(id)) return null
+): Promise<GetAnalysisByIdResult> {
+  if (!UUID_RE.test(id)) return { ok: false, reason: "not_found" }
   const { data, error } = await userSb
     .from("analyses")
     .select(
@@ -540,9 +557,9 @@ export async function getAnalysisById(
 
   if (error) {
     console.warn("[analyses] getAnalysisById error", { error: error.message, id })
-    return null
+    return { ok: false, reason: "not_found" }
   }
-  if (!data) return null
+  if (!data) return { ok: false, reason: "not_found" }
   const row = data as AnalysisDetailRow
   if (row.comments_blob_path && !row.comments) {
     try {
@@ -552,14 +569,15 @@ export async function getAnalysisById(
         error: (e as Error).message,
         path: row.comments_blob_path,
       })
-      // Leave comments null; caller distinguishes via comments_blob_path.
-      // Detail view shows comments_unavailable error state per spec §7.
       row.comments = null
+      return { ok: false, reason: "comments_unavailable", row }
     }
   }
-  return row
+  return { ok: true, row }
 }
 ```
+
+Note: `UUID_RE` is already declared at the top of `src/lib/analyses.ts` (existing) - reuse it. Do NOT add a `UUID_FULL_RE` alias.
 
 - [ ] **Step 2: Extend purgeExpiredAnalyses to delete blobs**
 
@@ -720,10 +738,14 @@ export async function GET(
     return NextResponse.json({ error: "invalid_id" }, { status: 400 })
   }
 
-  const row = await getAnalysisById(supabase, id)
-  if (!row) {
+  const result = await getAnalysisById(supabase, id)
+  if (!result.ok && result.reason === "not_found") {
     return NextResponse.json({ error: "not_found" }, { status: 404 })
   }
+  if (!result.ok && result.reason === "comments_unavailable") {
+    return NextResponse.json({ error: "comments_unavailable" }, { status: 500 })
+  }
+  const row = result.ok ? result.row : (result as never)
   const has_comments = row.comments != null || row.comments_blob_path != null
   return NextResponse.json({
     id: row.id,
@@ -764,7 +786,42 @@ git commit -m "feat(tub-34): add GET /api/analyses/[id]"
 
 Read `src/app/api/export/route.ts`. The existing schema is `ExportRequestSchema` with `format: z.enum(["json", "xlsx"])`. We add a discriminated union with `mode`.
 
-- [ ] **Step 2: Add discriminated union + cache branch**
+- [ ] **Step 2: Extract serialization into a helper**
+
+First, refactor the existing handler body into `buildExportResponse`. Lift the CSV / JSON / Excel serialization branches out of the current POST handler. Skeleton:
+
+```ts
+async function buildExportResponse(
+  format: "csv" | "json" | "xlsx",
+  payload: {
+    videoId: string
+    videoTitle?: string
+    channelName?: string
+    comments: Array<{
+      author: string
+      text: string
+      sentiment?: string
+      likes: number
+      replies: number
+      publishedAt: string
+    }>
+  },
+): Promise<Response> {
+  if (format === "json") {
+    // existing JSON branch body, returning NextResponse.json(payload) with
+    // appropriate Content-Disposition
+  } else if (format === "xlsx") {
+    // existing ExcelJS branch body
+  } else {
+    // CSV branch: serialize payload.comments with sanitizeForSpreadsheet, set
+    // Content-Type: text/csv, Content-Disposition: attachment; filename=...
+  }
+}
+```
+
+Keep the existing serialization code intact; just move it into this helper. If CSV is currently implemented in a separate route (verify by `rg "Content-Type.*text/csv"` in src/), copy that serialization into this helper for the cache branch.
+
+- [ ] **Step 3: Add discriminated union + cache branch**
 
 At the top, alongside existing schema, add (replacing the existing schema's export):
 
@@ -860,6 +917,47 @@ Expected: SUCCESS. If `buildExportResponse` signature doesn't compile, inspect e
 ```bash
 git add src/app/api/export/route.ts
 git commit -m "feat(tub-34): /api/export gains cache mode (zero-YT-quota export from cached comments)"
+```
+
+### Task 1.9b: Update live extract callers with mode: "extract" (CRITICAL)
+
+**Files:**
+- Modify: `src/components/tubemine.tsx`
+- Modify: `src/app/api/export/__tests__/route.test.ts`
+
+The discriminated union added in Task 1.9 requires `mode` on EVERY request. Without this task, the existing live export flow (Save JSON / Save Excel from the live extract view) breaks immediately on PR 1 deploy.
+
+- [ ] **Step 1: Update tubemine.tsx fetch calls**
+
+Open `src/components/tubemine.tsx` and locate both `fetch("/api/export", ...)` calls (~lines 288 and 317 per recon). For each, add `mode: "extract"` to the JSON body. Example:
+
+```ts
+// Before:
+body: JSON.stringify({ format: "xlsx", videoId, videoTitle, channelName, comments })
+// After:
+body: JSON.stringify({ mode: "extract", format: "xlsx", videoId, videoTitle, channelName, comments })
+```
+
+Apply to both call sites.
+
+- [ ] **Step 2: Update existing route test**
+
+Open `src/app/api/export/__tests__/route.test.ts`. Update each test's request body to include `mode: "extract"` matching the new schema. The tests currently send `format` + `videoId` + `comments` without `mode`; they must add `mode: "extract"` to pass the new discriminated union.
+
+- [ ] **Step 3: Build + run tests**
+
+```bash
+pnpm build
+pnpm vitest run src/app/api/export/__tests__/route.test.ts
+```
+
+Expected: both PASS.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add src/components/tubemine.tsx src/app/api/export/__tests__/route.test.ts
+git commit -m "fix(tub-34): live extract callers send mode: extract to /api/export (avoid breaking discriminated union)"
 ```
 
 ### Task 1.10: PR 1 verify-on-prod (BLOCKER)
@@ -1331,7 +1429,7 @@ import { notFound } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { getAnalysisById } from "@/lib/analyses"
 import { AnalysisDetailView } from "@/components/analysis-detail-view"
-import { resolveEffectiveTier } from "@/lib/quota"
+import { getUserQuota } from "@/lib/quota"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -1348,17 +1446,20 @@ export default async function Page({
   } = await supabase.auth.getUser()
   if (!user) notFound()
 
-  const row = await getAnalysisById(supabase, id)
-  if (!row) notFound()
-
-  const tier = await resolveEffectiveTier(user.id)
+  const result = await getAnalysisById(supabase, id)
+  if (!result.ok && result.reason === "not_found") notFound()
+  // For comments_unavailable, still render the page with comments=null;
+  // detail view shows the legacy/unavailable placeholder per spec §7.
+  const row = result.ok ? result.row : result.row
+  const quota = await getUserQuota(user.id)
+  const tier: "free" | "pro" = quota.tier === "pro" ? "pro" : "free"
   const has_comments = row.comments != null || row.comments_blob_path != null
 
   return <AnalysisDetailView tier={tier} row={{ ...row, has_comments }} />
 }
 ```
 
-If `resolveEffectiveTier` doesn't exist by that name, look in `src/lib/quota.ts` (referenced in spec §4 as the existing tier source) for the actual exported name and use it.
+Note: `getUserQuota` is the existing exported function in `src/lib/quota.ts` returning `{ tier, ... }`. Use it directly; do NOT rely on a `resolveEffectiveTier` helper.
 
 - [ ] **Step 2: loading.tsx**
 
@@ -1443,14 +1544,28 @@ export function EmptyAnalysesList() {
     <div className="rounded-lg border p-6 text-center">
       <p className="text-sm text-muted-foreground">{t("empty")}</p>
       <Link href="/" className="mt-3 inline-block text-sm font-medium text-primary hover:underline">
-        {t("start_extracting") /* if key missing, use existing "View all" or add a new key */}
+        {t("start_extracting")}
       </Link>
     </div>
   )
 }
 ```
 
-If `start_extracting` doesn't exist in `messages/en.json`, add it (RU parity required) in this same task. Otherwise reuse existing key.
+- [ ] **Step 2: Add the `start_extracting` key to both message files (parity required)**
+
+In `messages/en.json` under the existing `"dashboard"` namespace, add:
+
+```json
+"start_extracting": "Start extracting"
+```
+
+In `messages/ru.json` under `"dashboard"`:
+
+```json
+"start_extracting": "Начать извлечение"
+```
+
+Run: `node scripts/check-message-parity.mjs` -> expect PASS.
 
 - [ ] **Step 2: Commit**
 
@@ -1803,13 +1918,11 @@ git commit -m "refactor(tub-34): RecentAnalyses uses unified AnalysesList (10 it
 **Files:**
 - Modify: `src/app/[locale]/(app)/history/history-client.tsx`
 
-- [ ] **Step 1: Read current contents**
+Recon-confirmed: the existing history-client accepts `{ tier, locale, initialItems, initialNextCursor }`. The `<AnalysesList>` prop is named `initialCursor` (NOT `initialNextCursor`); map between them.
 
-Read `src/app/[locale]/(app)/history/history-client.tsx` to understand the current shape (props it receives from the server page).
+- [ ] **Step 1: Replace render body**
 
-- [ ] **Step 2: Replace render body**
-
-Keep any existing data-fetching wrapper from the server page. Replace the rendering with:
+Replace the entire `src/app/[locale]/(app)/history/history-client.tsx` contents:
 
 ```tsx
 "use client"
@@ -1819,21 +1932,20 @@ import type { AnalysisRow } from "@/lib/analyses"
 
 type Tier = "free" | "pro"
 
-export function HistoryClient({
-  initialItems,
-  initialCursor,
-  tier,
-}: {
-  initialItems: AnalysisRow[]
-  initialCursor: string | null
+type Props = {
   tier: Tier
-}) {
+  locale: string
+  initialItems: AnalysisRow[]
+  initialNextCursor: string | null
+}
+
+export function HistoryClient({ tier, initialItems, initialNextCursor }: Props) {
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
       <h1 className="mb-6 text-2xl font-semibold">History</h1>
       <AnalysesList
         initialItems={initialItems}
-        initialCursor={initialCursor}
+        initialCursor={initialNextCursor}
         tier={tier}
         compact={false}
         showActions={true}
@@ -1845,7 +1957,7 @@ export function HistoryClient({
 }
 ```
 
-If the existing server page passes different prop shapes, adjust. Verify the server page wrapper still passes `tier`, `initialItems`, `initialCursor` correctly.
+`locale` prop is accepted (existing server page passes it) but no longer used internally; this preserves the server-component call site without requiring server-side changes.
 
 - [ ] **Step 3: Build**
 
@@ -1904,37 +2016,29 @@ Add verification comment to TUB-34.
 
 ## PR 4: Polish (i18n parity, analytics, tests, vault, playbook)
 
-### Task 4.1: Analytics parity test
+### Task 4.1: Analytics events allowlist (if it exists)
 
-**Files:**
-- Modify: `src/__tests__/analytics-i18n-parity.test.ts`
+- [ ] **Step 1: Locate analytics event allowlist (if any)**
 
-- [ ] **Step 1: Read current test**
-
-Open `src/__tests__/analytics-i18n-parity.test.ts` and locate the expected events list (likely a Set or array of event names).
-
-- [ ] **Step 2: Add new event names**
-
-Add to the expected list:
-
-```ts
-"history_analysis_opened",
-"history_downloaded",
-"history_deleted",
-"history_delete_undone",
-```
-
-- [ ] **Step 3: Run test**
-
-Run: `pnpm vitest run src/__tests__/analytics-i18n-parity.test.ts`
-Expected: PASS.
-
-- [ ] **Step 4: Commit**
+Run:
 
 ```bash
-git add src/__tests__/analytics-i18n-parity.test.ts
-git commit -m "test(tub-34): include new history analytics events in parity check"
+rg -l "history_analysis_opened|track\\(" src/ --type=ts --type=tsx | head
+rg -l "analytics.*parity|allowlist.*event" src/ tests/ 2>/dev/null
 ```
+
+If a file like `src/__tests__/analytics-i18n-parity.test.ts` or a similar allowlist exists, add the four new event names: `history_analysis_opened`, `history_downloaded`, `history_deleted`, `history_delete_undone`.
+
+If no such file exists (recon-confirmed: it does not at time of plan-writing), skip this task. The new `track(...)` calls are already in place from PRs 2-3, and `@vercel/analytics` does not require a whitelist.
+
+- [ ] **Step 2: Commit (only if changes made)**
+
+```bash
+git add <file>
+git commit -m "test(tub-34): add new history analytics events to allowlist"
+```
+
+Otherwise: no commit; task is a no-op.
 
 ### Task 4.2: AnalysesList component test
 
