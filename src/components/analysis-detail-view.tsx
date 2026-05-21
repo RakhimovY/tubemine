@@ -152,6 +152,15 @@ export function AnalysisDetailView({ tier, row }: AnalysisDetailViewProps) {
         </div>
       </div>
 
+      {!row.has_comments && (
+        <p
+          role="note"
+          className="mt-3 rounded-md border border-yellow-500/40 bg-yellow-500/10 p-3 text-sm text-yellow-900 dark:text-yellow-200"
+        >
+          {t("legacy_no_comments")}
+        </p>
+      )}
+
       {topWords.length > 0 && (
         <TopWordsPanel
           tier={tier}
