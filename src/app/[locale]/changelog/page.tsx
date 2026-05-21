@@ -5,7 +5,7 @@ import { LegalToc } from "@/components/legal-toc"
 const REPO_URL = "https://github.com/RakhimovY/tubemine"
 const LAST_UPDATED = "May 21, 2026"
 
-export const dynamic = "force-dynamic"
+export const dynamic = "force-static"
 
 export async function generateMetadata({
   params,
