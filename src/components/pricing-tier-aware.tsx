@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { useTranslations } from "next-intl"
+import NextLink from "next/link"
 import { Link as IntlLink } from "@/i18n/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { setAuthHint } from "@/lib/auth-hint"
@@ -35,13 +36,12 @@ export function PricingTierAware() {
     try {
       sb = createClient()
     } catch {
-      setState({ signedIn: false, tier: "anonymous", resolved: true })
+      // Env missing or createBrowserClient threw: stay at INITIAL_STATE
+      // (anonymous, !resolved). Page renders anon CTAs only and
+      // PricingIntentRedirect does not mount. Per spec § 5 error row 1.
       return
     }
-    if (!sb) {
-      setState({ signedIn: false, tier: "anonymous", resolved: true })
-      return
-    }
+    if (!sb) return
     const sbClient = sb
 
     async function resolve(): Promise<void> {
@@ -198,7 +198,7 @@ function ProCardCta({ tier }: { tier: Tier }) {
   }
   return (
     <>
-      <a href="/api/portal" className="btn btn--secondary">{t("pro.cta_pro")}</a>
+      <NextLink href="/api/portal" className="btn btn--secondary">{t("pro.cta_pro")}</NextLink>
       <p className="price-note">{t("pro.note_pro")}</p>
     </>
   )
