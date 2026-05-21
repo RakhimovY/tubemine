@@ -999,20 +999,16 @@ Save measurement output + screenshot paths in a scratch note for the Linear comm
 
 - [ ] **Step 1: Move TUB-30 to In Progress (if not already)**
 
-```
-mcp__claude_ai_Linear__list_issue_statuses { team: "Tubemine" }
-```
-
-Get the `id` for "In Progress" status. Then:
+The `save_issue` schema accepts the state type/name directly via the `state` field (no need for a separate ID lookup):
 
 ```
 mcp__claude_ai_Linear__save_issue {
-  issueId: "TUB-30",
-  statusId: "<in-progress-id>"
+  id: "TUB-30",
+  state: "In Progress"
 }
 ```
 
-If already In Progress, skip.
+If already In Progress, this is a no-op; skip.
 
 - [ ] **Step 2: Post measurement comment**
 
@@ -1061,15 +1057,9 @@ Commits: <commit-shas>
 - [ ] **Step 3: Move TUB-30 to Done**
 
 ```
-mcp__claude_ai_Linear__list_issue_statuses { team: "Tubemine" }
-```
-
-Get the `id` for "Done". Then:
-
-```
 mcp__claude_ai_Linear__save_issue {
-  issueId: "TUB-30",
-  statusId: "<done-id>"
+  id: "TUB-30",
+  state: "Done"
 }
 ```
 
