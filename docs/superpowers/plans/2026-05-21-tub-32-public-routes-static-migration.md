@@ -61,14 +61,14 @@ Navigate to `https://tubemine.tech/en/docs` then run the 5-transition script fro
 
 - [ ] **Step 1: Add min-height rule**
 
-Find the existing `.tm-design .pricing-page .price-foot` block at globals.css:1091 and append `min-height: 96px;` so the variant swap on hydration does not shift the comparison table below. Updated rule:
+Find the existing `.tm-design .pricing-page .price-foot` block at globals.css:1091 and append `min-height: 88px;` (per spec §3.2) so the variant swap on hydration does not shift the comparison table below. Updated rule:
 
 ```css
 .tm-design .pricing-page .price-foot {
   margin-top: auto;
   display: grid;
   gap: var(--space-4);
-  min-height: 96px;
+  min-height: 88px;
 }
 ```
 
@@ -103,17 +103,15 @@ EOF
 
 - [ ] **Step 1: Create the component file with anonymous-only state**
 
-Write the complete file. This first version renders only the anonymous variants. Async tier resolution is added in Task 5.
+Write the complete file. This first version renders only the anonymous variants. Async tier resolution + supabase imports + requestId counter + useEffect are added in Task 5. Helper components call `useTranslations("pricing")` themselves so the parent does not need to pass `t` as a prop (avoids next-intl `t` generic-typeof typing pitfalls).
 
 ```tsx
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { useTranslations } from "next-intl"
 import { Link as IntlLink } from "@/i18n/navigation"
-import { createClient } from "@/lib/supabase/client"
-import { getAuthHint, setAuthHint } from "@/lib/auth-hint"
 import { PricingIntentRedirect } from "@/components/pricing-intent-redirect"
 
 type Tier = "anonymous" | "free" | "pro"
@@ -135,9 +133,9 @@ export function PricingTierAware() {
   const searchParams = useSearchParams()
   const intent = searchParams?.get("intent") ?? null
 
+  // Task 5 will swap this for [state, setState] = useState(...) with a
+  // useRef + useEffect resolver. For now state is fixed anonymous.
   const [state] = useState<State>(INITIAL_STATE)
-  const requestIdRef = useRef(0)
-  // requestIdRef + async resolve added in Task 5
 
   return (
     <div className="pricing-grid">
@@ -160,8 +158,8 @@ export function PricingTierAware() {
             </li>
           ))}
         </ul>
-        <div className="price-foot">
-          <FreeCardCta tier={state.tier} t={t} />
+        <div className="price-foot" suppressHydrationWarning>
+          <FreeCardCta tier={state.tier} />
         </div>
       </article>
 
@@ -187,8 +185,8 @@ export function PricingTierAware() {
             </li>
           ))}
         </ul>
-        <div className="price-foot">
-          <ProCardCta tier={state.tier} t={t} />
+        <div className="price-foot" suppressHydrationWarning>
+          <ProCardCta tier={state.tier} />
         </div>
       </article>
 
@@ -203,7 +201,8 @@ export function PricingTierAware() {
   )
 }
 
-function FreeCardCta({ tier, t }: { tier: Tier; t: ReturnType<typeof useTranslations<"pricing">> }) {
+function FreeCardCta({ tier }: { tier: Tier }) {
+  const t = useTranslations("pricing")
   if (tier === "anonymous") {
     return (
       <IntlLink href="/login?intent=signup" className="btn btn--primary" style={{ gap: 10 }}>
@@ -228,7 +227,8 @@ function FreeCardCta({ tier, t }: { tier: Tier; t: ReturnType<typeof useTranslat
   )
 }
 
-function ProCardCta({ tier, t }: { tier: Tier; t: ReturnType<typeof useTranslations<"pricing">> }) {
+function ProCardCta({ tier }: { tier: Tier }) {
+  const t = useTranslations("pricing")
   if (tier === "anonymous") {
     return (
       <>
@@ -296,16 +296,9 @@ function GoogleIcon() {
     </svg>
   )
 }
-
-// References to imports used in later tasks but not yet wired:
-void createClient
-void getAuthHint
-void setAuthHint
-void requestIdRef
-void useEffect
 ```
 
-The trailing `void` references suppress unused-import lint until Task 5 wires them. Remove the trailing `void` block in Task 5.
+No unused-import suppression block needed. Each helper uses `useTranslations` directly.
 
 - [ ] **Step 2: Run typecheck**
 
@@ -335,23 +328,29 @@ EOF
 **Files:**
 - Modify: `src/app/[locale]/pricing/page.tsx`
 
-- [ ] **Step 1: Remove server auth imports and helpers**
+- [ ] **Step 1: Read current file to verify line numbers**
 
-Remove these lines from `src/app/[locale]/pricing/page.tsx`:
-- Line 6: `import { createClient } from "@/lib/supabase/server"`
-- Line 7: `import { getUserQuota } from "@/lib/quota"`
-- Line 5: `import { PricingIntentRedirect } from "@/components/pricing-intent-redirect"`
-- Lines 12-36: the `type AuthTier`, `type AuthState`, and `loadAuthState` function
-- Line 38: `export const dynamic = "force-dynamic"`
-- The `searchParams` field from the page's destructured props and the `const sp = await searchParams` call
+Use the Read tool on `src/app/[locale]/pricing/page.tsx` (range 1-90) to confirm the imports + signature + `loadAuthState` block still occupy the lines referenced below. If lines drifted (other commits between spec and execution), adjust the deletions accordingly. The plan's line refs are based on commit `fc8e104` (TUB-30 ship).
 
-Add these imports at the top:
+- [ ] **Step 2: Remove server auth imports and helpers**
+
+Remove these lines:
+- Import block: `import { createClient } from "@/lib/supabase/server"` and `import { getUserQuota } from "@/lib/quota"` (currently lines 6-7)
+- Import: `import { PricingIntentRedirect } from "@/components/pricing-intent-redirect"` (currently line 5)
+- The `type AuthTier`, `type AuthState`, and `async function loadAuthState() { ... }` block (currently lines 12-36)
+- The `export const dynamic = "force-dynamic"` directive (currently line 38)
+- The `searchParams` field from the page's destructured props (currently in the type signature near line 73)
+- The `const sp = await searchParams` call (currently line 77)
+- The `const state = await loadAuthState()` call (currently line 81)
+
+Add these imports at the top of the file:
+
 ```tsx
 import { Suspense } from "react"
 import { PricingTierAware } from "@/components/pricing-tier-aware"
 ```
 
-- [ ] **Step 2: Update the page signature and body**
+- [ ] **Step 3: Update the page signature and body**
 
 The page signature becomes:
 
@@ -413,19 +412,21 @@ export default async function PricingPage({
 }
 ```
 
-Operationally: delete the original `<div className="pricing-grid">...</div>` block (current source lines 149-287) and the direct `<PricingIntentRedirect ... />` mount near line 130. Replace the pricing-grid with the Suspense wrapper. Keep everything else.
+Operationally: delete the original `<div className="pricing-grid">...</div>` block (current source lines 149-287) and the direct `<PricingIntentRedirect ... />` mount near line 130. Replace the pricing-grid with the Suspense wrapper. Keep everything else verbatim from the existing file: hero (lines ~137-144), comparison table `<div className="compare-wrap">...</div>` (lines ~289-571), trust-line `<p className="trust-line">...</p>` (lines ~573-593), FAQ section, final CTA, and `<PricingFooter tLanding={tLanding} />`. The `faqItems` array (lines ~83-125) stays unchanged.
 
-- [ ] **Step 3: Run typecheck**
+- [ ] **Step 4: Run typecheck**
 
 Run: `pnpm tsc --noEmit`
 Expected: clean.
 
-- [ ] **Step 4: Run build and inspect route table**
+- [ ] **Step 5: Run build and inspect route table**
 
-Run: `pnpm build 2>&1 | grep -A 2 "Route" | head -40`
+Note: the project's `pnpm build` script runs `vitest run` and `check-message-parity` BEFORE `next build`. Test failures will block the build. If unrelated tests fail due to environment, run `pnpm exec next build` directly to isolate the route-table step.
+
+Run: `pnpm build 2>&1 | grep -E "^[●ƒ]" | head -30`
 Expected: `/[locale]/pricing` appears with `●` (static) marker, NOT `ƒ`. If it shows `ƒ`, run `grep -n "searchParams\|createClient\|cookies()\|headers()" src/app/[locale]/pricing/page.tsx` to find the dynamic API still in use.
 
-- [ ] **Step 5: Commit (still local, anon-only render)**
+- [ ] **Step 6: Commit (still local, anon-only render)**
 
 ```bash
 git add src/app/[locale]/pricing/page.tsx
@@ -452,23 +453,34 @@ EOF
 
 - [ ] **Step 1: Run production build**
 
-Run: `pnpm build`
-Expected (paste relevant lines into a scratch buffer; the route table excerpt is the PR description evidence):
+Run: `pnpm build 2>&1 | grep -E "^[●ƒ]" | head -30`
+Expected:
 ```
 ● /[locale]/pricing
-● /[locale]
+ƒ /[locale]
 ```
-(landing still shows `ƒ` here, since PR 2 has not started yet; only confirm /pricing is `●`).
+(/pricing must be `●`; landing still shows `ƒ` because PR 2 has not started yet. Only assert /pricing this round.)
 
-- [ ] **Step 2: Start production server and curl the route**
+- [ ] **Step 2: Start production server with port readiness check and curl the route**
 
-Run: `pnpm start &`
-Wait for "Ready" message (typically 2-5s).
+Run:
+```bash
+pnpm start &
+SERVER_PID=$!
+until curl -fs http://localhost:3000/en/pricing >/dev/null 2>&1; do sleep 1; done
+```
 
-Run: `curl -s -A "Googlebot" http://localhost:3000/en/pricing | head -100`
-Expected: the response body contains `Get started for free` (anon CTA copy) and `href="/en/login?intent=signup"` (locale-prefixed anon link), confirming the prerendered HTML carries the anonymous variant.
+Then:
+```bash
+curl -s -A "Googlebot" http://localhost:3000/en/pricing | head -200
+```
 
-Run: `pkill -f "next start"` to stop the local server.
+Expected: the response body contains `Get started for free` (or the equivalent anon CTA copy from messages/en.json `pricing.free.cta_anon`) AND `href="/en/login?intent=signup"` (locale-prefixed anon link), confirming the prerendered HTML carries the anonymous variant.
+
+Cleanup:
+```bash
+kill $SERVER_PID 2>/dev/null; pkill -f "next start" 2>/dev/null; true
+```
 
 - [ ] **Step 3: No commit (verification step)**
 
@@ -479,17 +491,33 @@ Run: `pkill -f "next start"` to stop the local server.
 **Files:**
 - Modify: `src/components/pricing-tier-aware.tsx`
 
-- [ ] **Step 1: Replace the placeholder useState with stateful resolve flow**
+- [ ] **Step 1: Add new imports**
 
-Replace this stub from Task 2:
+Update the top of `src/components/pricing-tier-aware.tsx` to add the imports Task 5 needs (Task 2 only imported what it used):
+
+```tsx
+"use client"
+
+import { useEffect, useRef, useState } from "react"
+import { useSearchParams } from "next/navigation"
+import { useTranslations } from "next-intl"
+import { Link as IntlLink } from "@/i18n/navigation"
+import { createClient } from "@/lib/supabase/client"
+import { setAuthHint } from "@/lib/auth-hint"
+import { PricingIntentRedirect } from "@/components/pricing-intent-redirect"
+```
+
+(Only `useEffect`, `useRef`, `createClient`, `setAuthHint` are new vs Task 2.)
+
+- [ ] **Step 2: Replace the placeholder useState with stateful resolve flow**
+
+Replace the existing Task 2 stub:
 
 ```tsx
 const [state] = useState<State>(INITIAL_STATE)
-const requestIdRef = useRef(0)
-// requestIdRef + async resolve added in Task 5
 ```
 
-With the full resolver. The Task 2 trailing `void` block must also be deleted.
+With the full resolver:
 
 ```tsx
 const [state, setState] = useState<State>(INITIAL_STATE)
@@ -545,26 +573,6 @@ useEffect(() => {
     sub?.subscription?.unsubscribe()
   }
 }, [])
-```
-
-- [ ] **Step 2: Remove unused-suppression voids and clean up**
-
-Remove the trailing `void createClient`, `void getAuthHint`, `void setAuthHint`, `void requestIdRef`, `void useEffect` lines from Task 2. They are no longer needed because the imports are used.
-
-Also remove the unused `getAuthHint` import (we only use `setAuthHint` in this work; the hint is read by `LandingAuthGate` in PR 2). Keep `setAuthHint`.
-
-The final import block at top of file should be:
-
-```tsx
-"use client"
-
-import { useEffect, useRef, useState } from "react"
-import { useSearchParams } from "next/navigation"
-import { useTranslations } from "next-intl"
-import { Link as IntlLink } from "@/i18n/navigation"
-import { createClient } from "@/lib/supabase/client"
-import { setAuthHint } from "@/lib/auth-hint"
-import { PricingIntentRedirect } from "@/components/pricing-intent-redirect"
 ```
 
 - [ ] **Step 3: Run typecheck**
@@ -725,19 +733,21 @@ Expected: clean.
 
 - [ ] **Step 3: Run build and capture route table**
 
-Run: `pnpm build 2>&1 | tee /tmp/tub-32-pr1-build.log | grep -E "^[●ƒ]" | head -30`
+Note: `pnpm build` runs `vitest run` and `check-message-parity` before `next build`. This single command verifies tests + i18n parity + build manifest in one pass.
+
+Run: `pnpm build 2>&1 | tee /tmp/tub-32-pr1-build.log`
+
+After completion, extract route-table excerpt:
+```bash
+grep -E "^[●ƒ]" /tmp/tub-32-pr1-build.log | head -30
+```
 
 Expected output includes:
 ```
 ● /[locale]/pricing
 ```
 
-Save `/tmp/tub-32-pr1-build.log` excerpt for PR description.
-
-- [ ] **Step 4: Run unit/integration tests if any apply**
-
-Run: `pnpm test 2>&1 | tail -30` (skip if project has no test runner configured).
-Expected: pass or "no tests" (unchanged behaviour from main).
+Vitest output should also show all tests passing. Save the full log for PR description.
 
 ---
 
@@ -980,10 +990,20 @@ EOF
 **Files:**
 - Modify: `src/app/[locale]/page.tsx`
 
-- [ ] **Step 1: Remove server auth imports and helpers**
+- [ ] **Step 1: Read current file**
 
-Remove these lines from `src/app/[locale]/page.tsx`:
-- Line 1: `import { redirect } from "next/navigation"` (assuming no other usage in the file; grep first to confirm)
+Use the Read tool on `src/app/[locale]/page.tsx` (range 1-65) to confirm imports, dynamic directive, helper function, and the redirect call still occupy the lines referenced below. Also Read the import at line 4 to see the exact shape of the TubeMine import (single line vs separate lines). Grep first to confirm `redirect` is only used in the to-be-deleted line:
+
+```bash
+grep -n "redirect" src/app/[locale]/page.tsx
+```
+
+If `redirect` is referenced beyond line 61-63, do NOT remove its import.
+
+- [ ] **Step 2: Remove server auth imports, helpers, and dynamic directive**
+
+Remove from `src/app/[locale]/page.tsx`:
+- Line 1: `import { redirect } from "next/navigation"` (ONLY if step 1 grep showed no other usage)
 - Line 5: `import { createClient } from "@/lib/supabase/server"`
 - Line 6: `import { getUserQuota } from "@/lib/quota"`
 - Line 13: `export const dynamic = "force-dynamic"`
@@ -996,9 +1016,9 @@ Add:
 import { LandingAuthGate } from "@/components/landing-auth-gate"
 ```
 
-(Also drop `ExtractTier` from the `@/components/tubemine` import line; only `TubeMine` is still needed.)
+In the TubeMine import line (currently line 4), if it imports `{ TubeMine, type ExtractTier }`, change to `{ TubeMine }` (drop the unused type alias). If the import is differently shaped, leave structure intact; only remove `ExtractTier` if present.
 
-- [ ] **Step 2: Wrap the body in `<LandingAuthGate>`**
+- [ ] **Step 3: Wrap the body in `<LandingAuthGate>`**
 
 Change the page's `return (...)` from:
 
@@ -1024,19 +1044,45 @@ return (
 )
 ```
 
-- [ ] **Step 3: Replace tier-conditional renderings with unconditional anonymous**
+- [ ] **Step 4: Replace `<TubeMine tier={tier} />` with anonymous variant**
 
 Find `<TubeMine tier={tier} />` (around current line 180) and change to:
 ```tsx
 <TubeMine tier="anonymous" />
 ```
 
-Find `{isAnonymous ? (<div className="demo-sample-strip">...</div>) : null}` and change to render the contents unconditionally (just drop the `{isAnonymous ? (` and `) : null}` wrapper).
+- [ ] **Step 5: Unwrap the `isAnonymous ? ... : null` demo-sample-strip**
 
-Find the second `{isAnonymous ? (<DemoSampleResult ... />) : null}` and similarly drop the wrapper.
+Find:
+```tsx
+{isAnonymous ? (
+  <div className="demo-sample-strip" role="note" style={{ marginTop: "var(--space-7)" }}>
+    ...
+  </div>
+) : null}
+```
 
-Find the `<IntlLink href={isAnonymous ? "/login?intent=signup" : "/dashboard"} className="btn btn--primary">` block (in the trust-accelerant section) and replace with the unconditional anonymous variant:
+Replace with just the `<div className="demo-sample-strip" ...>...</div>` block (drop the conditional wrapper).
 
+- [ ] **Step 6: Unwrap the `isAnonymous ? ... : null` DemoSampleResult**
+
+Find the second `{isAnonymous ? <DemoSampleResult ... /> : null}` block and drop the conditional, leaving only the `<DemoSampleResult ... />` JSX with all its props.
+
+- [ ] **Step 7: Replace conditional IntlLink in trust-accelerant section**
+
+Find:
+```tsx
+<IntlLink
+  href={isAnonymous ? "/login?intent=signup" : "/dashboard"}
+  className="btn btn--primary"
+>
+  {isAnonymous
+    ? t("dashboard.cta_signup")
+    : t("dashboard.cta_dashboard")}
+</IntlLink>
+```
+
+Replace with:
 ```tsx
 <IntlLink href="/login?intent=signup" className="btn btn--primary">
   {t("dashboard.cta_signup")}
@@ -1045,12 +1091,15 @@ Find the `<IntlLink href={isAnonymous ? "/login?intent=signup" : "/dashboard"} c
 
 The page no longer references `tier` or `isAnonymous` after these edits.
 
-- [ ] **Step 4: Run typecheck**
+- [ ] **Step 8: Run typecheck**
 
 Run: `pnpm tsc --noEmit`
-Expected: clean. If `tier` is referenced anywhere else, grep and fix.
+Expected: clean. If `tier` or `isAnonymous` is referenced anywhere else, grep and fix:
+```bash
+grep -n "isAnonymous\|tier" src/app/[locale]/page.tsx
+```
 
-- [ ] **Step 5: Run build**
+- [ ] **Step 9: Run build**
 
 Run: `pnpm build 2>&1 | grep -E "^[●ƒ]" | head -20`
 Expected: both `● /[locale]/pricing` AND `● /[locale]` appear. The landing route is now static.
@@ -1060,7 +1109,7 @@ If `/[locale]` still shows `ƒ`, grep:
 grep -n "searchParams\|createClient\|cookies()\|headers()\|redirect" src/app/[locale]/page.tsx
 ```
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
 git add src/app/[locale]/page.tsx
@@ -1095,14 +1144,22 @@ Expected:
 ● /[locale]/pricing
 ```
 
-- [ ] **Step 2: Start production server and curl landing**
+- [ ] **Step 2: Start production server with port readiness check and curl landing**
 
-Run: `pnpm start &`. Wait for "Ready".
+Run:
+```bash
+pnpm start &
+SERVER_PID=$!
+until curl -fs http://localhost:3000/en >/dev/null 2>&1; do sleep 1; done
+curl -s -A "Googlebot" http://localhost:3000/en | head -200 | grep -E "TubeMine|hero-title"
+```
 
-Run: `curl -s -A "Googlebot" http://localhost:3000/en | head -200 | grep -E "TubeMine|Get started|hero"`
-Expected: hero copy + anon-variant `Get started for free` link visible in the HTML body.
+Expected: hero title + anonymous CTA href visible in the raw HTML body.
 
-Run: `pkill -f "next start"`.
+Cleanup:
+```bash
+kill $SERVER_PID 2>/dev/null; pkill -f "next start" 2>/dev/null; true
+```
 
 - [ ] **Step 3: Simulate warm-hint redirect locally via Chrome MCP**
 
@@ -1121,13 +1178,15 @@ return "reloaded";
 After reload, assert via the same tool:
 
 ```javascript
+await new Promise(r => setTimeout(r, 600));
 return {
   url: location.pathname,
+  isOnLandingStill: location.pathname === '/en' || location.pathname === '/',
   indicatorVisible: !!document.querySelector('.landing-redirect-indicator'),
 };
 ```
 
-Expected: `url` is `/en/dashboard` (or `/en/login` if (app) layout further redirects an unauthenticated session), confirming the gate fired. The indicator may have already been replaced by the dashboard page by the time the assertion runs; primary check is `url` change.
+Expected: `url` is NOT `/en` and NOT `/` (the gate moved off the landing). It will be either `/en/dashboard` (if the test session has a valid Supabase cookie that `(app)/layout.tsx` accepts) OR `/en/login` (if (app) layout rejects the unauthenticated session and redirects further). PASS criterion: `isOnLandingStill === false`. The indicator may have already been replaced by the dashboard or login page by the time the assertion runs.
 
 Clean up: `localStorage.removeItem("tubemine:auth-hint")` + reload.
 
@@ -1195,11 +1254,14 @@ return "reloaded";
 After reload:
 
 ```javascript
-await new Promise(r => setTimeout(r, 500));
-return { url: location.pathname };
+await new Promise(r => setTimeout(r, 800));
+return {
+  url: location.pathname,
+  isOnLandingStill: location.pathname === '/en' || location.pathname === '/',
+};
 ```
 
-Expected: `url` is `/en/dashboard` OR `/en/login` (the (app) layout redirects unauthenticated sessions). Confirms the gate fired.
+PASS criterion: `isOnLandingStill === false`. The exact destination is `/en/dashboard` (if a real session existed; rare in incognito) OR `/en/login` (the typical incognito case where `(app)/layout.tsx` redirects unauthenticated). Confirms the gate fired off the landing.
 
 Cleanup: `localStorage.removeItem("tubemine:auth-hint")`.
 
