@@ -189,3 +189,18 @@ export async function purgeExpiredAnalyses(): Promise<number> {
   }
   return data?.length ?? 0
 }
+
+export async function getAnalysesCount(sb: SupabaseClient): Promise<number> {
+  // sb is the USER-SCOPED Supabase server client. RLS policy
+  // "users read own analyses" filters auth.uid() = user_id, so count is
+  // scoped to the caller. head:true + count:'exact' returns a count
+  // without a row payload (index-only scan when possible).
+  const { count, error } = await sb
+    .from("analyses")
+    .select("id", { count: "exact", head: true })
+  if (error) {
+    console.warn("[analyses] count failed", { error: error.message })
+    return 0
+  }
+  return count ?? 0
+}

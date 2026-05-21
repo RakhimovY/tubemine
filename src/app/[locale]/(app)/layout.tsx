@@ -3,7 +3,7 @@ import type { ReactNode } from "react"
 import { redirect } from "@/i18n/navigation"
 import { createClient } from "@/lib/supabase/server"
 import { getUserQuota, type Tier } from "@/lib/quota"
-import { listAnalyses } from "@/lib/analyses"
+import { getAnalysesCount } from "@/lib/analyses"
 import { AppShell } from "@/components/app-shell"
 
 /*
@@ -35,14 +35,13 @@ export default async function AppGroupLayout({
     return null
   }
 
-  const [quota, recent] = await Promise.all([
+  const [quota, historyCount] = await Promise.all([
     getUserQuota(user.id),
-    listAnalyses(supabase, null, 100),
+    getAnalysesCount(supabase),
   ])
 
   const tier: Tier = quota.tier
   const initials = buildInitials(user.email, user.user_metadata?.full_name)
-  const historyCount = recent.items.length
 
   const tShell = await getTranslations("dashboard.shell")
   return (
