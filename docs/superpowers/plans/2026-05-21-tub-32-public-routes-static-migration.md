@@ -84,10 +84,10 @@ git add src/app/globals.css
 git commit -m "$(cat <<'EOF'
 style(tub-32): reserve min-height on .price-foot for CLS-safe variant swap
 
-Prepares for client-island CTA swap (next step). 96px accommodates
-the tallest variant (signed-in free with note paragraph) so swapping
-between anonymous, free, and pro variants does not shift the
-comparison table below.
+Prepares for client-island CTA swap (next step). 88px (per spec § 3.2)
+accommodates the tallest variant (signed-in free with note paragraph)
+so swapping between anonymous, free, and pro variants does not shift
+the comparison table below.
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 EOF
@@ -350,9 +350,78 @@ import { Suspense } from "react"
 import { PricingTierAware } from "@/components/pricing-tier-aware"
 ```
 
-- [ ] **Step 3: Update the page signature and body**
+- [ ] **Step 3: Delete the direct `<PricingIntentRedirect ... />` mount**
 
-The page signature becomes:
+In the current page body (around lines 129-134) the page renders:
+```tsx
+{/* Client island: post-OAuth ?intent=signup&plan=pro -> /api/checkout */}
+<PricingIntentRedirect
+  intent={sp.intent ?? null}
+  signedIn={state.signedIn}
+  tier={state.tier}
+/>
+```
+
+Delete this block entirely (including the comment). The `PricingIntentRedirect` mount moves inside `PricingTierAware` (see Task 5).
+
+- [ ] **Step 4: Replace the pricing-grid block with the Suspense-wrapped client island**
+
+In the current page body (around lines 147-287), the page contains:
+```tsx
+<section className="pricing-section">
+  <div className="container">
+    <div className="pricing-grid">
+      {/* FREE article + PRO article, lines 149-287 */}
+    </div>
+
+    {/* ===== Comparison ===== */}
+    <div className="compare-wrap">
+      {/* lines 289-571 - PRESERVE VERBATIM */}
+    </div>
+
+    {/* trust-line */}
+    <p className="trust-line">
+      {/* lines 573-593 - PRESERVE VERBATIM */}
+    </p>
+  </div>
+</section>
+```
+
+Replace ONLY the `<div className="pricing-grid">...</div>` block with the Suspense + PricingTierAware mount:
+
+```tsx
+<Suspense fallback={null}>
+  <PricingTierAware />
+</Suspense>
+```
+
+The `<div className="compare-wrap">...</div>` and `<p className="trust-line">...</p>` blocks stay untouched (PRESERVE existing JSX). The result is:
+
+```tsx
+<section className="pricing-section">
+  <div className="container">
+    <Suspense fallback={null}>
+      <PricingTierAware />
+    </Suspense>
+
+    {/* PRESERVE: existing comparison table JSX (current page.tsx lines 289-571) */}
+    <div className="compare-wrap">
+      {/* ... do not edit ... */}
+    </div>
+
+    {/* PRESERVE: existing trust-line JSX (current page.tsx lines 573-593) */}
+    <p className="trust-line">
+      {/* ... do not edit ... */}
+    </p>
+  </div>
+</section>
+```
+
+The other sections (hero at lines 137-144, FAQ section at lines 597-617, final CTA at lines 619-637, and `<PricingFooter tLanding={tLanding} />` at line 641) stay unchanged.
+
+- [ ] **Step 5: Update the page signature (drop `searchParams` from props)**
+
+The current signature destructures `{ params, searchParams }`. After this task, the body no longer needs `searchParams` (the new client island reads `useSearchParams()`). Update the signature to:
 
 ```tsx
 export default async function PricingPage({
@@ -366,67 +435,36 @@ export default async function PricingPage({
   const tLanding = await getTranslations("landing")
 
   const faqItems = [
-    /* unchanged */
+    /* PRESERVE: existing faqItems array (current page.tsx lines 83-125) */
   ]
-
-  return (
-    <div className="pricing-page">
-      <main>
-        {/* HERO unchanged */}
-        <section className="hero">
-          <div className="container">
-            <span className="hero-badge">{t("hero.badge")}</span>
-            <h1 className="hero-title">{t("hero.title")}</h1>
-            <p className="hero-sub">{t("hero.sub")}</p>
-          </div>
-        </section>
-
-        {/* PRICING section: restructured so the pricing-grid is the client
-            island, while the comparison table and trust line stay
-            server-rendered (static) for SEO + bundle savings */}
-        <section className="pricing-section">
-          <div className="container">
-            <Suspense fallback={null}>
-              <PricingTierAware />
-            </Suspense>
-
-            {/* Comparison table block: unchanged, copied verbatim from
-                current source lines 290-571. Stays in server scope */}
-            <div className="compare-wrap">
-              {/* ... existing comparison table JSX unchanged ... */}
-            </div>
-
-            {/* Trust line: unchanged */}
-            <p className="trust-line">
-              {/* ... existing JSX unchanged ... */}
-            </p>
-          </div>
-        </section>
-
-        {/* FAQ unchanged */}
-        {/* FINAL CTA unchanged */}
-      </main>
-      <PricingFooter tLanding={tLanding} />
-    </div>
-  )
+  ...
 }
 ```
 
-Operationally: delete the original `<div className="pricing-grid">...</div>` block (current source lines 149-287) and the direct `<PricingIntentRedirect ... />` mount near line 130. Replace the pricing-grid with the Suspense wrapper. Keep everything else verbatim from the existing file: hero (lines ~137-144), comparison table `<div className="compare-wrap">...</div>` (lines ~289-571), trust-line `<p className="trust-line">...</p>` (lines ~573-593), FAQ section, final CTA, and `<PricingFooter tLanding={tLanding} />`. The `faqItems` array (lines ~83-125) stays unchanged.
+Also delete the `const sp = await searchParams` line near current line 77 if it survived the previous step.
 
-- [ ] **Step 4: Run typecheck**
+- [ ] **Step 6: Grep-guard for leftover references**
+
+Run:
+```bash
+grep -n "\bsp\b\|searchParams\|loadAuthState\|createClient\|getUserQuota\|force-dynamic" src/app/[locale]/pricing/page.tsx
+```
+
+Expected: ZERO matches. If any survive, the deletion is incomplete.
+
+- [ ] **Step 7: Run typecheck**
 
 Run: `pnpm tsc --noEmit`
-Expected: clean.
+Expected: clean. If `TubeMine`-related types fail (it isn't used here but the import line may have changed), check `src/components/tubemine.tsx` for the prop signature.
 
-- [ ] **Step 5: Run build and inspect route table**
+- [ ] **Step 8: Run build and inspect route table**
 
 Note: the project's `pnpm build` script runs `vitest run` and `check-message-parity` BEFORE `next build`. Test failures will block the build. If unrelated tests fail due to environment, run `pnpm exec next build` directly to isolate the route-table step.
 
 Run: `pnpm build 2>&1 | grep -E "^[●ƒ]" | head -30`
 Expected: `/[locale]/pricing` appears with `●` (static) marker, NOT `ƒ`. If it shows `ƒ`, run `grep -n "searchParams\|createClient\|cookies()\|headers()" src/app/[locale]/pricing/page.tsx` to find the dynamic API still in use.
 
-- [ ] **Step 6: Commit (still local, anon-only render)**
+- [ ] **Step 9: Commit (still local, anon-only render)**
 
 ```bash
 git add src/app/[locale]/pricing/page.tsx
@@ -990,15 +1028,24 @@ EOF
 **Files:**
 - Modify: `src/app/[locale]/page.tsx`
 
-- [ ] **Step 1: Read current file**
+- [ ] **Step 1: Read current file and grep for edit targets**
 
-Use the Read tool on `src/app/[locale]/page.tsx` (range 1-65) to confirm imports, dynamic directive, helper function, and the redirect call still occupy the lines referenced below. Also Read the import at line 4 to see the exact shape of the TubeMine import (single line vs separate lines). Grep first to confirm `redirect` is only used in the to-be-deleted line:
+Use the Read tool on `src/app/[locale]/page.tsx` (range 1-220) to confirm imports, dynamic directive, helper function, redirect call, and JSX edit sites occupy the lines referenced below.
+
+Grep for edit sites to surface exact line numbers (more reliable than relying on the plan's pre-execution line refs):
 
 ```bash
-grep -n "redirect" src/app/[locale]/page.tsx
+grep -n "redirect\|isAnonymous\|tier={tier}\|cta_signup\|cta_dashboard" src/app/[locale]/page.tsx
 ```
 
-If `redirect` is referenced beyond line 61-63, do NOT remove its import.
+Take note of the line numbers reported for: `redirect` import + call, `isAnonymous` ternaries, `tier={tier}` prop pass to TubeMine, and the `cta_signup` / `cta_dashboard` conditional. If `redirect` is referenced anywhere beyond the to-be-deleted `if (!isAnonymous) redirect(...)` block, do NOT remove its import.
+
+Also check the TubeMine prop type so Step 4's `tier="anonymous"` literal typechecks:
+```bash
+grep -n "ExtractTier\|tier:" src/components/tubemine.tsx | head -5
+```
+
+Expected: `ExtractTier = "anonymous" | "free" | "pro"` (or equivalent union including `"anonymous"`). If the literal `"anonymous"` is not in the union, the prop pass will fail typecheck; in that case import the type alias and cast explicitly.
 
 - [ ] **Step 2: Remove server auth imports, helpers, and dynamic directive**
 
