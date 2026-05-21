@@ -190,35 +190,51 @@ export function clearAuthHint(): void {
    ```
 5. The JSX that switches on `authState === "anonymous"` vs `"signed-in"` stays structurally identical. There are two auth-conditional regions: (a) the desktop nav-links + nav-actions block (around lines 100-183 of the current file), and (b) the mobile drawer nav + mobile-drawer-actions block (around lines 249-313). Both consume the same `authState` state - one source of truth covers both. Add `suppressHydrationWarning` (see Hydration mismatch handling section below) only to the outer container element of each conditional region, not to every child node.
 
+**`src/app/[locale]/login/login-client.tsx`** (existing client component, small additive change):
+
+The `(app)/` route group renders `AppShell`, not `SiteHeaderClient`. So when a user logs in and is redirected to `/dashboard`, no `SiteHeaderClient` mounts and no hint is written. The first post-login visit to a public page would then start with no hint, briefly show anon shell, and flicker to signed-in once `INITIAL_SESSION` fires. To eliminate that flicker:
+
+1. Import `setAuthHint` from `@/lib/auth-hint`.
+2. Inside the successful-login callback (after the supabase sign-in / OAuth completes and before any navigation), call `setAuthHint("signed-in")`.
+3. If the login page also handles sign-out (typically it does not, but if there is any path that explicitly clears the session from this file), pair it with `clearAuthHint()` or `setAuthHint("anonymous")`. Existing logout buttons live in `(app)/` (`src/app/[locale]/(app)/profile` and similar) and are explicitly out of scope per the brief; the first-public-visit-post-logout flicker is documented in Risk register as accepted.
+
+This is the only edit outside the SiteHeader family. It is a 2-line change (import + one call) co-located with where the auth state actually changes. No new dependency, no scope creep.
+
 ### Hydration walkthrough
 
-**First-ever visit, signed-in user lands on /docs:**
+**First-ever visit, signed-in user lands on /docs (no hint yet because login wrote it via login-client.tsx but this is a fresh browser):**
 
 1. RSC arrives in ~10-50ms (prefetched or initial nav).
 2. HTML paints with anonymous shell ("Get started" button visible).
 3. JS hydrates. `SiteHeaderClient` mounts.
 4. `getAuthHint()` returns `null` (first visit, no key set).
 5. Initial state: `"anonymous"`. UI matches what SSR rendered.
-6. `useEffect` fires `supabase.auth.getUser()`. ~100-300ms later, user found.
-7. `setAuthState("signed-in")` + `setAuthHint("signed-in")`. UI swaps to Dashboard CTA + avatar.
-8. Visible flicker on this one-time first visit only.
+6. `useEffect` runs, subscribes to `onAuthStateChange`. Supabase v2 client immediately schedules an `INITIAL_SESSION` event for the next tick, reading session from cookies.
+7. ~10-50ms later: `INITIAL_SESSION` fires with the user's session.
+8. `applySession(user)` runs: `setAuthState("signed-in")` + `setInitials(...)` + `setAuthHint("signed-in")`. UI swaps to Dashboard CTA + avatar.
+9. Visible flicker on this one-time first visit only. Subsequent visits skip this because login-client.tsx writes the hint on successful auth (see Client-side changes additions below).
 
-**Subsequent navigation (same browser, signed-in):**
+**Subsequent navigation (same browser, signed-in, hint already set by login or prior public visit):**
 
 1. RSC arrives (~5-30ms, prefetched from browser RSC cache).
 2. HTML paints with anonymous shell (SSR cannot read localStorage; the shell is static).
 3. JS hydrates. `SiteHeaderClient` mounts.
 4. `getAuthHint()` returns `"signed-in"`.
-5. Initial state: `"signed-in"`. First client render shows Dashboard CTA + avatar **before** any network call.
-   - Note: this *is* a hydration mismatch with the SSR'd anon shell. Because the mismatch happens inside a client component on initial mount, React will reconcile it as a normal client update on the same frame as hydration completes. No user-visible flicker, no console error (we use `useState` lazy initializer, not `useLayoutEffect`).
-6. `useEffect` validates in background. No state change. No re-render.
+5. Initial state: `"signed-in"`. First client render shows Dashboard CTA + avatar **before** the listener has fired.
+   - This is a hydration mismatch with the SSR'd anon shell. `suppressHydrationWarning` on the auth-conditional regions suppresses the React warning. Visually: SSR HTML never paints to screen because hydration commits the corrected state in the same paint frame.
+6. `useEffect` subscribes to `onAuthStateChange`. `INITIAL_SESSION` fires soon after with the current session.
+7. `applySession(user)` runs but produces the same state values; React bails out on identical `setState` calls. No re-render.
 
-**Sign-out in another tab:**
+**Sign-out in another tab (same browser):**
 
 1. Other tab calls `sb.auth.signOut()`.
-2. `onAuthStateChange` fires in this tab with `session = null`.
-3. State updates to `"anonymous"`, hint cleared (via `setAuthHint("anonymous")`).
+2. `onAuthStateChange` fires in this tab (via `@supabase/ssr` cross-tab storage broadcast) with `session = null`.
+3. `applySession(null)`: `setAuthState("anonymous")` + `setAuthHint("anonymous")`.
 4. UI swaps Dashboard → Get started.
+
+**Cross-device or admin-revoked sign-out (out of cross-tab broadcast scope):**
+
+The local listener only fires for sign-outs originating in the same browser. If the user signs out on a different device, or admin revokes the session server-side, the local hint stays `"signed-in"` until cleared by some other event (manual localStorage clear, eventually another tab signs out locally, or session token actually expires and Supabase refreshes the listener state). User-visible impact: header shows Dashboard CTA, user clicks it, server middleware finds no valid session and redirects to `/login`. Same outcome as any expired session and considered acceptable; see Risk register.
 
 ### Hydration mismatch handling
 
@@ -263,18 +279,21 @@ Implementation:
 - **Phase B2 Edge runtime:** unnecessary once routes go static.
 - **Phase C `'use cache: private'`:** same blocker as TUB-29.
 - **Refactoring `SiteHeaderClient` visual structure:** the JSX inside the conditional branches stays byte-identical.
-- **Touching `(app)/` route group:** TUB-28 territory, completed.
+- **Touching `(app)/` route group:** TUB-28 territory, completed. Includes the logout button in profile page; first-post-logout-flicker accepted (see Risk register).
 - **Touching `/docs` or `/changelog` content:** TUB-31 territory, completed.
 - **Adding tests for the auth-hint helper:** the helper is a thin `localStorage` wrapper with try/catch. Manual prod verification covers the critical path; unit testing localStorage shims has low ROI here. Could be added later if we ever extract `auth-hint` into a more complex state machine.
+- **Timeout fallback when `onAuthStateChange` doesn't fire:** Accepted risk, see Risk register. Add only if production reports show this happening.
+- **Cross-device sign-out revalidation:** Accepted risk, see Risk register. Add `visibilitychange` revalidation only if production reports surface.
 
 ## File touchpoints
 
 May edit:
 
 - `src/components/site-header.tsx` (server, ~40 lines deleted, no additions)
-- `src/components/site-header-client.tsx` (client, ~60 lines added: hooks, effect, initials helper)
-- `src/lib/auth-hint.ts` (new file, ~30 lines)
-- One CSS source file for `.nav-actions` `min-width` (likely `src/app/globals.css` or a styled-jsx block; located during implementation)
+- `src/components/site-header-client.tsx` (client, ~60 lines added: hooks, effect, initials helper, suppressHydrationWarning placement)
+- `src/lib/auth-hint.ts` (new file, ~35 lines)
+- `src/app/[locale]/login/login-client.tsx` (existing client, 2-line additive change: import + one `setAuthHint("signed-in")` call in success callback)
+- One CSS source file for `.nav-actions` desktop-scoped `min-width` (likely `src/app/globals.css` or a styled-jsx block; located during implementation via `grep -r ".nav-actions" src/ app/`)
 
 Must NOT touch:
 
@@ -310,7 +329,7 @@ Pass criteria (Phase B target from Linear TUB-30 body), evaluated on these 5 nav
 - **Anonymous user (fresh incognito, no localStorage hint), hard reload `/en/pricing`:** header renders `Get started` CTA. No `Dashboard` shown. No console error.
 - **Anonymous user (fresh incognito), click `/docs`:** transition completes, header still shows `Get started`. No flicker (initial state = "anonymous" matches SSR, and `applySession(null)` leaves state unchanged).
 - **Anonymous user with stale "signed-in" hint** (clear cookies but keep localStorage, then visit /pricing): initial render briefly shows Dashboard CTA, then `onAuthStateChange` fires with `session = null`, state flips to anonymous within one render. The hint also clears (overwritten to "anonymous"). This brief incorrect-state flicker is expected and acceptable; the next visit shows correct state immediately.
-- **Sign in via `/login` flow:** after redirect to `/dashboard`, hint is set to `"signed-in"` (verify in DevTools Application → Local Storage).
+- **Sign in via `/login` flow:** immediately after the login callback completes (BEFORE the redirect to `/dashboard` finishes navigation), `localStorage["tubemine:auth-hint"]` is set to `"signed-in"`. Verify in DevTools Application → Local Storage on the `/login` URL itself, or on `/dashboard` right after landing. The hint is written by `login-client.tsx`, not by `SiteHeaderClient` (which never mounts on `/dashboard`).
 - **Signed-in user, click `/pricing` from header:** Dashboard CTA + avatar appear without flicker (hint hit on first client render).
 - **Signed-in user, hard reload `/en/changelog`:** Dashboard CTA + avatar appear immediately on hydration (hint hit). Background validation does not change state.
 - **Signed-in user, open second tab, sign out in second tab, switch back to first tab:** within 1 render, first tab header swaps to `Get started`. `onAuthStateChange` listener confirmed.
@@ -364,6 +383,9 @@ These were called out in the turbo-pipeline brief and apply throughout:
 | CSS `min-width` value picked is wrong, layout looks unbalanced for anonymous users | Medium | Visual nit, no functional break | During implementation, measure the signed-in layout width via DevTools, pick a value that matches exactly. Cross-check on mobile (the mobile drawer is a separate path and not affected). |
 | `min-width` rule applied globally (not gated to desktop breakpoint) pushes hamburger off-screen on mobile | Medium | Mobile layout broken | Scope rule inside `@media (min-width: 1024px)` (matches existing breakpoint used by SiteHeaderClient). Verify at 1440px / 1024px / 375px during implementation. |
 | Mobile drawer auth-conditional logic shows wrong CTAs on first paint for returning signed-in users | Resolved by design | N/A | Drawer JSX is inside `SiteHeaderClient` and reads the same `authState` state. The hint-based initial state covers both desktop nav-actions and mobile drawer simultaneously. Single source of truth, single render branch decision. |
+| `onAuthStateChange` listener never fires (Supabase client bug, throttled background tab, corrupted IndexedDB) - hint stays "signed-in" indefinitely | Very Low | User sees Dashboard CTA, clicks it, gets redirected to `/login` by middleware. Same UX as expired session. | Accepted. No timeout fallback added because (a) the failure mode is rare, (b) the worst outcome is one redirect bounce, (c) adding a 3-5s timeout `getUser()` reintroduces complexity equivalent to the load-vs-listener race the design removed. If field reports show this occurring, add the fallback in a follow-up. |
+| Cross-device or admin-revoked sign-out leaves stale "signed-in" hint on local browser | Low | Same as above: header shows wrong CTA until user clicks, then middleware redirects. | Accepted. The `onAuthStateChange` cross-tab broadcast does NOT cross device boundaries (uses browser-local storage events). User-facing impact is minor: one wrong-state paint per stale-hint session, then auto-corrected on Dashboard click. Adding `visibilitychange` revalidation is extra complexity for an edge case; defer unless reports surface. |
+| First post-logout public-page visit flickers (user logs out from `(app)/` profile, then navigates back to /pricing) | Medium | One brief Dashboard → Get started swap on first visit only | Accepted. The logout button lives in `(app)/` which the brief explicitly forbids touching. The `onAuthStateChange` cross-tab listener fires on the next public-page mount with `session = null` and clears the hint. Subsequent visits are correct. Severity: cosmetic, one-time per logout. |
 | Pricing page or login page have additional server-side `cookies()` access that pins them dynamic | Medium | These specific pages still dynamic post-fix | Out of scope for this issue. TUB-30 acceptance focuses on `/docs` and `/changelog` (where the issue was measured). `/pricing` and `/login` follow-up only if their TTFB stays high. |
 
 ## References
