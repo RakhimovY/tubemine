@@ -14,6 +14,22 @@
     "save_json": "Сохранить JSON",
     "save_excel": "Сохранить Excel"
   },
+  "changelog": {
+    "meta": {
+      "title": "Что нового | TubeMine",
+      "description": "Публичный журнал релизов TubeMine."
+    },
+    "hero": {
+      "badge": "Что нового",
+      "title": "Что изменилось.",
+      "sub": "Релизные заметки в формате влияния на пользователя, сгруппированы по дате. Сначала новые.",
+      "updated_label": "Обновлено"
+    },
+    "toc": {
+      "aria": "Релизы",
+      "heading": "Релизы"
+    }
+  },
   "landing": {
     "hero_title_a": "Понимайте любую",
     "hero_title_b": "аудиторию YouTube-видео.",

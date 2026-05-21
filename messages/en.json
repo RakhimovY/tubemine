@@ -14,6 +14,22 @@
     "save_json": "Save JSON",
     "save_excel": "Save Excel"
   },
+  "changelog": {
+    "meta": {
+      "title": "Changelog | TubeMine",
+      "description": "Public release notes for TubeMine."
+    },
+    "hero": {
+      "badge": "Changelog",
+      "title": "What changed.",
+      "sub": "User-impact release notes, grouped by date. Newest first.",
+      "updated_label": "Last updated"
+    },
+    "toc": {
+      "aria": "Releases",
+      "heading": "Releases"
+    }
+  },
   "landing": {
     "hero_title_a": "Understand any",
     "hero_title_b": "YouTube video's audience.",
