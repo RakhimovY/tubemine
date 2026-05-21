@@ -4,8 +4,12 @@ import { useCallback, useEffect, useRef, useState, useTransition } from "react"
 import { useLocale } from "next-intl"
 import { Link, usePathname, useRouter } from "@/i18n/navigation"
 import { routing } from "@/i18n/routing"
-
-type AuthState = "anonymous" | "signed-in"
+import { createClient } from "@/lib/supabase/client"
+import {
+  getAuthHint,
+  setAuthHint,
+  type AuthState,
+} from "@/lib/auth-hint"
 
 type Labels = {
   brand: string
@@ -26,19 +30,42 @@ const LOCALE_LABELS: Record<string, string> = {
   ru: "Русский",
 }
 
+function computeInitials(
+  user:
+    | {
+        user_metadata?: { full_name?: string }
+        email?: string | null
+      }
+    | null
+    | undefined,
+): string {
+  if (!user) return ""
+  const source =
+    (user.user_metadata?.full_name as string | undefined) ?? user.email ?? ""
+  return (
+    source
+      .split(/\s|@/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((s) => s[0]?.toUpperCase() ?? "")
+      .join("") || "U"
+  )
+}
+
 export function SiteHeaderClient({
-  authState,
-  initials,
   repoUrl,
   labels,
 }: {
-  authState: AuthState
-  initials: string
   repoUrl: string
   labels: Labels
 }) {
   const [scrolled, setScrolled] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [authState, setAuthState] = useState<AuthState>(() => {
+    const hint = getAuthHint()
+    return hint === "signed-in" ? "signed-in" : "anonymous"
+  })
+  const [initials, setInitials] = useState<string>("")
 
   useEffect(() => {
     function onScroll() {
@@ -73,6 +100,46 @@ export function SiteHeaderClient({
     }
     mq.addEventListener("change", handle)
     return () => mq.removeEventListener("change", handle)
+  }, [])
+
+  useEffect(() => {
+    let sb: ReturnType<typeof createClient> | undefined
+    try {
+      sb = createClient()
+    } catch {
+      // createBrowserClient throws synchronously only if env vars are
+      // missing. Public pages must still render: keep current state.
+      return
+    }
+    if (!sb) return
+
+    function applySession(
+      user:
+        | {
+            user_metadata?: { full_name?: string }
+            email?: string | null
+          }
+        | null
+        | undefined,
+    ) {
+      if (user) {
+        setAuthState("signed-in")
+        setInitials(computeInitials(user))
+        setAuthHint("signed-in")
+      } else {
+        setAuthState("anonymous")
+        setInitials("")
+        setAuthHint("anonymous")
+      }
+    }
+
+    const { data: sub } = sb.auth.onAuthStateChange((_event, session) => {
+      applySession(session?.user ?? null)
+    })
+
+    return () => {
+      sub.subscription.unsubscribe()
+    }
   }, [])
 
   const closeDrawer = useCallback(() => setDrawerOpen(false), [])
@@ -132,7 +199,7 @@ export function SiteHeaderClient({
               {labels.changelog}
             </Link>
           </div>
-          <div className="nav-actions">
+          <div className="nav-actions" suppressHydrationWarning>
             <a
               href={repoUrl}
               target="_blank"
@@ -245,7 +312,7 @@ export function SiteHeaderClient({
             </svg>
           </button>
         </header>
-        <nav className="mobile-drawer-nav" aria-label="Mobile primary">
+        <nav className="mobile-drawer-nav" aria-label="Mobile primary" suppressHydrationWarning>
           {authState === "anonymous" ? (
             <Link href="/#features" onClick={closeDrawer}>
               {labels.features}
@@ -291,7 +358,7 @@ export function SiteHeaderClient({
             withLabel
           />
         </div>
-        <div className="mobile-drawer-actions">
+        <div className="mobile-drawer-actions" suppressHydrationWarning>
           {authState === "anonymous" ? (
             <Link
               href="/login?intent=signup"
