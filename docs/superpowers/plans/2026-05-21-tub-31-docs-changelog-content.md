@@ -1030,7 +1030,7 @@ function ChangelogFooter({
 const SOCIALS: Array<{ label: string; url: string; icon: React.ReactNode }> = []
 ```
 
-- [ ] **Step 2: Copy verbatim footer + SOCIALS.** Same as Task 1 Step 2: copy `LegalFooter` body + `SOCIALS` array from `src/app/[locale]/terms/page.tsx` lines 238-420, paste in place of `ChangelogFooter` placeholder + empty SOCIALS. Rename the function to `ChangelogFooter`.
+- [ ] **Step 2: Copy verbatim footer + SOCIALS.** Same as Task 1 Step 2: copy `LegalFooter` body + `SOCIALS` array from `src/app/[locale]/terms/page.tsx` lines 238-408 (line 408 is the closing `]` of SOCIALS). Paste in place of `ChangelogFooter` placeholder + empty SOCIALS. Rename the function to `ChangelogFooter`.
 
 - [ ] **Step 3: Add EN chrome keys to `messages/en.json`.** The file is NOT alphabetically ordered. Insert the new `"changelog"` block immediately after the closing `}` of the existing `"common"` block (at the very top of the file) and before the opening `"landing": {`. Verify line numbers with `grep -n '"common":\|"landing":' messages/en.json` first. Add:
 
@@ -1450,7 +1450,7 @@ mcp__claude_ai_Linear__save_issue {
 
 ```json
 mcp__claude_ai_Linear__save_comment {
-  "issue": "TUB-31",
+  "issueId": "TUB-31",
   "body": "Sprint complete.\n\nPR 1 (docs): <PR1-SHA>\nPR 2 (changelog): <PR2-SHA>\n\nVerify-on-prod PASS on /en/docs, /ru/docs, /en/changelog, /ru/changelog.\nDOM em-dash count = 0 on all 4 URLs (scoped to article.legal-article).\nSection counts: 8 (docs), 5 (changelog).\nRU disclaimer banner with role='note' renders on /ru/changelog only.\narticle.legal-article has lang='en' dir='ltr' on changelog (both locales).\n\nScreenshots at ~/vault/projects/yt-comments/sessions/2026-05-21/tub-31-docs-changelog/screenshots/.\nSpec: docs/superpowers/specs/2026-05-21-tub-30-docs-changelog-content-design.md\nPlan: docs/superpowers/plans/2026-05-21-tub-31-docs-changelog-content.md"
 }
 ```
