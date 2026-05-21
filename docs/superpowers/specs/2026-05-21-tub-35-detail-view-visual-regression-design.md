@@ -64,21 +64,25 @@ Single file change, plus verification work.
    - DB shape `SentimentAggregate` (from `@/lib/sentiment`) is structurally identical to `SentimentAggregateProp` (positive, neutral, negative, score, sampleSize, coverage, languages, ruShare). The cast is type-level only.
 3. Replace inline Emoji JSX (the `<div className="mt-6 rounded-lg border p-6">` block with `<ul>` of emoji items) with:
    ```tsx
-   {emojis.length > 0 && (
-     <EmojiPanel
-       tier={tier}
-       items={emojis.map<EmojiCount>((e) => ({
-         emoji: e.emoji,
-         count: e.count,
-         share: e.percent / 100,
-       }))}
-       totalUnique={emojis.length}
-     />
-   )}
+   {emojis.length > 0 && (() => {
+     const visible = tier === "pro" ? emojis : emojis.slice(0, 15)
+     return (
+       <EmojiPanel
+         tier={tier}
+         items={visible.map<EmojiCount>((e) => ({
+           emoji: e.emoji,
+           count: e.count,
+           share: (e.percent ?? 0) / 100,
+         }))}
+         totalUnique={emojis.length}
+       />
+     )
+   })()}
    ```
    Notes:
-   - DB `EmojiFreq` has `{emoji, count, percent}` where percent is 0..100. `EmojiCount` expects `share` as 0..1, so divide by 100 at the boundary.
-   - `totalUnique` uses the stored array length; the DB caps emoji storage upstream, so this matches the "displayed unique" rather than "total scanned unique" semantic. This is acceptable; users see the same number `EmojiPanel` shows on dashboard.
+   - DB `EmojiFreq` has `{emoji, count, percent}` where percent is 0..100. `EmojiCount` expects `share` as 0..1, so divide by 100 at the boundary. Defensive `?? 0` covers legacy rows where `percent` may be null/undefined.
+   - Pre-slice to 15 for free tier preserves existing tier gating from the inline JSX (`emojis.slice(0, tier === "pro" ? emojis.length : 15)`).
+   - `totalUnique` uses the full stored array length so the free-tier upgrade CTA computation `remaining = totalUnique - items.length` shows a non-zero "see N more" when the stored array has more than 15 items.
 4. Wrap the entire component return in `<div className="dashboard-page">`, keeping the existing `<div className="mx-auto max-w-5xl px-4 py-8">` as the inner content container:
    ```tsx
    return (
@@ -106,12 +110,14 @@ After PR 1 deploys, in the same Chrome MCP session:
 3. Click "Analyze N comments". Wait for extract to complete.
 4. Scroll the dashboard. Take screenshot.
 5. Assert: `TopWordsPanel`, `SentimentPanel`, `EmojiPanel`, `ResultsPanel` all render under the preview, above the Recent Analyses block.
-6. If all 4 render → Bug B is a false alarm. Document in Linear comment.
-7. If any panel missing → real regression. STOP, investigate, fix in same PR. Do NOT skip.
+6. If all 4 render then Bug B is a false alarm. Document in Linear comment.
+7. If any panel is missing then it is a real regression but PR 1 scope is limited to `analysis-detail-view.tsx`. Root cause is almost certainly in `tubemine.tsx` (out of scope for this turbo per the TUB-33 lock). Document the regression in a new Linear sub-issue (TUB-35-followup) with reproduction steps and screenshot, then continue with PR 1 verify. Do NOT widen PR 1 scope into `tubemine.tsx`.
 
 ### PR 2: vault updates (TC-CSS-008 + playbook 13 visual fidelity gate)
 
 No code changes. Two vault writes via `mcp__obsidian__write_note` / `patch_note`.
+
+Vault paths below are vault-root-relative (per `mcp__obsidian__write_note` convention; vault root is `~/vault/`).
 
 `projects/yt-comments/qa/test-cases.md`: append TC-CSS-008 entry. Title: "Detail view visual fidelity matches dashboard inline panels." Steps:
 1. Open `/history` on prod after an extract has run.
@@ -131,7 +137,7 @@ Content to add (verbatim, no em-dash):
 >
 > After every turbo PR merges to main, the verify-on-prod step MUST include a visual screenshot comparison, not just DOM and network assertions. DOM/network gates are insufficient for visual regressions.
 >
-> Open the changed page on prod via Chrome MCP. Screenshot every section that renders analytical panels (Sentiment, Top Words, Emoji, Comments table). Compare against the reference dashboard inline view OR the source design HTML if the page is a visual port. Acceptance: less than 3% pixel diff for panel regions.
+> Open the changed page on prod via Chrome MCP. Screenshot every section that renders analytical panels (Sentiment, Top Words, Emoji, Comments table). Compare against the reference dashboard inline view OR the source design HTML if the page is a visual port. Acceptance: less than 3% pixel diff for panel regions excluding text content (text values differ across analyses by design).
 >
 > ### Turbo prompt mandates
 >
@@ -167,13 +173,12 @@ PR 1:
 - [ ] `pnpm build` passes with zero TypeScript errors.
 - [ ] Commit pushed to main, Vercel deploy READY.
 - [ ] Prod `/history/:id` for an existing analysis shows: Sentiment bar with % (not plain text), Emoji card grid with badges (not `<ul>`), tier-aware download buttons (CSV always, JSON + Excel Pro-only).
-- [ ] Prod dashboard after fresh extract shows TopWords + Sentiment + Emoji + Results panels (Bug B verification documented).
-- [ ] Mobile 375px viewport: detail view + dashboard both readable.
+- [ ] Prod dashboard after fresh extract shows TopWords + Sentiment + Emoji + Results panels (Bug B verification documented; if regression real, sub-issue filed but PR 1 still ships).
 - [ ] Linear comment with commit SHA + verify-on-prod evidence + Bug B verdict.
 
-PR 2:
-- [ ] `vault/projects/yt-comments/qa/test-cases.md` contains TC-CSS-008 with full steps and acceptance.
-- [ ] `vault/playbooks/saas-roadmap/13-qa-user-flows-and-test-cases.md` contains the visual fidelity gate sub-section + turbo prompt mandate.
+PR 2 (vault writes, vault-root-relative paths):
+- [ ] `projects/yt-comments/qa/test-cases.md` contains TC-CSS-008 with full steps and acceptance.
+- [ ] `playbooks/saas-roadmap/13-qa-user-flows-and-test-cases.md` contains the visual fidelity gate sub-section + turbo prompt mandate.
 - [ ] Linear comment with vault note paths + content summary.
 
 Final:
