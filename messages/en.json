@@ -523,6 +523,121 @@
   "auth": {
     "sign_in_with_google": "Sign in with Google"
   },
+  "docs": {
+    "meta": {
+      "title": "Docs | TubeMine",
+      "description": "How to use TubeMine: quick start, plans, output formats, limits, and common errors."
+    },
+    "hero": {
+      "badge": "Docs",
+      "title": "How to use TubeMine.",
+      "sub": "Quick start, plans, output formats, limits, and common errors.",
+      "updated_label": "Last updated"
+    },
+    "toc": {
+      "aria": "Sections",
+      "heading": "On this page"
+    },
+    "sections": {
+      "overview": {
+        "toc_label": "Overview",
+        "title": "Overview",
+        "p1": "TubeMine reads a YouTube video's public comments and returns audience analytics: sentiment direction, the most frequent words, and the most frequent emoji. Paste a URL and the results are ready in seconds.",
+        "p2": "It is for creators, marketing analysts, ML researchers, indie developers, and anyone who wants the audience signal without manually scrolling through hundreds of comments."
+      },
+      "quickstart": {
+        "toc_label": "Quick start",
+        "title": "Quick start (no account needed)",
+        "p1": "Anonymous visitors can analyze any public video without signing in.",
+        "b1_strong": "1. Paste a public YouTube URL.",
+        "b1_text": "The home page form accepts any standard YouTube video URL (shortened, full, or with a timestamp).",
+        "b2_strong": "2. Confirm the preview.",
+        "b2_text": "TubeMine fetches the video's title, channel, view count, like count, and comment count so you can verify it is the right video before analysis.",
+        "b3_strong": "3. Click Analyze and download CSV.",
+        "b3_text": "Results render in the browser and a CSV is built client-side with columns author, text, likes, replies, publishedAt.",
+        "callout_strong": "Anonymous limit:",
+        "callout_text": "1,000 comments per IP per video. Results live in your browser only until you close the tab. Sign in to bump the limit to 5,000 comments per month and save up to 10 analyses to history."
+      },
+      "signin": {
+        "toc_label": "Sign in (Free)",
+        "title": "Sign in for the Free plan",
+        "p1": "Signing in with Google switches you from per-IP limits to a per-account monthly budget, adds the qualitative sentiment label, and persists your last analyses to history.",
+        "b1_strong": "Sign in via Google.",
+        "b1_text": "The /login route handles OAuth. No password to remember.",
+        "b2_strong": "5,000 comments per month.",
+        "b2_text": "Counted across all videos you analyze in the calendar month; resets on the 1st.",
+        "b3_strong": "Qualitative sentiment label.",
+        "b3_text": "Each analysis shows a qualitative bar for sentiment direction (positive, neutral, negative). Pro adds exact percentages.",
+        "b4_strong": "Last 10 analyses saved with CSV download.",
+        "b4_text": "Visit /history to revisit prior runs. CSV columns match anonymous: author, text, likes, replies, publishedAt."
+      },
+      "pro": {
+        "toc_label": "Pro flow",
+        "title": "Pro flow ($19/month)",
+        "p1": "Pro is $19 per month with a 3-day free trial. It adds exact sentiment percentages, full word and emoji rankings, JSON and Excel exports, a 100,000-comment monthly budget, and 100 saved analyses in history.",
+        "b1_strong": "Price and trial.",
+        "b1_text": "Pro costs $19 / month. New signups get a 3-day free trial; you only pay on day 4 if you stay.",
+        "b2_strong": "7-day refund window.",
+        "b2_text": "After your first charge, you have 7 days to request a refund through the customer portal. The trial and refund windows do not stack: the trial runs before any charge; the refund window starts only once billing begins.",
+        "b3_strong": "Cancel anytime.",
+        "b3_text": "Pro is month to month, no minimum term. Cancel from the customer portal in two clicks.",
+        "b4_strong": "100,000 comments per month, 100 saved analyses, exact sentiment plus trends.",
+        "b4_text": "JSON and Excel exports available from /dashboard and /history.",
+        "p2_prefix": "Full comparison and FAQ at",
+        "p2_link_pricing": "/pricing",
+        "p2_tail": "."
+      },
+      "formats": {
+        "toc_label": "Output formats",
+        "title": "Output formats (CSV, JSON, Excel)",
+        "p1": "Three formats are available, by tier.",
+        "csv_strong": "CSV (all tiers).",
+        "csv_text": "Columns: author, text, likes, replies, publishedAt. Generated client-side via Papa Parse. Cells starting with =, +, -, @ are sanitized to prevent formula injection when you open the file in Excel or Sheets.",
+        "json_strong": "JSON (Pro).",
+        "json_text": "Same record schema as CSV plus the analysis aggregates: sentiment percentages, top words, top emoji. Downloaded from /dashboard or /history. The 'API coming soon' qualifier on the pricing page refers to a planned public REST API for developers; the JSON file download itself works today.",
+        "xlsx_strong": "Excel / XLSX (Pro).",
+        "xlsx_text": "Generated server-side. Same data as JSON. Same formula-injection sanitization as CSV.",
+        "p2_security": "Formula-injection sanitization (shipped 2026-05-21) covers ASCII =, +, -, @ plus their full-width Unicode variants. OWASP-recommended hardening for any user-generated content exported to spreadsheets."
+      },
+      "limits": {
+        "toc_label": "Limits and quotas",
+        "title": "Limits and quotas",
+        "p1": "Quotas are tracked separately per tier.",
+        "ip_strong": "Anonymous (per IP).",
+        "ip_text": "1,000 comments per IP per video. Monthly per-IP budget resets on the 1st of the next calendar month.",
+        "user_strong": "Free and Pro (per account).",
+        "user_text": "Budget tied to your Google sign-in: 5,000 / month for Free, 100,000 / month for Pro. Resets on the 1st. Current usage and reset date visible at /profile.",
+        "yt_strong": "YouTube API quota.",
+        "yt_text": "TubeMine uses its own shared quota with the YouTube Data API v3, so you never need your own API key. If our shared quota is exhausted for the day you may see the message 'TubeMine has hit its YouTube API daily quota'; the quota refreshes daily on YouTube's schedule."
+      },
+      "troubleshoot": {
+        "toc_label": "Troubleshooting",
+        "title": "Troubleshooting common errors",
+        "p1": "If extract or preview fails, here is how to read the most common error messages.",
+        "err1_q": "\"Video not found\"",
+        "err1_a": "The URL is invalid, or the video is private or has been removed. Verify the URL by opening it in a YouTube tab; TubeMine only works with public videos.",
+        "err2_q": "\"Comments are disabled for this video by the uploader\"",
+        "err2_a": "The video's uploader has turned off comments on YouTube itself; there is no comment thread to analyze.",
+        "err3_q": "\"TubeMine has hit its YouTube API daily quota. Please try again tomorrow.\"",
+        "err3_a": "Our shared YouTube Data API quota for the day is exhausted. It refreshes daily on YouTube's schedule; try again the next day.",
+        "err4_q": "\"Monthly Pro cap reached. Resets on the 1st.\" / \"Free tier cap reached. Upgrade for 100,000 comments/month.\"",
+        "err4_a": "Your account has hit its monthly cap (5,000 for Free, 100,000 for Pro). The quota resets on the 1st of the next calendar month. Current usage and reset date are visible at /profile.",
+        "err5_q": "\"Monthly budget exhausted\"",
+        "err5_a": "Anonymous-visitor monthly per-IP cap. Sign in with Google to switch to a per-account budget (5,000 Free, 100,000 Pro).",
+        "p_contact_prefix": "If none of these match what you see, email",
+        "p_contact_link": "hello@tubemine.app",
+        "p_contact_tail": "."
+      },
+      "opensource": {
+        "toc_label": "Open source",
+        "title": "Open source (MIT)",
+        "p1_prefix": "TubeMine is open source under the MIT license. The full repository is on",
+        "p1_link_github": "GitHub",
+        "p1_tail": ".",
+        "p2": "Contributions are welcome: fork the repo, create a feature branch, open a pull request against main with a clear description. See the README Contributing section for the local dev setup."
+      }
+    }
+  },
   "extractor": {
     "input_label": "YouTube video URL",
     "input_placeholder": "https://www.youtube.com/watch?v=...",
