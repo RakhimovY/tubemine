@@ -1,7 +1,7 @@
 import { getTranslations, setRequestLocale } from "next-intl/server"
 import NextLink from "next/link"
 import { Link, redirect } from "@/i18n/navigation"
-import { createClient } from "@/lib/supabase/server"
+import { createClient, getCachedUser } from "@/lib/supabase/server"
 import { getUserQuota, type Tier } from "@/lib/quota"
 import { formatNumber } from "@/lib/format"
 import { AccountIdCopy } from "@/components/profile/account-id-copy"
@@ -38,9 +38,7 @@ export default async function ProfilePage({
   setRequestLocale(locale)
 
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getCachedUser()
   if (!user) {
     redirect({ href: `/login?next=/${locale}/profile`, locale })
     return null

@@ -1,7 +1,7 @@
 import { getTranslations, setRequestLocale } from "next-intl/server"
 import NextLink from "next/link"
 import { Link, redirect } from "@/i18n/navigation"
-import { createClient } from "@/lib/supabase/server"
+import { createClient, getCachedUser } from "@/lib/supabase/server"
 import {
   getUserQuota,
   FREE_MONTHLY_CAP,
@@ -59,9 +59,7 @@ export default async function DashboardPage({
   const showWelcome = sp?.welcome === "true"
 
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getCachedUser()
   if (!user) {
     redirect({ href: `/login?next=/${locale}/dashboard`, locale })
     return null
