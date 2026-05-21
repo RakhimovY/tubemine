@@ -370,7 +370,7 @@ Add `track()` calls (existing helper). New events:
 - `history_csv_downloaded` (props: `analysis_id_hash`, `from_detail` boolean)
 - `history_json_downloaded`
 - `history_excel_downloaded`
-- `history_deleted` (props: `analysis_id_hash`, `committed` boolean — true after timer fires)
+- `history_deleted` (props: `analysis_id_hash`, `committed` boolean - true after timer fires)
 - `history_delete_undone` (props: `analysis_id_hash`)
 
 If there's an allowed-events whitelist (check `src/lib/track.ts` or equivalent), add these entries.
@@ -474,7 +474,7 @@ Unmount: flush pending timers by firing the DELETE immediately
 | Export with legacy row | 410 `comments_not_stored` |
 | Export with valid row but format invalid | 400 `invalid_format` |
 | Delete during undo window: user closes tab | flush pending timer in unmount cleanup |
-| Delete after row already gone (race) | server returns `{ deleted: 0 }` — silent success, no error toast |
+| Delete after row already gone (race) | server returns `{ deleted: 0 }` - silent success, no error toast |
 | Storage upload fails (PR 1 write) | log warning, fall back to inline (truncate comments array if necessary); the row save still succeeds with whatever fits, aggregates always persist |
 | Storage delete fails (DELETE side-effect) | log warning, swallow; orphan blobs are non-critical |
 
@@ -535,7 +535,7 @@ MUST NOT touch:
 
 | Question | Answer |
 |---|---|
-| Virtualization library? | `@tanstack/react-virtual` — lightweight, headless, headless-only, established in Next.js ecosystem |
+| Virtualization library? | `@tanstack/react-virtual` - lightweight, headless, headless-only, established in Next.js ecosystem |
 | Storage compression? | No for MVP; gzip is V2 optimization |
 | Inline vs blob threshold? | 5 MB serialized JSONB |
 | Modal vs separate route for detail? | Separate route `/history/:id` (deep-linkable, back-button-friendly, mobile-friendly) |
@@ -557,8 +557,8 @@ Each commit ships independently to main and is independently revertible via `git
 
 ## 13. Success criteria
 
-1. User can click any row in /history → see top words, sentiment %, emojis, comments table — all without YT API call
-2. User can download CSV (Free+Pro) / JSON+Excel (Pro) from /history/:id — using cached data, no YT call
+1. User can click any row in /history → see top words, sentiment %, emojis, comments table - all without YT API call
+2. User can download CSV (Free+Pro) / JSON+Excel (Pro) from /history/:id - using cached data, no YT call
 3. Dashboard "Recent analyses" and /history share one component implementation
 4. Delete action shows undo toast; clicking undo within 5s restores row; no DELETE network call during undo
 5. Pro analysis row stays accessible for 100 days; Free for 30 days
