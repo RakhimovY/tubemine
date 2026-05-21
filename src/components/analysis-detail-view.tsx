@@ -6,10 +6,13 @@ import { useTranslations } from "next-intl"
 import { toast } from "sonner"
 import { useRouter } from "@/i18n/navigation"
 import { TopWordsPanel } from "@/components/top-words"
+import { SentimentPanel, type SentimentAggregateProp } from "@/components/sentiment"
+import { EmojiPanel } from "@/components/emoji-frequency"
 import { CommentsTable } from "@/components/comments-table"
 import { Button } from "@/components/ui/button"
 import type { AnalysisDetailRow, TopWord, EmojiFreq } from "@/lib/analyses"
 import type { SentimentAggregate } from "@/lib/sentiment"
+import type { EmojiCount } from "@/lib/emoji-frequency"
 
 type Tier = "free" | "pro"
 
@@ -85,6 +88,7 @@ export function AnalysisDetailView({ tier, row }: AnalysisDetailViewProps) {
   const emojis = (row.emoji_frequency ?? []) as EmojiFreq[]
 
   return (
+    <div className="dashboard-page">
     <div className="mx-auto max-w-5xl px-4 py-8">
       <div className="mb-6 flex flex-wrap items-start gap-4">
         {row.thumbnail_url && (
@@ -171,27 +175,28 @@ export function AnalysisDetailView({ tier, row }: AnalysisDetailViewProps) {
       )}
 
       {sentiment && (
-        <div className="mt-6 rounded-lg border p-6">
-          <h2 className="text-sm font-medium">Sentiment</h2>
-          <p className="mt-2 text-xs text-muted-foreground">
-            +{sentiment.positive} / ={sentiment.neutral} / -{sentiment.negative}
-          </p>
-        </div>
+        <SentimentPanel
+          tier={tier}
+          aggregate={sentiment as SentimentAggregateProp}
+          distribution={null}
+          commentsAnalyzed={row.comment_count}
+        />
       )}
 
-      {emojis.length > 0 && (
-        <div className="mt-6 rounded-lg border p-6">
-          <h2 className="text-sm font-medium">Emoji frequency</h2>
-          <ul className="mt-2 flex flex-wrap gap-2">
-            {emojis.slice(0, tier === "pro" ? emojis.length : 15).map((e) => (
-              <li key={e.emoji} className="text-sm">
-                {e.emoji}{" "}
-                <span className="text-xs text-muted-foreground">{e.count}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {emojis.length > 0 && (() => {
+        const visible = tier === "pro" ? emojis : emojis.slice(0, 15)
+        return (
+          <EmojiPanel
+            tier={tier}
+            items={visible.map<EmojiCount>((e) => ({
+              emoji: e.emoji,
+              count: e.count,
+              share: (e.percent ?? 0) / 100,
+            }))}
+            totalUnique={emojis.length}
+          />
+        )
+      })()}
 
       <h2 className="mt-8 text-sm font-medium">{t("comments_table_heading")}</h2>
       {row.has_comments && row.comments ? (
@@ -201,6 +206,7 @@ export function AnalysisDetailView({ tier, row }: AnalysisDetailViewProps) {
           {t("legacy_no_comments")}
         </p>
       )}
+    </div>
     </div>
   )
 }
