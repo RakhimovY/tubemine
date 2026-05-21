@@ -193,7 +193,9 @@ Replace with:
 Run: `pnpm tsc --noEmit` (or `npm run typecheck` if defined).
 Expected: clean exit, no new errors.
 
-### Task A2: Rewire form submit and button to drive `onPreview` or `onExtract` based on `preview` state; strip preview-card buttons
+### Task A2: Rewire form submit handler, main button, and strip preview-card buttons
+
+(Split into mechanical sub-steps; each is one find/replace plus a quick verify. Type-check at the end of all three so we catch any cascading JSX imbalance in one pass.)
 
 **Files:**
 - Modify: `src/components/tubemine.tsx` (form `<form>` block, preview card markup)
@@ -747,13 +749,49 @@ Run `grep -n "btn--ghost" src/app/globals.css` and locate the end of the button-
 }
 ```
 
-- [ ] **Step 3: ONLY IF baseline measurement (Task C1) showed Save JSON or Save Excel failing AA**
+- [ ] **Step 3: Type-check**
 
-Otherwise SKIP this step.
+Run: `pnpm tsc --noEmit`.
+Expected: clean.
 
-In `export-bar.tsx`, add `className="tm-action-btn-outline"` to the Save JSON and Save Excel `<Button>` instances.
+- [ ] **Step 4: Em-dash check**
 
-In `globals.css`, after the `.tm-action-btn` block, append:
+Run: `grep -nP "[\x{2014}\x{2013}]" src/app/globals.css src/components/export-bar.tsx`.
+Expected: no NEW em-dash from this PR (pre-existing matches elsewhere in `globals.css` are out of scope).
+
+### Task C2b (conditional): Apply outline-variant fix to Save JSON / Save Excel
+
+Run this task ONLY if Task C1 Step 3 recorded baseline ratio < 4.5:1 for Save JSON or Save Excel. Otherwise SKIP entirely and proceed to Task C3.
+
+- [ ] **Step 1: Add `tm-action-btn-outline` class to outline buttons in export-bar.tsx**
+
+Find:
+```tsx
+      <Button onClick={onDownloadJson} size="sm" variant="outline">
+        <Download className="size-4" />
+        {tCommon("save_json")}
+      </Button>
+      <Button onClick={onDownloadExcel} size="sm" variant="outline">
+        <Download className="size-4" />
+        {tCommon("save_excel")}
+      </Button>
+```
+
+Replace with:
+```tsx
+      <Button onClick={onDownloadJson} size="sm" variant="outline" className="tm-action-btn-outline">
+        <Download className="size-4" />
+        {tCommon("save_json")}
+      </Button>
+      <Button onClick={onDownloadExcel} size="sm" variant="outline" className="tm-action-btn-outline">
+        <Download className="size-4" />
+        {tCommon("save_excel")}
+      </Button>
+```
+
+- [ ] **Step 2: Append outline-variant CSS to globals.css**
+
+Append after the `.tm-action-btn` block from Task C2 Step 2:
 
 ```css
 .tm-design .tm-action-btn-outline {
@@ -770,15 +808,10 @@ In `globals.css`, after the `.tm-action-btn` block, append:
 }
 ```
 
-- [ ] **Step 4: Type-check**
+- [ ] **Step 3: Type-check + em-dash check**
 
-Run: `pnpm tsc --noEmit`.
-Expected: clean.
-
-- [ ] **Step 5: Em-dash check**
-
-Run: `grep -nP "[\x{2014}\x{2013}]" src/app/globals.css src/components/export-bar.tsx`.
-Expected: no NEW em-dash from this PR (pre-existing matches elsewhere in `globals.css` are out of scope).
+Run: `pnpm tsc --noEmit` and `grep -nP "[\x{2014}\x{2013}]" src/app/globals.css src/components/export-bar.tsx`.
+Expected: clean tsc, no new em-dash.
 
 ### Task C3: Commit, push, verify on prod
 
@@ -823,8 +856,8 @@ Same procedure as Task A3 Step 5.
 
 Re-run the script from Task C1 Step 2. Assert:
 - Save CSV ratio >= 4.5 (or >= 3.0 if computed font-size and weight classify as large text per WCAG SC 1.4.3).
-- If Step 3 of Task C2 was executed: Save JSON / Save Excel ratio at the same threshold.
-- If Step 3 of Task C2 was SKIPPED: no assertion on Save JSON / Save Excel.
+- If Task C2b was executed: Save JSON / Save Excel ratio at the same threshold.
+- If Task C2b was SKIPPED: no assertion on Save JSON / Save Excel.
 
 If Save CSV still fails: investigate cascade (use DevTools-equivalent JS to inspect which rules apply via `getMatchedCSSRules` or by checking inline rules count). If `!important` is being overridden by another `!important` in shadcn or component-scoped CSS, escalate selector specificity (e.g., add a sibling class or add `:where()`-defeating compound selector) and ship a follow-up commit.
 
