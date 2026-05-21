@@ -80,13 +80,14 @@ After this change, `SiteHeader` no longer reads `cookies()` directly or transiti
 
 ### Client-side changes
 
-**`src/lib/auth-hint.ts`** (new file, ~30 lines):
+**`src/lib/auth-hint.ts`** (new file, ~35 lines):
 
-Three exported helpers wrapping `localStorage` with try/catch for SSR and private-browsing safety:
+Three exported helpers wrapping `localStorage` with try/catch for SSR and private-browsing safety. Also exports the shared `AuthState` type alias used by `SiteHeaderClient`:
 
 ```ts
 const KEY = "tubemine:auth-hint"
-type AuthHint = "signed-in" | "anonymous"
+export type AuthState = "signed-in" | "anonymous"
+type AuthHint = AuthState
 
 export function getAuthHint(): AuthHint | null {
   if (typeof window === "undefined") return null
@@ -119,25 +120,33 @@ export function clearAuthHint(): void {
 
 **`src/components/site-header-client.tsx`** (client component):
 
-1. Remove `authState` and `initials` from the props type.
+1. Remove `authState` and `initials` from the props type. Import `AuthState`, `getAuthHint`, and `setAuthHint` from `@/lib/auth-hint`.
 2. Add new state owned by the component:
    ```ts
+   import type { AuthState } from "@/lib/auth-hint"
+   import { getAuthHint, setAuthHint } from "@/lib/auth-hint"
+
    const [authState, setAuthState] = useState<AuthState>(() => {
      const hint = getAuthHint()
      return hint === "signed-in" ? "signed-in" : "anonymous"
    })
    const [initials, setInitials] = useState<string>("")
    ```
-   Note: the `useState` initializer runs once at mount, synchronously before paint. The localStorage read is fast (sub-millisecond) and safe for SSR because `getAuthHint` returns `null` when `window` is undefined.
-3. Add an effect that fetches the actual user from Supabase in the browser:
+   Note: the `useState` initializer runs once at mount, synchronously. The localStorage read is fast (sub-millisecond) and safe for SSR because `getAuthHint` returns `null` when `window` is undefined.
+3. Add an effect that subscribes to Supabase auth state. `onAuthStateChange` in `@supabase/ssr` v2 fires an `INITIAL_SESSION` event right after subscription (on the next tick) with the current session loaded from cookies. This event is our single source of truth, so we do NOT also call `supabase.auth.getUser()` separately - the listener alone handles both initial-state delivery and ongoing changes. This removes the load-vs-listener race flagged in spec review.
+
    ```ts
    useEffect(() => {
-     const sb = createClient() // from @/lib/supabase/client
-     let cancelled = false
+     let sb
+     try {
+       sb = createClient() // from @/lib/supabase/client
+     } catch {
+       // createBrowserClient throws only if env vars are missing.
+       // Public pages must still render: keep current state, do not flip.
+       return
+     }
 
-     async function load() {
-       const { data: { user } } = await sb.auth.getUser()
-       if (cancelled) return
+     function applySession(user: { user_metadata?: { full_name?: string }; email?: string | null } | null | undefined) {
        if (user) {
          setAuthState("signed-in")
          setInitials(computeInitials(user))
@@ -148,28 +157,20 @@ export function clearAuthHint(): void {
          setAuthHint("anonymous")
        }
      }
-     load()
 
      const { data: sub } = sb.auth.onAuthStateChange((_event, session) => {
-       if (cancelled) return
-       const user = session?.user ?? null
-       if (user) {
-         setAuthState("signed-in")
-         setInitials(computeInitials(user))
-         setAuthHint("signed-in")
-       } else {
-         setAuthState("anonymous")
-         setInitials("")
-         setAuthHint("anonymous")
-       }
+       applySession(session?.user ?? null)
      })
 
      return () => {
-       cancelled = true
        sub.subscription.unsubscribe()
      }
    }, [])
    ```
+
+   Error handling notes:
+   - `createClient()` (the browser builder) throws synchronously only if `NEXT_PUBLIC_SUPABASE_URL` or `NEXT_PUBLIC_SUPABASE_ANON_KEY` is undefined. Wrapped in try/catch; on failure the component keeps whatever state the hint initializer set. Header remains usable.
+   - `onAuthStateChange` itself does not throw. If Supabase's internal session load fails (corrupt cookie, network down), the listener will fire with `session = null`, and `applySession` correctly sets anonymous state. This explicitly clears a stale "signed-in" hint, so a downed auth API never leaves a returning user stuck displaying a Dashboard CTA they can no longer use.
 4. Add a `computeInitials` helper (moved from the server file verbatim):
    ```ts
    function computeInitials(user: { user_metadata?: { full_name?: string }; email?: string | null }): string {
@@ -187,7 +188,7 @@ export function clearAuthHint(): void {
      )
    }
    ```
-5. The JSX that switches on `authState === "anonymous"` vs `"signed-in"` stays exactly as it is. The initials span and dashboard CTA continue to render conditionally.
+5. The JSX that switches on `authState === "anonymous"` vs `"signed-in"` stays structurally identical. There are two auth-conditional regions: (a) the desktop nav-links + nav-actions block (around lines 100-183 of the current file), and (b) the mobile drawer nav + mobile-drawer-actions block (around lines 249-313). Both consume the same `authState` state - one source of truth covers both. Add `suppressHydrationWarning` (see Hydration mismatch handling section below) only to the outer container element of each conditional region, not to every child node.
 
 ### Hydration walkthrough
 
@@ -221,11 +222,15 @@ export function clearAuthHint(): void {
 
 ### Hydration mismatch handling
 
-The localStorage hint pattern intentionally lets the first client render diverge from SSR for returning signed-in users. React 19 (used by Next.js 16) handles client/server divergence inside client components gracefully when the divergence happens inside `useState` lazy initializers, because the state is initialized in the same pass as hydration. The recommendation from React docs is:
+The localStorage hint pattern intentionally lets the first client render diverge from SSR for returning signed-in users. React 19 (used by Next.js 16) WILL emit a hydration warning when SSR-rendered DOM differs from the initial client render of a client component, regardless of `useState` lazy initializer placement. The hint pattern relies on this expected behavior, so we silence the warning explicitly on the diverging subtree.
 
-> If you intentionally need the server and client to render different things, you can do a two-pass rendering: render the SSR'd output first, then update state in `useEffect` to render the client-only content.
+Approach:
 
-Our pattern is essentially that, but the trigger is the lazy `useState` initializer reading localStorage (which is browser-only and returns `null` during SSR via the `window === undefined` guard). The framework treats this as a controlled mismatch with no warning, identical to common patterns like dark-mode preference reads. Verified pattern: search the codebase for any prior localStorage-based render branch confirms expected behavior, and the React 19 docs section "[Bug?] Why am I getting a hydration mismatch?" explicitly covers this case.
+1. Wrap each auth-conditional region (desktop nav-actions, mobile-drawer-nav, mobile-drawer-actions) in its existing parent element and add `suppressHydrationWarning` to that parent. This tells React: "I know SSR and first client render differ here; do not warn."
+2. Do NOT apply `suppressHydrationWarning` to the entire `SiteHeaderClient` root. Scope it to just the regions that actually diverge.
+3. Verification: open DevTools console on a returning signed-in user's first navigation post-deploy. Console must be free of `Hydration failed` and `Warning: Text content did not match` errors.
+
+Tradeoff: `suppressHydrationWarning` silences the warning but does NOT prevent the mismatch itself. The visual outcome is: SSR HTML shows anon shell briefly (microseconds, before client takes over), then the lazy initializer fires the hint-correct render in the same hydration frame. For returning signed-in users this is imperceptible because hydration commits in one paint; the SSR'd DOM never actually paints to screen before client reconciliation completes. This is the same pattern used by dark-mode toggles and any other localStorage-based render hint.
 
 ### CLS prevention
 
@@ -236,13 +241,21 @@ The right side of the nav has two variants:
 
 The width delta is the 30px avatar + ~8px gap = ~38px.
 
-Mitigation: add `min-width` to the `.nav-actions` container sized for the wider (signed-in) variant. Implementation:
+Mitigation: add `min-width` to the `.nav-actions` container sized for the wider (signed-in) variant, but **only at the desktop breakpoint**. On narrow viewports (<1024px, the existing breakpoint where the desktop nav-links hide and the mobile menu trigger takes over) the layout collapses to mobile-menu-button only, and a fixed desktop `min-width` would push the hamburger off-screen or cause horizontal overflow.
 
-1. Find the `.nav-actions` rule in the relevant styled-jsx block or global CSS file.
-2. Add `min-width: <value>px` matching the signed-in layout.
-3. Verify visually that anonymous users see no horizontal layout shift between SSR paint and post-mount; signed-in users see no shift on hint hit.
+Implementation:
 
-If the CSS source is hard to pinpoint, fallback: wrap the auth-conditional region (`{authState === "anonymous" ? ... : ...}`) in a `<div>` with `min-width: 168px; display: flex; justify-content: flex-end;` inline (the 168px is the measured width of `[Dashboard button] + [Avatar 30px]` plus standard gap; precise value to be confirmed during implementation).
+1. Locate the `.nav-actions` rule. The brainstorming pass showed the styles are in the landing styled-jsx block referenced by the file header comment, but the exact source file is located during implementation (a `grep -r ".nav-actions" src/ app/` resolves it). Likely candidates: `src/app/[locale]/page.tsx` styled-jsx block, or a global CSS file imported by `[locale]/layout.tsx`.
+2. Scope the `min-width` rule inside a desktop media query that matches the existing `@media (min-width: 1024px)` breakpoint already used by `SiteHeaderClient` (it watches `window.matchMedia("(min-width: 1024px)")`). The rule looks like:
+   ```css
+   @media (min-width: 1024px) {
+     .nav-actions {
+       min-width: <value>px; /* measured during impl */
+     }
+   }
+   ```
+3. The exact pixel value cannot be known without measuring the rendered signed-in layout. During implementation: open DevTools on a signed-in production page, inspect the `.nav-actions` width when both Dashboard button and avatar are present, take that value (likely 160-180px including gaps), apply.
+4. Verify visually at three viewport widths: 1440px (desktop), 1024px (breakpoint edge), 375px (mobile). No layout shift on any. No hamburger off-screen on mobile.
 
 ### Out of scope
 
@@ -277,18 +290,26 @@ After deploy to production and verification:
 
 ### Performance (primary metric)
 
-Run the Chrome MCP measurement script from `~/vault/references/tubemine-public-page-nav-perf-2026-05-21.md` §"Verification methodology" on `/en/pricing`. Click 5 alternating navigations between `/docs` and `/changelog`. Compute averages.
+Run the Chrome MCP measurement script from `~/vault/references/tubemine-public-page-nav-perf-2026-05-21.md` §"Verification methodology". The measurement procedure:
 
-- **Average RSC TTFB across the 5 samples: <100ms** (Phase B target from Linear TUB-30 body).
-- **Average total transition: <800ms** (Phase B target).
-- **Baseline reference:** average TTFB 346ms, average total 1860ms.
+1. Navigate to `/en/pricing` (this is the starting URL, used as the page from which clicks originate). The script measures the 5 clicks that follow.
+2. The script clicks 5 alternating Link navigations: pricing→docs, docs→changelog, changelog→docs, docs→changelog, changelog→docs (matching the baseline measurement methodology exactly).
+3. Each click captures total transition time and RSC TTFB.
+4. Compute average across the 5 measured navigations.
 
-Pass criteria: both averages strictly below target.
+Pass criteria (Phase B target from Linear TUB-30 body), evaluated on these 5 navigations between /docs and /changelog:
+
+- **Average RSC TTFB across the 5 samples: <100ms**
+- **Average total transition: <800ms**
+- **Baseline reference:** average TTFB 346ms, average total 1860ms (from the same script run pre-fix).
+
+`/pricing` is the launch point only; its own TTFB is NOT part of the pass gate (it has additional server-side render work that this issue does not address). `/login` is similarly excluded - it has its own auth handling concerns out of scope here. If `/pricing` or `/login` TTFB remains high post-fix, that is a follow-up issue, not a TUB-30 blocker.
 
 ### Functional (smoke tests on prod)
 
-- **Anonymous user, hard reload `/en/pricing`:** header renders `Get started` CTA. No `Dashboard` shown. No console error.
-- **Anonymous user, click `/docs`:** transition completes, header still shows `Get started`. No flicker.
+- **Anonymous user (fresh incognito, no localStorage hint), hard reload `/en/pricing`:** header renders `Get started` CTA. No `Dashboard` shown. No console error.
+- **Anonymous user (fresh incognito), click `/docs`:** transition completes, header still shows `Get started`. No flicker (initial state = "anonymous" matches SSR, and `applySession(null)` leaves state unchanged).
+- **Anonymous user with stale "signed-in" hint** (clear cookies but keep localStorage, then visit /pricing): initial render briefly shows Dashboard CTA, then `onAuthStateChange` fires with `session = null`, state flips to anonymous within one render. The hint also clears (overwritten to "anonymous"). This brief incorrect-state flicker is expected and acceptable; the next visit shows correct state immediately.
 - **Sign in via `/login` flow:** after redirect to `/dashboard`, hint is set to `"signed-in"` (verify in DevTools Application → Local Storage).
 - **Signed-in user, click `/pricing` from header:** Dashboard CTA + avatar appear without flicker (hint hit on first client render).
 - **Signed-in user, hard reload `/en/changelog`:** Dashboard CTA + avatar appear immediately on hydration (hint hit). Background validation does not change state.
@@ -299,7 +320,17 @@ Pass criteria: both averages strictly below target.
 
 - `pnpm tsc --noEmit` clean.
 - `pnpm lint` clean.
-- `pnpm build` succeeds; build log shows the affected public-page routes as static or `prerendered` (look for the `○ /pricing`, `○ /docs`, etc. markers in Next.js build output, vs. the current `λ` marker indicating dynamic). If the build output still flags routes as dynamic for other reasons (locale handling, `setRequestLocale`, etc.), capture the output and verify in the deploy log that warm-navigation RSC fetches are now served as static responses (200 with cache-able headers).
+- `pnpm build` succeeds; build log shows the affected public-page routes as static or `prerendered` (look for the `○` (or `●`) markers next to `/pricing`, `/docs`, `/changelog` in the Next.js build output, vs. the current `λ` or `ƒ` marker indicating dynamic). If the build output still flags routes as dynamic for other reasons (locale handling, `setRequestLocale`, middleware), use the production-network gate as fallback:
+
+  **Network-gate fallback** (run from a signed-in browser session on production):
+  1. Open DevTools Network tab, filter to `Fetch/XHR`.
+  2. Hover a `<Link>` to `/docs` from `/pricing`; observe the prefetch RSC request to `/_next/...rsc=1` or similar.
+  3. Click the link.
+  4. The click-time RSC request must show in DevTools as a fresh fetch with one of these signals indicating static-route caching:
+     - response header `x-nextjs-cache: HIT` or `x-vercel-cache: HIT`, OR
+     - response header `cache-control` containing `s-maxage` or `immutable`, OR
+     - response transferred size < 500 bytes (indicating the prefetched payload was served from disk cache rather than re-rendered).
+  5. If none of these signals are present, the route is still dynamic. File a TUB-30 follow-up issue, do not close TUB-30 as Done.
 
 ### Linear updates
 
@@ -326,11 +357,13 @@ These were called out in the turbo-pipeline brief and apply throughout:
 | Risk | Probability | Impact | Mitigation |
 |------|-------------|--------|------------|
 | Routes still flagged dynamic by another `cookies()` reader in the public render tree | Low | Build still uses dynamic rendering, TTFB does not drop | Grep `src/app/[locale]/(public)`, `src/app/[locale]/page.tsx`, `src/app/[locale]/layout.tsx`, and any landing-page server components for `cookies()` and `createClient` calls before merge. If found, address in same PR or carve into TUB-30 follow-up issue. |
-| Hydration mismatch warning shows in browser console for returning signed-in users | Medium | Console noise, no functional break | Use `useState` lazy initializer pattern (verified above). If warning still appears, add `suppressHydrationWarning` to the specific element that branches on `authState`. |
-| `onAuthStateChange` fires immediately on subscribe with current session and creates a double-render | Low | Brief extra render, no user impact | Compare new session to current state before calling `setAuthState`; React would bail out on identical setState anyway. |
+| Hydration mismatch warning shows in browser console for returning signed-in users | High (expected) | Console noise, no functional break | `suppressHydrationWarning` applied to each auth-conditional region in `site-header-client.tsx` (see Hydration mismatch handling). Verification: console clean on prod check post-deploy. |
+| `onAuthStateChange` INITIAL_SESSION event races with separate `getUser()` call | Resolved by design | N/A | Design uses listener as sole source of truth, no separate `getUser()` call. INITIAL_SESSION fires once after subscribe, handles initial state, no race possible. |
+| Supabase auth API down or network failure during initial-session load | Low | Listener fires with `session = null`, header renders anonymous, stale "signed-in" hint cleared | Documented in Client-side changes error notes. Outcome is correct: anon view is the safe default; Dashboard click would 401 anyway. |
 | localStorage hint becomes stale after a backend-driven session revocation | Low | Brief wrong-state flicker on next visit, corrects after `getUser()` resolves | Acceptable. Same magnitude as the no-hint case. The validation `useEffect` runs unconditionally and corrects. |
 | CSS `min-width` value picked is wrong, layout looks unbalanced for anonymous users | Medium | Visual nit, no functional break | During implementation, measure the signed-in layout width via DevTools, pick a value that matches exactly. Cross-check on mobile (the mobile drawer is a separate path and not affected). |
-| Mobile drawer auth-conditional logic also needs the same treatment | High | Drawer shows wrong CTAs until client hydrates | Drawer JSX is inside `SiteHeaderClient` and uses the same `authState` state. Single source of truth. No extra change needed. |
+| `min-width` rule applied globally (not gated to desktop breakpoint) pushes hamburger off-screen on mobile | Medium | Mobile layout broken | Scope rule inside `@media (min-width: 1024px)` (matches existing breakpoint used by SiteHeaderClient). Verify at 1440px / 1024px / 375px during implementation. |
+| Mobile drawer auth-conditional logic shows wrong CTAs on first paint for returning signed-in users | Resolved by design | N/A | Drawer JSX is inside `SiteHeaderClient` and reads the same `authState` state. The hint-based initial state covers both desktop nav-actions and mobile drawer simultaneously. Single source of truth, single render branch decision. |
 | Pricing page or login page have additional server-side `cookies()` access that pins them dynamic | Medium | These specific pages still dynamic post-fix | Out of scope for this issue. TUB-30 acceptance focuses on `/docs` and `/changelog` (where the issue was measured). `/pricing` and `/login` follow-up only if their TTFB stays high. |
 
 ## References
