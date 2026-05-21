@@ -97,9 +97,19 @@ export function SiteHeaderClient({
             <span>{labels.brand}</span>
           </Link>
           <div className="nav-links">
-            <Link href="/#features" className="nav-link">
-              {labels.features}
-            </Link>
+            {authState === "anonymous" ? (
+              <Link href="/#features" className="nav-link">
+                {labels.features}
+              </Link>
+            ) : (
+              <Link
+                href="/dashboard"
+                className={linkClass("/dashboard")}
+                aria-current={linkAria("/dashboard")}
+              >
+                {labels.dashboard}
+              </Link>
+            )}
             <Link
               href="/pricing"
               className={linkClass("/pricing")}
@@ -236,9 +246,20 @@ export function SiteHeaderClient({
           </button>
         </header>
         <nav className="mobile-drawer-nav" aria-label="Mobile primary">
-          <Link href="/#features" onClick={closeDrawer}>
-            {labels.features}
-          </Link>
+          {authState === "anonymous" ? (
+            <Link href="/#features" onClick={closeDrawer}>
+              {labels.features}
+            </Link>
+          ) : (
+            <Link
+              href="/dashboard"
+              className={drawerLinkClass("/dashboard")}
+              aria-current={linkAria("/dashboard")}
+              onClick={closeDrawer}
+            >
+              {labels.dashboard}
+            </Link>
+          )}
           <Link
             href="/pricing"
             className={drawerLinkClass("/pricing")}
