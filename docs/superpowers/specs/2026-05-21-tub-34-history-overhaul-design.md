@@ -94,6 +94,8 @@ export function computeExpiresAt(now: Date, tier: "free" | "pro"): Date {
 
 Existing rows keep their current `expires_at`. New saves use new TTL. No backfill.
 
+**Tier change mid-window (explicit behavior):** `expires_at` is computed once at save time from the user's tier at that moment. Subsequent tier changes (upgrade or downgrade) do NOT mutate existing rows. A user who upgrades from Free to Pro the day after a save keeps the 30d TTL on that row but gets 100d on all future saves. A user who downgrades from Pro to Free keeps 100d on existing rows. This is the intentional behavior - we never rewrite historical retention.
+
 #### 5.3 Comments persistence
 
 Define centralized type in new `src/lib/comments.ts`:
@@ -138,9 +140,9 @@ if (useBlob) {
 
 `uploadCommentsBlob` lives in new `src/lib/supabase/storage.ts`. Bucket: `analyses-comments` (PRIVATE, service-role write, NO public reads). Object key: `<userId>/<videoId>.json`. Stored as `application/json` (uncompressed for MVP simplicity; gzip is V2).
 
-Bucket creation: new migration `supabase/migrations/03_analyses_comments.sql` also creates the bucket via `insert into storage.buckets (id, name, public) values ('analyses-comments', 'analyses-comments', false) on conflict do nothing;`. No storage RLS policies created; bucket is service-role-only access. API reads go through server code holding service client.
+Bucket creation: created out-of-band via Supabase MCP (`mcp__claude_ai_Supabase__execute_sql` running `insert into storage.buckets (id, name, public) values ('analyses-comments', 'analyses-comments', false) on conflict do nothing;`) at PR 1 deploy time, NOT in the SQL migration file (avoids ordering issues with hosted Supabase migration runner that may not have privileges on the `storage` schema in all configurations). The PR 1 verify checklist must include "confirm bucket exists in Supabase dashboard before extract test." No storage RLS policies on `storage.objects` are created. Since service role bypasses RLS and no authenticated/anon policy exists, default behavior is deny for non-service callers - which is exactly what we want.
 
-On `deleteAnalysis`: if row has `comments_blob_path` not null, after successful DELETE, fire-and-forget storage delete (best-effort; orphan blobs are cheap and a sweeper cron can purge later). Cron `purgeExpiredAnalyses` extended to also delete blobs for expired rows.
+On `deleteAnalysis`: if row has `comments_blob_path` not null, after successful DELETE, fire-and-forget storage delete (best-effort). Cron `purgeExpiredAnalyses` extended to: (a) collect `comments_blob_path` of expired rows BEFORE deleting them, (b) delete the rows, (c) batch-delete the collected blob paths via storage admin client. Orphan blobs from failed deletes get swept by a follow-up scheduled sweep: `purgeExpiredAnalyses` also lists objects in the bucket and removes any whose key prefix `<userId>/<videoId>` has no matching live row. Documented in code as the orphan-sweep step. This bounds orphan-blob storage cost.
 
 #### 5.4 Read paths
 
@@ -168,9 +170,9 @@ Blob read uses service client deliberately. Authorization is already established
 
 `has_comments` is true if `comments` non-null OR `comments_blob_path` non-null. Used by UI to distinguish legacy rows from new rows.
 
-**Modify** `POST /api/export/route.ts`: accept optional `analysisId` field in request body alongside existing extract flow.
+**Modify** `POST /api/export/route.ts`: accept optional `analysisId` field in JSON request body alongside existing extract flow. The canonical export-from-cache call is **POST `/api/export` with `Content-Type: application/json` body `{ analysisId, format }`** (NOT a GET with query string). All UI download triggers fire a POST; the file stream is returned with appropriate `Content-Disposition` so the browser saves it.
 
-- When `analysisId` present + user authenticated: load row via `getAnalysisById`, build export from cached comments. Do NOT call YT API. Return 404 if row null. Return 410 if `has_comments === false` (legacy row, cannot export from cache).
+- When `analysisId` present + user authenticated: load row via `getAnalysisById`, build export from cached comments. Do NOT call YT API. Return 404 if row null. Return 410 `comments_not_stored` if `has_comments === false` (legacy row). Return 500 `comments_unavailable` if row exists but blob fetch fails (transient infra issue; UI offers retry).
 - When `analysisId` absent: existing extract flow unchanged.
 
 **Modify** `/api/extract/route.ts` (`src/app/api/extract/route.ts` around line 266): pass full `comments` array and resolved `tier` to `saveAnalysis`. Map runtime `Comment` shape to `StoredComment` (drop intermediate scratch fields, keep author/text/likes/replies/publishedAt/sentiment).
@@ -217,12 +219,9 @@ Implementation: integration test against Supabase test project OR documented man
   - Header card: thumbnail + title + channel + comment count + processed_at + expires_at
   - Action row: Download CSV (always for authed), Download JSON + Excel (Pro only), Delete-with-undo (always)
   - `<TopWordsPanel tier items totalUnique commentsAnalyzed />` (existing, reused)
-  - Sentiment panel (extracted from existing TubeMine sentiment chip into reusable `<SentimentPanel tier sentiment />`)
-  - Emoji panel (extracted into reusable `<EmojiPanel tier items />`)
+  - Sentiment + emoji panels: render inline JSX in `analysis-detail-view.tsx`, duplicating the small visual block already in `tubemine.tsx`. NO extraction into shared components in this turbo - tubemine.tsx is TUB-33 territory and the JSX is short enough that duplication is safer than extraction. If a third consumer appears later, unify then.
   - `<CommentsTable comments />` (new, virtualized)
-- `src/components/comments-table.tsx`: virtualized table using **`@tanstack/react-virtual`** (new dependency, ~3KB, well-maintained). Columns: author, text (truncate with expand), sentiment chip, likes, publishedAt. Mobile (< 640px): card layout per row instead of grid. Closes legacy known fail TC-0039.
-
-Reuse decisions for sentiment + emoji: extract the existing inline JSX from `src/components/tubemine.tsx` analytics section into named components in `src/components/sentiment-panel.tsx` and `src/components/emoji-panel.tsx`, then re-import in tubemine.tsx. This is a low-risk extraction: same JSX, new file, no behavior change. tubemine.tsx is in TUB-33 territory but this is a minimal extraction confined to the analytics-render block (not the extract-flow logic). The constraint forbids touching extract flow, not extracting analytics-render JSX into shared components.
+- `src/components/comments-table.tsx`: virtualized table using **`@tanstack/react-virtual`** (new dependency, ~3KB, well-maintained). Columns: author, text (truncate with expand), sentiment chip, likes, publishedAt. Mobile (< 640px): card layout per row instead of grid. Closes legacy known fail TC-0039. Must handle 50K rows without DOM bloat (this is the Pro extract maximum and the hardened threshold for TC-HISTORY-008).
 
 #### 5.10 Legacy row handling
 
@@ -232,6 +231,10 @@ If `has_comments === false`:
 - Comments table area shows inline notice: `i18n("history_detail.legacy_no_comments")` = "Comments aren't stored for analyses from before this update. Re-extract to view them."
 - Download CSV/JSON/Excel buttons are visually disabled (`aria-disabled`, no click handler) with tooltip explaining why
 - Delete button still works
+
+**Empty comments vs legacy distinction:** `has_comments === true` with `comments: []` (empty array) is a different state from legacy null. It means: extraction ran, persisted zero comments (rare but possible if a video has comments disabled by the time of save - though extract path normally rejects that earlier). UI shows `comments_table_empty` i18n string, but Download buttons remain ENABLED (a CSV with zero rows is still a valid export representing the cached aggregate state).
+
+**comment_count vs comments.length invariant:** `comment_count` (existing column) is the SOURCE OF TRUTH for the header card display. `comments.length` may differ in legacy rows (where it is null) or in the future if a comment-dedupe pass runs post-save. The detail view always displays `comment_count` in the header; the comments table displays `comments.length` rows under it. If they differ visually, that is expected and acceptable (no warning shown to user). At save time, `saveAnalysis` asserts `comment_count === comments.length` and logs a warning if they diverge (defensive logging only, does not fail the save).
 
 #### 5.11 PR 2 i18n keys (new)
 
@@ -259,7 +262,12 @@ column_sentiment
 column_likes
 column_published
 read_more
+delete_pending
+undo
+undo_too_late
 ```
+
+Also added to general namespace if not present: error toasts (`export_failed_legacy`, `export_failed_transient`).
 
 `scripts/check-message-parity.mjs` enforces parity at build time; both files updated together.
 
@@ -268,7 +276,7 @@ read_more
 - Visit `/history/:id` for the row from PR 1 verify
 - All four panels render with correct tier-aware data
 - Mobile (375px viewport via Chrome MCP `emulate`): comments table usable, no horizontal page scroll
-- Download CSV from detail view: assert **NO** call to `/api/extract` or YT API in network panel (only `/api/export?analysisId=...` or equivalent)
+- Download CSV from detail view: assert **NO** call to `/api/extract` or YT API in network panel (only POST `/api/export` with `analysisId` in JSON body)
 - Pro tier: Download CSV+JSON+Excel all work and use cached path
 - Legacy row (manually mutate `comments = null` on one test row): placeholder + disabled buttons + no JS error
 
@@ -298,7 +306,7 @@ Renders unordered list of rows. Each row:
 - Link `<Link href="/history/[id]">` wraps thumbnail + title + channel + count = navigates to detail
 - If `showActions`: trailing button cluster:
   - **View** (icon-only, same nav target as row link, present for affordance clarity)
-  - **Download** popover menu: tier-aware CSV / JSON / Excel options. Direct download via `/api/export?analysisId=...` (or POST equivalent).
+  - **Download** popover menu: tier-aware CSV / JSON / Excel options. Each option triggers a `fetch('/api/export', { method: 'POST', body: JSON.stringify({ analysisId, format }) })`, then converts the response body to a Blob and triggers a download via a hidden anchor with `download` attribute.
   - **Delete** button: triggers optimistic removal + 5s Sonner toast with Undo action.
 
 Empty state: shared `<EmptyAnalysesList tier />` component with translated CTA back to /dashboard.
@@ -308,19 +316,31 @@ Empty state: shared `<EmptyAnalysesList tier />` component with translated CTA b
 Implementation in `<AnalysesList>`:
 
 ```ts
-const [pendingDeletes, setPendingDeletes] = useState<Map<string, NodeJS.Timeout>>(new Map())
+type PendingDelete = { timer: ReturnType<typeof setTimeout>; committed: boolean }
+const pendingRef = useRef<Map<string, PendingDelete>>(new Map())
+const [pendingIds, setPendingIds] = useState<Set<string>>(new Set())
 
 function handleDelete(id: string) {
-  // 1. Optimistically remove from rendered list (filter pendingDeletes out of items)
-  // 2. Show Sonner toast with action button "Undo"
-  // 3. Schedule actual DELETE call after 5000ms
-  const timer = setTimeout(async () => {
-    await fetch(`/api/analyses/${id}`, { method: "DELETE" })
-    setPendingDeletes(prev => { const m = new Map(prev); m.delete(id); return m })
-    track("history_deleted", { analysis_id_hash: hashId(id) })
-  }, 5000)
-  setPendingDeletes(prev => new Map(prev).set(id, timer))
+  // 1. Optimistically remove from rendered list (filter pendingIds out of items)
+  setPendingIds(prev => new Set(prev).add(id))
 
+  // 2. Schedule actual DELETE call after 5000ms; mark committed BEFORE the fetch
+  //    so undoDelete sees the committed flag and skips restoring the row.
+  const timer = setTimeout(async () => {
+    const entry = pendingRef.current.get(id)
+    if (!entry) return
+    entry.committed = true
+    try {
+      await fetch(`/api/analyses/${id}`, { method: "DELETE" })
+      track("history_deleted", { analysis_id_hash: hashId(id) })
+    } finally {
+      pendingRef.current.delete(id)
+      // Row stays hidden; we do not remove from pendingIds since it has been committed.
+    }
+  }, 5000)
+  pendingRef.current.set(id, { timer, committed: false })
+
+  // 3. Show Sonner toast with action button "Undo"
   toast(t("delete_pending"), {
     action: { label: t("undo"), onClick: () => undoDelete(id) },
     duration: 5000,
@@ -328,14 +348,20 @@ function handleDelete(id: string) {
 }
 
 function undoDelete(id: string) {
-  const timer = pendingDeletes.get(id)
-  if (timer) clearTimeout(timer)
-  setPendingDeletes(prev => { const m = new Map(prev); m.delete(id); return m })
-  // Row re-appears: filter logic excludes ids in pendingDeletes
+  const entry = pendingRef.current.get(id)
+  if (!entry) return                    // already committed and cleaned up
+  if (entry.committed) {                // committed but cleanup pending
+    toast.error(t("undo_too_late"))     // honest error: server already received DELETE
+    return
+  }
+  clearTimeout(entry.timer)
+  pendingRef.current.delete(id)
+  setPendingIds(prev => { const next = new Set(prev); next.delete(id); return next })
+  track("history_delete_undone", { analysis_id_hash: hashId(id) })
 }
 ```
 
-Unmount cleanup: in `useEffect` cleanup, flush pending timers by firing the DELETE immediately (do NOT silently drop them; the user moved away expecting deletion to commit). Alternative: clear timers and not commit; chosen behavior: commit-on-unmount because the user already saw the row disappear.
+Unmount cleanup: in `useEffect` cleanup, **clear all pending timers WITHOUT firing the DELETE** (Gmail-style undo). Reasoning: the user navigated away. The pending DELETE was always conditional; if we commit-on-unmount, we get the failure mode where the user navigates to that very row's detail and sees a ghost 404. Clear-and-drop is simpler, matches user mental model ("the row disappeared in this view; I never confirmed it"), and tolerates real tab-close where `fetch()` from unmount would be cancelled by the browser anyway. The row will resurface on next page load if it was never actually deleted, and the optimistic-hide was page-local.
 
 #### 5.15 Refactor existing consumers
 
@@ -367,11 +393,9 @@ All new keys present in both `messages/en.json` and `messages/ru.json`. Build-ti
 Add `track()` calls (existing helper). New events:
 
 - `history_analysis_opened` (props: `analysis_id_hash`, `tier`)
-- `history_csv_downloaded` (props: `analysis_id_hash`, `from_detail` boolean)
-- `history_json_downloaded`
-- `history_excel_downloaded`
-- `history_deleted` (props: `analysis_id_hash`, `committed` boolean - true after timer fires)
-- `history_delete_undone` (props: `analysis_id_hash`)
+- `history_downloaded` (props: `analysis_id_hash`, `format: "csv" | "json" | "xlsx"`, `from_detail` boolean)
+- `history_deleted` (props: `analysis_id_hash`) - fires only when the 5s timer commits the DELETE; never fires on undo
+- `history_delete_undone` (props: `analysis_id_hash`) - fires when user clicks Undo before commit
 
 If there's an allowed-events whitelist (check `src/lib/track.ts` or equivalent), add these entries.
 
@@ -393,7 +417,7 @@ Append to `~/vault/projects/yt-comments/qa/test-cases.md`:
 - TC-HISTORY-005: Legacy row (`comments IS NULL`) shows placeholder, Download buttons disabled, no JS error
 - TC-HISTORY-006: Tier-aware TTL: Free row `expires_at = processed_at + 30d`, Pro row `+ 100d`
 - TC-HISTORY-007: `<AnalysesList>` renders correctly in both compact (dashboard) and full (history) contexts
-- TC-HISTORY-008: Detail view comments table virtualizes for >5K rows (closes legacy TC-0039)
+- TC-HISTORY-008: Detail view comments table virtualizes correctly for 50K rows without DOM bloat (closes legacy TC-0039). Verify via Chrome DevTools Performance / Memory: DOM node count stays bounded (~100 nodes max) while scrolling through a 50K-row analysis.
 - TC-HISTORY-009: Mobile responsive at 375px: detail view usable, no horizontal page scroll
 - TC-HISTORY-010: RLS: user A cannot GET or DELETE `/api/analyses/:id` for user B's analysis
 
@@ -475,8 +499,9 @@ Unmount: flush pending timers by firing the DELETE immediately
 | Export with valid row but format invalid | 400 `invalid_format` |
 | Delete during undo window: user closes tab | flush pending timer in unmount cleanup |
 | Delete after row already gone (race) | server returns `{ deleted: 0 }` - silent success, no error toast |
-| Storage upload fails (PR 1 write) | log warning, fall back to inline (truncate comments array if necessary); the row save still succeeds with whatever fits, aggregates always persist |
-| Storage delete fails (DELETE side-effect) | log warning, swallow; orphan blobs are non-critical |
+| Storage upload fails (PR 1 write) | the whole `saveAnalysis` call fails; `/api/extract` returns 200 to the client with the extracted comments+aggregates so the LIVE extract view still works, but the row is NOT persisted. Caller logs an error. We never silently truncate (would create inconsistent `comment_count` vs cached `comments` length). User can re-extract to retry. |
+| Storage delete fails (DELETE side-effect) | log warning, swallow; orphan blobs swept by extended `purgeExpiredAnalyses` cron orphan-sweep pass |
+| Two-tab delete race | NOT addressed in MVP. Tab A starts undo timer; Tab B (or detail page) is open on same row. If commit fires while Tab B is open, subsequent actions in Tab B will 404. Acceptable: users editing the same record from two tabs is rare for this product. Documented limitation. V2 may add BroadcastChannel coordination. |
 
 ## 8. Performance + cost
 
@@ -512,9 +537,6 @@ May edit:
 - `src/components/recent-analyses.tsx` (refactor)
 - `src/components/analysis-detail-view.tsx` (new)
 - `src/components/comments-table.tsx` (new, virtualized)
-- `src/components/sentiment-panel.tsx` (new, extracted from tubemine.tsx analytics block)
-- `src/components/emoji-panel.tsx` (new, extracted from tubemine.tsx analytics block)
-- `src/components/tubemine.tsx` (only the analytics-render block: swap inline JSX for new component imports; do NOT modify extract flow, useEffect chain, or state machine)
 - `messages/{en,ru}.json` (new keys under `history_detail`)
 - `src/lib/track.ts` (if exists; add new event names to whitelist)
 - `src/components/__tests__/*` + `src/lib/__tests__/*`
@@ -526,7 +548,7 @@ MUST NOT touch:
 - `src/app/[locale]/pricing/page.tsx` (TUB-32 territory)
 - `src/app/[locale]/login/page.tsx` (TUB-32 territory)
 - `src/app/[locale]/{docs,changelog}/page.tsx` (TUB-31 done)
-- `src/components/tubemine.tsx` extract flow (TUB-33 territory; only analytics-render block extraction permitted)
+- `src/components/tubemine.tsx` (entire file - TUB-33 territory; sentiment/emoji JSX is duplicated in `analysis-detail-view.tsx` rather than extracted, per round-1 YAGNI review)
 - `src/lib/auth-hint.ts`, `src/lib/auth-cached.ts` (shared infra; reuse only)
 - Payment / Polar / Stripe code
 - Header / Footer / SideNav (unless adding "View all" link)
@@ -562,7 +584,7 @@ Each commit ships independently to main and is independently revertible via `git
 3. Dashboard "Recent analyses" and /history share one component implementation
 4. Delete action shows undo toast; clicking undo within 5s restores row; no DELETE network call during undo
 5. Pro analysis row stays accessible for 100 days; Free for 30 days
-6. Comments table renders 10K+ rows without DOM bloat (virtualized)
+6. Comments table renders 50K rows without DOM bloat (virtualized)
 7. Legacy rows (comments IS NULL) render gracefully with placeholder + disabled downloads
 8. RLS confirmed: user A cannot access user B's analysis
 9. Mobile (375px) usable on detail view
