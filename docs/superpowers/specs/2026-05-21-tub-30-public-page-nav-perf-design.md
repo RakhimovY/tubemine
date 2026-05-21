@@ -204,6 +204,8 @@ This is the only edit outside the SiteHeader family. It is a small additive chan
 
 The point of constraining the write to confirmed-success branches: avoid a stale `"signed-in"` hint when a client-side success path is followed by a server-side rejection. The accepted edge case (listener fires SIGNED_OUT, hint corrected) covers the residual risk if a session is server-revoked after this point.
 
+Note on what "confirmed-success" means relative to Supabase internals: `@supabase/ssr` writes the session to its own storage (and broadcasts SIGNED_IN cross-tab) the moment the supabase client receives the session payload, which is BEFORE this code reaches the `data.session != null` check. The hint write is therefore a render-acceleration artifact, not the session-of-truth. The real session commit happens inside Supabase's own storage layer; our hint just tells the next mount of SiteHeaderClient which shell to paint first. If Supabase has stored a session but our hint is missing (e.g., callback page errors after Supabase commit but before our hint write), the listener will still fire SIGNED_IN on the next public-page mount and self-correct. The constraint to write on confirmed-success only prevents writing a stale "signed-in" hint when there is NO actual session, not the reverse.
+
 ### Hydration walkthrough
 
 **First-ever visit, signed-in user lands on /docs (no hint yet because login wrote it via login-client.tsx but this is a fresh browser):**
@@ -288,6 +290,7 @@ Implementation:
    ```
 3. The exact pixel value cannot be known without measuring the rendered signed-in layout. During implementation: open DevTools on a signed-in production page, inspect the `.nav-actions` width when both Dashboard button and avatar are present, take that value (likely 160-180px including gaps), apply.
 4. Verify visually at three viewport widths: 1440px (desktop), 1024px (breakpoint edge), 375px (mobile). No layout shift on any. No hamburger off-screen on mobile.
+5. Maintenance note: the measured `min-width` is locale-sensitive. Current locales (EN, RU) use short codes "EN" / "RU" inside the locale switcher button, and CTAs ("Get started", "Dashboard") are similar widths in both. If future locales add a longer language code or substantially wider CTA translation, re-measure the signed-in layout for that locale and update the `min-width` accordingly. As an alternative, consider `ch`-based or content-derived sizing during a future refactor, but not in this PR.
 
 ### Out of scope
 
