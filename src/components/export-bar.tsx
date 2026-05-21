@@ -23,7 +23,7 @@ export function ExportBar({
   // Papa.unparse runs client-side, so no backend gate needed. Sign-in interstitial removed.
   if (tier === "anonymous" || tier === "free") {
     return (
-      <Button onClick={onDownloadCsv} size="sm">
+      <Button onClick={onDownloadCsv} size="sm" className="tm-action-btn">
         <Download className="size-4" />
         {tCommon("save_csv")}
       </Button>
@@ -33,7 +33,7 @@ export function ExportBar({
   // tier === "pro"
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Button onClick={onDownloadCsv} size="sm">
+      <Button onClick={onDownloadCsv} size="sm" className="tm-action-btn">
         <Download className="size-4" />
         {tCommon("save_csv")}
       </Button>

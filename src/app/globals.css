@@ -311,6 +311,27 @@ html {
 .tm-design .btn-lg { height: 44px; min-height: 48px; padding: 0 var(--space-7); font-size: var(--font-size-lg); }
 @keyframes tm-spin { to { transform: rotate(360deg); } }
 
+/* TUB-33 Phase C: WCAG AA contrast on the Save CSV action button.
+   shadcn Button default variant resolves to bg-primary/text-primary-foreground
+   inside the .tm-design surface, which read as light-on-light. Override pins
+   the high-contrast token pair (same as main CTA via .btn--primary). !important
+   beats shadcn's single-class Tailwind utilities regardless of layer order. */
+.tm-design .tm-action-btn {
+  background-color: var(--color-surface-muted) !important;
+  color: var(--color-text-inverse) !important;
+  border: 1px solid var(--color-surface-muted);
+}
+.tm-design .tm-action-btn:hover { background-color: #ececef !important; }
+.tm-design .tm-action-btn:focus-visible {
+  outline: 2px solid var(--color-text-primary);
+  outline-offset: 2px;
+}
+.tm-design .tm-action-btn:disabled,
+.tm-design .tm-action-btn[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 /* ===== Input ===== */
 .tm-design .field { display: grid; gap: var(--space-3); width: 100%; }
 .tm-design .field-label { font-size: var(--font-size-sm); color: var(--color-text-secondary); font-weight: var(--font-weight-medium); }
