@@ -147,17 +147,28 @@ The TUB-30 `SiteHeader` to `SiteHeaderClient` split established the public-page 
 │ }, [])                                                         │
 │                                                                │
 │ sb.auth.onAuthStateChange listener:                            │
-│   on session change, re-run the resolve flow                   │
+│   uses a useRef `requestId` counter: each listener fire and    │
+│   the IIFE increment the counter and capture their snapshot;   │
+│   only the latest snapshot is allowed to setState. This        │
+│   avoids the race where INITIAL_SESSION (fired by Supabase on  │
+│   subscribe) arrives after the IIFE's manual getUser           │
+│   resolved with a stale anonymous result (cold supabase-js     │
+│   hydration). The listener accepts ALL events including        │
+│   INITIAL_SESSION and runs the same resolve helper             │
 │                                                                │
-│ Render:                                                        │
+│ Render (the full pricing-grid block, not CTA-only):            │
+│   <div className="pricing-grid">                               │
+│     <article className="price-card" /* Free, with feature      │
+│       list, price, and tier-conditional .price-foot CTA */ /> │
+│     <article className="price-card is-popular" /* Pro,         │
+│       same shape, different keys */ />                         │
+│   </div>                                                       │
 │   {state.resolved && (                                         │
 │     <PricingIntentRedirect intent={intent}                     │
 │       signedIn={state.signedIn} tier={state.tier} />)}         │
 │   // Gating PricingIntentRedirect on `resolved` ensures the    │
 │   // checkout-redirect fires exactly ONCE on the final tier,   │
 │   // never on the anonymous initial state                      │
-│   <FreeCardCta tier={state.tier} t={t} />                      │
-│   <ProCardCta tier={state.tier} t={t} />                       │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -221,7 +232,7 @@ Zero props. The component does its own translation lookup via `useTranslations("
 
 Mounting strategy (committed): ONE `<PricingTierAware />` instance renders the pricing-grid `<div className="pricing-grid">` block (both Free `<article>` and Pro `<article>` cards). The server page mounts `<Suspense fallback={null}><PricingTierAware /></Suspense>` in place of the current `<div className="pricing-grid">...</div>` block (lines ~149-287 of the existing pricing/page.tsx). The translated text for the card titles, badges, feature lists, and prices comes from `useTranslations("pricing")` running inside the client component (next-intl supports this; `NextIntlClientProvider` wraps the tree in the locale layout).
 
-The surrounding `<section className="pricing-section"><div className="container">...</div></section>` and the comparison table block (`<div className="compare-wrap">...</div>`) stay in server-rendered scope. The comparison table is static content (not tier-dependent) and the spec deliberately keeps it in the prerender to minimize client-bundle growth and SEO content drift.
+The surrounding `<section className="pricing-section"><div className="container">...</div></section>`, the section hero/badge (current source lines 137-144), the comparison table block (`<div className="compare-wrap">...</div>`), and the trust line stay in server-rendered scope. The hero, comparison table, and trust line are static content (not tier-dependent); the spec deliberately keeps them in the prerender to minimize client-bundle growth and SEO content drift.
 
 Trade-off accepted: only the two pricing cards (titles + feature lists + prices + CTAs, ~120 LOC including SVG icons) move from server scope to client bundle. Bundle-size cost is bounded; in exchange the component owns a single state, runs one resolve flow, mounts one listener, has no prop interface to maintain.
 
@@ -246,6 +257,8 @@ Mounted as a direct child of `PricingTierAware`, receiving `signedIn` and `tier`
 Timing change vs today: today the effect fires once on server-rendered values (instant). After refactor, the component is gated on `state.resolved`, so it mounts (and its effect fires) exactly ONCE per visit, with the final resolved tier value. Resolution typically takes 100-300ms; up to 1500ms on a slow network. The redirect to `/api/checkout` still happens within the same page load.
 
 Before calling `window.location.assign("/api/checkout")`, the component runs `window.history.replaceState(null, "", window.location.pathname)` to strip the `?intent=signup` query param from the current history entry. Reason: prevent a back-button loop where the user returns from `/api/checkout` (or Polar) to `/pricing?intent=signup`, which would re-trigger the resolve + redirect cycle and trap them.
+
+Consequence for the in-flight click race (user clicks elsewhere during the 100-500ms resolve window, BEFORE the redirect fires): `?intent=signup` is still in the URL because `replaceState` has not run yet. Back-navigation in this case returns to `/pricing?intent=signup` and the redirect re-fires. Two distinct flows: pre-redirect click loses no information; post-redirect back-button is intentionally a clean `/pricing` without retry.
 
 ### 3.4 `LandingAuthGate` component
 
@@ -400,13 +413,14 @@ Verification step in plan phase: build locally and inspect the route table from 
 | `sb.from("subscriptions").select("status")` returns error | Catch, treat as `{ status: null }` (no override) | Identical behaviour to a user with no subscription row, which is the normal case for free users |
 | `router.replace("/dashboard")` throws or hangs | Caller does not await; failure is silent. User stays on landing | next-intl's router uses Next.js's router under the hood; navigation failure is exceptional and acceptable to log-and-continue |
 | `sb.auth.onAuthStateChange` returns `undefined` (no subscription object) | Defensive null-check; skip listener setup; render proceeds without cross-tab sync | Defensive guard NEW to this work; `site-header-client.tsx` destructures without a guard. The signature is `{ data: { subscription: Subscription }}` and Supabase JS guarantees it under normal init, but if `createClient()` succeeded partway and returned a stub, the guard prevents a runtime null-deref |
-| `onAuthStateChange` fires `INITIAL_SESSION` event before the manual IIFE resolve completes | Listener handler filters out `INITIAL_SESSION`; only acts on `SIGNED_IN`, `SIGNED_OUT`, `TOKEN_REFRESHED`, `USER_UPDATED` | Prevents double-resolve race where the listener and IIFE both call `setState` with conflicting partial values |
+| `onAuthStateChange` fires `INITIAL_SESSION` after the manual IIFE resolve completes (cold supabase-js hydration race) | Listener and IIFE share a `useRef` `requestId` counter; each captures its own id on entry and only `setState` if `id === currentRef.current`. Latest snapshot wins. Listener processes ALL events including INITIAL_SESSION (no event filter) | Earlier round-2 spec used an `INITIAL_SESSION` filter, but that would lose the true session when IIFE races and resolves before supabase-js hydrates the cookie. The requestId counter pattern is robust to both orderings |
 | Locale switch (e.g. /en/pricing -> /ru/pricing) while signed-in | `PricingTierAware` remounts due to the new URL; resolve flow runs again, anonymous CTAs visible for 100-500ms during the second resolve | Acceptable cosmetic cost. The signed-in user already paid the anonymous-flash on first visit; locale switch is infrequent (typically once per session). Mitigation deferred (would require a module-level memo or sessionStorage cache keyed by user id) until field data shows it matters |
 | Stale hint says `signed-in` but session has been server-revoked (admin force-logout, password reset elsewhere) AND this is a normal /pricing visit (no `?intent=signup`) | Anonymous initial state -> async resolves -> getUser error path clears hint + sets state to anonymous within ~100-500ms. CTAs show anonymous variant after resolve. If user clicked a signed-in CTA between mount and resolve, the click hits the anonymous-default link (Get started for free -> /login?intent=signup) which the login server gate handles correctly | Recovery path: any stale-hint state self-heals on first /pricing visit. Trade-off: ~100-500ms of "anonymous CTA" rendered to a user whose hint claims signed-in (acceptable because the click target is the safe-default login page) |
 | `localStorage.getItem` throws (private browsing, quota) | `getAuthHint` returns null; fall through to async resolve | Existing `auth-hint.ts` behaviour |
 | `localStorage.setItem` throws | Silently ignore; state still in React | Existing `auth-hint.ts` behaviour |
 | User signs out in another tab | `onAuthStateChange` fires with null session; `PricingTierAware` re-resolves to anonymous, calls `setAuthHint("anonymous")` | Cross-tab sync (TUB-30 pattern). Landing's `LandingAuthGate` does NOT subscribe to this; warm-hint state remains "signed-in" until next page load. Acceptable: landing has no UI that depends on auth state |
-| User clicks a link during `PricingIntentRedirect` race window (intent=signup, async not yet resolved, typically <500ms) | User navigates away; redirect never fires. `?intent=signup` is preserved in browser history; if they come back to `/pricing?intent=signup` later, the redirect re-fires after async resolve. No inline UI signal during the window (cut per round 2 review: the bounded sub-second wait does not warrant a notice element) | Bounded loss: rare, recoverable, low-priority. If field reports show real confusion, add a notice as a follow-up with evidence |
+| User clicks a link during `PricingIntentRedirect` race window (intent=signup, async not yet resolved, typically <500ms, BEFORE redirect fires) | User navigates away; redirect never fires. `?intent=signup` is preserved in browser history (history.replaceState has not run yet since redirect did not commit); if they come back, the redirect re-fires after async resolve. No inline UI signal during the window | Bounded loss: rare, recoverable, low-priority. Distinct from the post-redirect back-button case where history.replaceState DID run and the URL is clean (see §3.3) |
+| Cross-tab sign-out during the 50-300ms window between `window.location.assign("/api/checkout")` being called and the browser actually navigating | Redirect proceeds to /api/checkout; server-side rejects (no session); /api/checkout redirects to /login | One wasted server round-trip; recoverable. Server-side gate on /api/checkout is authoritative. Acceptable cost for an extremely narrow race window |
 
 ## 6. Testing
 
@@ -503,18 +517,18 @@ Run these after both PRs land:
 
 - `"use client"` directive
 - Imports: React (`useState`, `useEffect`), `useSearchParams` from `next/navigation` (the framework hook, NOT next-intl's), `useTranslations` from `next-intl`, `IntlLink` from `@/i18n/navigation`, `createClient` from `@/lib/supabase/client`, `getAuthHint`, `setAuthHint` from `@/lib/auth-hint`, `PricingIntentRedirect` from `@/components/pricing-intent-redirect`
-- Single component renders the entire pricing-grid `<section>` (per §3.2 mounting strategy (a))
+- Single component renders the pricing-grid `<div className="pricing-grid">` block (per §3.2 mounting strategy)
 - Auth + tier resolution per §3.1 pseudocode (async IIFE inside `useEffect` to handle await without making the effect async)
 - `useSearchParams()` defensive read: `searchParams?.get("intent") ?? null`. The Suspense boundary should ensure non-null, but the guard removes a runtime crash risk
-- `onAuthStateChange` listener with defensive null-check on `data.subscription` before calling `.unsubscribe()` in cleanup. The handler IGNORES the `INITIAL_SESSION` event (Supabase JS fires this synchronously on subscribe and would race with the manual `getUser()` IIFE; only react to `SIGNED_IN`, `SIGNED_OUT`, `TOKEN_REFRESHED`, `USER_UPDATED` to avoid double-resolve flicker)
+- `onAuthStateChange` listener with defensive null-check on `data.subscription` before calling `.unsubscribe()` in cleanup. Handler processes ALL events; race protection is via a `useRef requestId` counter (both IIFE and listener increment + capture; only the snapshot whose id equals the current ref value commits state). This is robust to: (a) supabase-js cold hydration where IIFE's getUser returns null before INITIAL_SESSION fires with the real session, and (b) any subsequent SIGNED_IN/SIGNED_OUT/TOKEN_REFRESHED while a resolve is still in flight
 - Renders:
-  1. The static hero/badge for the section (passed through `useTranslations`)
-  2. Both `<article className="price-card">` cards (Free and Pro), each with their feature lists and conditional `.price-foot` CTA blocks
-  3. `<PricingIntentRedirect intent={intent} signedIn={state.signedIn} tier={state.tier} />`, gated on `state.resolved`
+  1. Both `<article className="price-card">` cards (Free and Pro), with feature lists and tier-conditional `.price-foot` CTA blocks
+  2. `<PricingIntentRedirect intent={intent} signedIn={state.signedIn} tier={state.tier} />`, gated on `state.resolved`
+- The hero/badge ABOVE the pricing-grid and the comparison table BELOW the pricing-grid both stay in the server page (see §8.1 restructuring instructions)
 - Each CTA variant uses the SAME `t("free.cta_anon")` etc. keys as the current server component
 - Link component mapping (CTAs):
   - `/login?intent=signup` (anon Free CTA, anon Pro CTA target) and `/dashboard` (signed-in Open dashboard) use `IntlLink` from `@/i18n/navigation` so the locale prefix is added automatically
-  - `/api/portal` (Pro Manage subscription) is a non-locale absolute path; use a plain `<a href="/api/portal">` (matches current pricing/page.tsx line 279 which uses `NextLink`). The current code's `NextLink` is fine but `<a>` is simpler and consistent with `/api/checkout`-as-form. Plan phase picks one
+  - `/api/portal` (Pro Manage subscription): use a plain `<a href="/api/portal">`. Non-locale absolute path; `<a>` is simpler and consistent with `/api/checkout`-as-form. The current code's `NextLink` at pricing/page.tsx:279 is replaced
   - `/api/checkout` is invoked via `<form action="/api/checkout" method="POST">` (not a link), matching the current pricing/page.tsx pattern; no link component needed
   - In-page anchors (e.g. `#faq`) and external URLs use plain `<a>` tags
 
@@ -639,6 +653,5 @@ Append session summary to `~/vault/daily/2026-05-21.md` (append mode) with:
 
 These are tactical decisions the plan phase will resolve:
 
-1. **Listener cleanup on unmount:** standard React `useEffect` return + `data.subscription?.unsubscribe()` per TUB-30 pattern in `site-header-client.tsx` (the `onAuthStateChange` block near the end of the main effect). Plan phase implements verbatim with the defensive `?.` guard added.
-2. **CSS adjustment for `PricingTierAware` mounting:** plan phase confirms that moving the pricing-grid block from server to client component does not break the existing global CSS scoped under `.tm-design .pricing-page`. Class names and DOM structure stay identical; only the rendering boundary moves. If any CSS rule is brittle to the boundary change, plan phase adjusts. No expected blocker since the design is class-name driven.
-3. **Verify `NextIntlClientProvider` exposes the `pricing` namespace to client consumers:** the locale layout's `<NextIntlClientProvider>` (`src/app/[locale]/layout.tsx:122`) must forward enough message data for `useTranslations("pricing")` inside `PricingTierAware` to resolve all keys. Default next-intl 4.x behavior forwards all locale messages to the client, so this should work, but plan phase adds a build-time assertion: navigate to `/en/pricing` after the refactor and confirm no `MISSING_MESSAGE` warnings in the browser console.
+1. **CSS adjustment for `PricingTierAware` mounting:** plan phase confirms that moving the pricing-grid block from server to client component does not break the existing global CSS scoped under `.tm-design .pricing-page`. Class names and DOM structure stay identical; only the rendering boundary moves. If any CSS rule is brittle to the boundary change, plan phase adjusts. No expected blocker since the design is class-name driven.
+2. **Verify `NextIntlClientProvider` exposes the `pricing` namespace to client consumers:** the locale layout's `<NextIntlClientProvider>` (`src/app/[locale]/layout.tsx:122`) must forward enough message data for `useTranslations("pricing")` inside `PricingTierAware` to resolve all keys. Default next-intl 4.x behavior forwards all locale messages to the client, so this should work, but plan phase adds a build-time assertion: navigate to `/en/pricing` after the refactor and confirm no `MISSING_MESSAGE` warnings in the browser console.
