@@ -55,7 +55,7 @@ DB `public.analyses` (per `supabase/migrations/01_analyses.sql`) stores:
 
 `TopWordsPanel` (`src/components/top-words.tsx`) already implements tier-aware pagination (Pro `PRO_INITIAL_CAP=30` + expand toggle, Free shows all received items). Reuse directly in detail view.
 
-`RecentAnalyses` (`src/components/recent-analyses.tsx`) is a server component fetching 5 items via `listAnalyses(supabase, null, 5)`. No action buttons. Has thumbnail + sentiment qualitative/quantitative split by tier.
+`RecentAnalyses` (`src/components/recent-analyses.tsx`) is a server component fetching 5 items via `listAnalyses(supabase, null, 5)`. No action buttons. Has thumbnail + sentiment qualitative/quantitative split by tier. **Intentional UX change in PR 3:** the dashboard recent block expands from 5 to 10 items to give users more visible history at a glance without scrolling, while still keeping the "View all" link to /history.
 
 ## 5. Phased delivery (4 sequential PRs)
 
@@ -148,18 +148,26 @@ Orphan blobs (from rare failure paths like upsert-after-upload exception or DELE
 
 **Save order to prevent sweep races and dangling rows:**
 
-1. Compute `commentsBlobPath = <userId>/<videoId>.json` deterministically (no upload yet)
+The blob key is `<userId>/<videoId>.json` (deterministic). On re-extract, the upsert updates the existing row AND the upload overwrites the existing blob. This is intentional: one canonical blob per (user, video) pair, always in sync with the row.
+
+1. Compute `commentsBlobPath = <userId>/<videoId>.json` (no upload yet)
 2. Upsert row with `comments_blob_path = commentsBlobPath` (or `comments` inline JSONB if below threshold) - the row now references a path
-3. Upload blob to that path
+3. Upload blob to that path (overwrite-on-conflict, no versioning)
 
 If step 2 fails: nothing to clean up; no blob written.
 If step 3 fails: row exists with stale `comments_blob_path` but no blob. `getAnalysisById` blob fetch returns 404; UI shows `comments_unavailable` (transient infra) error path per §7.
 
-This ordering is stable against concurrent reads, and there's no temporary state where a blob exists without a row pointer.
+**Concurrent-read race on re-extract:** A reader in another tab may receive a torn or stale comments payload if it reads between step 2 (row upserted with new path) and step 3 (blob upload completes). Documented limitation - accepted because (a) re-extract of the same video while a detail tab is open is rare, (b) the user is the same person triggering both actions, (c) the worst outcome is one stale display; refresh fixes it. Not addressed in MVP.
+
+This ordering is stable against most concurrent reads, and there's no permanent state where a blob exists without a row pointer.
+
+**Re-extract during pending delete (DATA LOSS guard):** `saveAnalysis` is keyed `UNIQUE (user_id, video_id)`. If the user has an optimistic-delete timer pending for row R and then triggers a fresh extract of the same video, the upsert REFRESHES R in place. The pending timer (unaware of the re-extract) will fire and DELETE the freshly-refreshed row. To prevent this, the `<AnalysesList>` delete-with-undo must cancel any pending timer keyed by `videoId` when the user navigates back to dashboard and triggers a new extract. Mechanism: pending timers are also indexed by `video_id`; the extract-success client event (already exists) clears any pending timer with the matching videoId via `window.dispatchEvent(new CustomEvent('tubemine:analysis-saved', { detail: { videoId } }))`. `<AnalysesList>` mounts a listener that cancels pending deletes for matching videoId.
 
 #### 5.4 Read paths
 
-New `getAnalysisById(userSb: SupabaseClient, id: string): Promise<AnalysisRow & { comments: StoredComment[] | null } | null>`. The parameter name `userSb` is significant: this function MUST receive a user-scoped Supabase client (from `createClient()`, the request-cookie-aware factory), never the service client. The row-level SELECT is the authorization gate; if it returns nothing (RLS denied), the blob fetch never runs. Document this at the function definition and add a code comment warning against passing a service client.
+New `getAnalysisById(userSb: SupabaseClient, id: string): Promise<AnalysisRow & { comments: StoredComment[] | null } | null>`. The parameter name `userSb` is significant: this function MUST receive a user-scoped Supabase client (from existing `createClient()` factory in `src/lib/supabase/server.ts`, the request-cookie-aware factory), never the service client. The row-level SELECT is the authorization gate; if it returns nothing (RLS denied), the blob fetch never runs. Document this at the function definition and add a code comment warning against passing a service client.
+
+Storage operations (`downloadCommentsBlob`, `uploadCommentsBlob`, `deleteCommentsBlob`) use the EXISTING `createServiceClient()` factory in `src/lib/supabase/server.ts` (per existing pattern; `SUPABASE_SERVICE_ROLE_KEY` already wired in env). No new factory file needed.
 
 - SELECT row including `comments` and `comments_blob_path` columns
 - If `comments_blob_path` not null, fetch blob via service client (NOT user client; user client cannot read from private bucket without policy), parse JSON, attach as `comments`
@@ -183,9 +191,9 @@ Blob read uses service client deliberately. Authorization is already established
 
 `has_comments` is true if `comments` non-null OR `comments_blob_path` non-null. Used by UI to distinguish legacy rows from new rows.
 
-**Modify** `POST /api/export/route.ts`: accept optional `analysisId` field in JSON request body alongside existing extract flow. The canonical export-from-cache call is **POST `/api/export` with `Content-Type: application/json` body `{ analysisId, format }`** (NOT a GET with query string). All UI download triggers fire a POST; the file stream is returned with appropriate `Content-Disposition` so the browser saves it.
+**Modify** `POST /api/export/route.ts`: accept optional `analysisId` field in JSON request body alongside existing extract flow. The existing route already consumes JSON via Zod (`ExportRequestSchema`); add a new alternate schema branch that accepts `{ analysisId: string, format: "csv" | "json" | "xlsx" }`. The Zod union discriminates on presence of `analysisId`. Canonical export-from-cache call: **POST `/api/export` with `Content-Type: application/json` body `{ analysisId, format }`**. All UI download triggers fire a POST; the file stream is returned with appropriate `Content-Disposition` so the browser saves it. CSV branch reuses the existing CSV serializer (the current schema lists `json | xlsx`; extend to include `csv` for the analysisId branch).
 
-- When `analysisId` present + user authenticated: load row via `getAnalysisById`, build export from cached comments. Do NOT call YT API. Return 404 if row null. Return 410 `comments_not_stored` if `has_comments === false` (legacy row). Return 500 `comments_unavailable` if row exists but blob fetch fails (transient infra issue; UI offers retry).
+- When `analysisId` present + user authenticated: load row via `getAnalysisById(userSb, analysisId)`. Compute `has_comments = (row.comments != null || row.comments_blob_path != null)` from the loaded row. Build export from cached comments. Do NOT call YT API. Return 404 if row null. Return 410 `comments_not_stored` if `has_comments === false` (legacy row reached via stale tab; normal UI path keeps download buttons disabled). Return 500 `comments_unavailable` if blob fetch throws (transient infra issue; UI shows a toast and offers retry).
 - When `analysisId` absent: existing extract flow unchanged.
 
 **Modify** `/api/extract/route.ts` (`src/app/api/extract/route.ts` around line 266): pass full `comments` array and resolved `tier` to `saveAnalysis`. Map runtime `Comment` shape to `StoredComment` (drop intermediate scratch fields, keep author/text/likes/replies/publishedAt/sentiment).
@@ -234,7 +242,7 @@ Implementation: integration test against Supabase test project OR documented man
   - `<TopWordsPanel tier items totalUnique commentsAnalyzed />` (existing, reused)
   - Sentiment + emoji panels: render inline JSX in `analysis-detail-view.tsx`, duplicating the small visual block already in `tubemine.tsx`. NO extraction into shared components in this turbo - tubemine.tsx is TUB-33 territory and the JSX is short enough that duplication is safer than extraction. If a third consumer appears later, unify then.
   - `<CommentsTable comments />` (new, virtualized)
-- `src/components/comments-table.tsx`: virtualized table using **`@tanstack/react-virtual`** (new dependency, ~3KB, well-maintained). Columns: author, text (truncate with expand), sentiment chip, likes, publishedAt. Mobile (< 640px): card layout per row instead of grid. Closes legacy known fail TC-0039. Must handle 50K rows without DOM bloat (this is the Pro extract maximum and the hardened threshold for TC-HISTORY-008).
+- `src/components/comments-table.tsx`: virtualized table using **`@tanstack/react-virtual`** (new dependency, ~3KB, well-maintained). Columns: author, text (CSS line-clamp with `title` attribute tooltip for full text; NO per-row expand toggle to keep virtualizer row heights uniform), sentiment chip, likes, publishedAt. Mobile (< 640px): card layout per row instead of grid. Closes legacy known fail TC-0039. Must handle 50K rows without DOM bloat (this is the Pro extract maximum and the hardened threshold for TC-HISTORY-008).
 
 #### 5.10 Legacy row handling
 
@@ -272,7 +280,6 @@ column_text
 column_sentiment
 column_likes
 column_published
-read_more
 delete_pending
 undo
 undo_too_late
@@ -327,7 +334,7 @@ type AnalysesListProps = {
 
 **Wire-shape pin (cross-server/client):** All timestamps cross the server -> client boundary as ISO strings (supabase-js already returns `timestamptz` as ISO strings). The shared `AnalysisItem` type above uses `string` for `processed_at` / `expires_at` so both consumers (dashboard recent block and history page) serialize identically. The pre-existing `AnalysisRow` type in `src/lib/analyses.ts` already uses `string` for these fields; reuse it directly when possible.
 
-**Conditional toast imports:** Sonner/toast logic and the delete-undo `useRef` machinery are gated behind `showActions`. When `compact=true && showActions=false` (dashboard), the component renders pure-display markup with no toast subscribers. Implementation: extract the action cluster + delete-with-undo into a child `<AnalysesListActions>` component, rendered only when `showActions`. Top-level `<AnalysesList>` always renders.
+**Conditional render path:** When `showActions=false`, the component takes an early-return rendering pure-display markup and never executes the delete-with-undo `useRef`/`useState` code paths. Sonner is subscribed once at the app root (`<Toaster />` in root layout), so dashboard rendering does NOT create extra subscribers. No child-component split is needed; single-component branching is sufficient.
 
 Renders unordered list of rows. Each row:
 
@@ -423,7 +430,7 @@ All new keys present in both `messages/en.json` and `messages/ru.json`. Build-ti
 
 Add `track()` calls (existing helper). New events:
 
-- `history_analysis_opened` (props: `analysis_id_hash`, `tier`)
+- `history_analysis_opened` (props: `analysis_id_hash`, `tier`) - fired from a `useEffect(() => { track(...) }, [])` inside `<AnalysisDetailView>` (client component) on first mount
 - `history_downloaded` (props: `analysis_id_hash`, `format: "csv" | "json" | "xlsx"`, `from_detail` boolean)
 - `history_deleted` (props: `analysis_id_hash`) - fires only when the 5s timer commits the DELETE; never fires on undo
 - `history_delete_undone` (props: `analysis_id_hash`) - fires when user clicks Undo before commit
@@ -448,7 +455,7 @@ Append to `~/vault/projects/yt-comments/qa/test-cases.md`:
 - TC-HISTORY-005: Legacy row (`comments IS NULL`) shows placeholder, Download buttons disabled, no JS error
 - TC-HISTORY-006: Tier-aware TTL: Free row `expires_at = processed_at + 30d`, Pro row `+ 100d`
 - TC-HISTORY-007: `<AnalysesList>` renders correctly in both compact (dashboard) and full (history) contexts
-- TC-HISTORY-008: Detail view comments table virtualizes correctly for 50K rows without DOM bloat (closes legacy TC-0039). Verify via Chrome DevTools Performance / Memory: DOM node count stays bounded (~100 nodes max) while scrolling through a 50K-row analysis.
+- TC-HISTORY-008: Detail view comments table renders a 50K-row analysis without UI jank during scroll (closes legacy TC-0039). Verify via Chrome MCP: smooth scrolling, no console errors, no obvious DOM bloat (DOM node count for the table region stays in the low hundreds, not tens of thousands; exact number not asserted to avoid flakiness from overscan/sticky-header variations).
 - TC-HISTORY-009: Mobile responsive at 375px: detail view usable, no horizontal page scroll
 - TC-HISTORY-010: RLS: user A cannot GET or DELETE `/api/analyses/:id` for user B's analysis
 
@@ -539,7 +546,7 @@ Unmount: clear all pending timers WITHOUT firing the DELETE (Gmail-style undo, p
 ## 8. Performance + cost
 
 - Serialized `StoredComment[]` for a typical video (200-500 comments) ≈ 50-200 KB. Well within inline JSONB.
-- 5MB threshold ≈ 12-15K comments typical (varies with comment length). Pro tier max is 100K comments; ~10-30% of Pro extracts will route to blob.
+- 5MB threshold ≈ 12-15K comments typical (varies with comment length). Pro tier max is 100K comments; expect a meaningful share (anywhere from 10-50% depending on comment length distribution) of Pro extracts to route to blob. PostgreSQL TOAST handles large JSONB but read latency grows above a few MB; if PR 1 verify-on-prod shows >500ms blob-equivalent reads at the 5MB boundary, lower the threshold to 1-2MB as a follow-up tweak.
 - Blob storage cost: ~$0.021/GB/month on Supabase. 1000 Pro extracts averaging 8MB each = 8GB = $0.17/month. Negligible.
 - Detail view server render: 1 DB row read + optional 1 blob fetch. Cached `getUser`. Should TTFB < 250ms warm.
 - Comments table virtualization: only ~20 DOM nodes regardless of 50K rows.
@@ -570,6 +577,7 @@ May edit:
 - `src/components/recent-analyses.tsx` (refactor)
 - `src/components/analysis-detail-view.tsx` (new)
 - `src/components/comments-table.tsx` (new, virtualized)
+- `src/components/empty-analyses-list.tsx` (new, shared empty state)
 - `messages/{en,ru}.json` (new keys under `history_detail`)
 - Update `src/__tests__/analytics-i18n-parity.test.ts` (existing test) with new event names
 - `src/components/__tests__/*` + `src/lib/__tests__/*`
