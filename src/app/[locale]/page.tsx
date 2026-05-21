@@ -1,38 +1,12 @@
-import { redirect } from "next/navigation"
 import { getTranslations, setRequestLocale } from "next-intl/server"
 import { Link as IntlLink } from "@/i18n/navigation"
-import { TubeMine, type ExtractTier } from "@/components/tubemine"
-import { createClient } from "@/lib/supabase/server"
-import { getUserQuota } from "@/lib/quota"
+import { TubeMine } from "@/components/tubemine"
 import { LandingFaq } from "@/components/landing-faq"
 import { LandingSmoothScroll } from "@/components/landing-smooth-scroll"
+import { LandingAuthGate } from "@/components/landing-auth-gate"
 
 const REPO_URL = "https://github.com/RakhimovY/tubemine"
 const SUPPORT_EMAIL = "hello@tubemine.app"
-
-export const dynamic = "force-dynamic"
-
-type HomeAuthState = { tier: ExtractTier; isAnonymous: boolean }
-
-async function resolveHomeAuthState(): Promise<HomeAuthState> {
-  if (
-    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  ) {
-    return { tier: "anonymous", isAnonymous: true }
-  }
-  try {
-    const supabase = await createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) return { tier: "anonymous", isAnonymous: true }
-    const quota = await getUserQuota(user.id)
-    return { tier: quota.tier, isAnonymous: false }
-  } catch {
-    return { tier: "anonymous", isAnonymous: true }
-  }
-}
 
 /*
   TUB-1 Visual Port (Landing, Page 1 of 9).
@@ -55,12 +29,6 @@ export default async function HomePage({
 }) {
   const { locale } = await params
   setRequestLocale(locale)
-  const { tier, isAnonymous } = await resolveHomeAuthState()
-  // Authed users do not see the landing. Public marketing page lives behind
-  // an anonymous gate; signed-in users go straight to the app.
-  if (!isAnonymous) {
-    redirect(`/${locale}/dashboard`)
-  }
   const t = await getTranslations("landing")
 
   const faqItems = [
@@ -108,7 +76,7 @@ export default async function HomePage({
   ]
 
   return (
-    <>
+    <LandingAuthGate>
       <LandingSmoothScroll />
       <main>
         {/* ===================== HERO ===================== */}
@@ -177,14 +145,13 @@ export default async function HomePage({
             </header>
 
             <div className="demo-wrap">
-              <TubeMine tier={tier} />
+              <TubeMine tier="anonymous" />
 
-              {isAnonymous ? (
-                <div
-                  className="demo-sample-strip"
-                  role="note"
-                  style={{ marginTop: "var(--space-7)" }}
-                >
+              <div
+                className="demo-sample-strip"
+                role="note"
+                style={{ marginTop: "var(--space-7)" }}
+              >
                   <span className="sample-primary">
                     <span className="sample-icon" aria-hidden="true">
                       <svg
@@ -207,10 +174,8 @@ export default async function HomePage({
                   </span>
                   <span className="sample-meta">{t("demo.sample_meta")}</span>
                 </div>
-              ) : null}
 
-              {isAnonymous ? (
-                <DemoSampleResult
+              <DemoSampleResult
                   videoTitle={t("demo.sample.title")}
                   videoChannel={t("demo.sample.channel")}
                   videoDuration={t("demo.sample.duration")}
@@ -238,7 +203,6 @@ export default async function HomePage({
                   neuLabel={t("demo.sample.sent_neu")}
                   negLabel={t("demo.sample.sent_neg")}
                 />
-              ) : null}
             </div>
           </div>
         </section>
@@ -270,13 +234,8 @@ export default async function HomePage({
                   ))}
                 </ul>
                 <div className="row-inline">
-                  <IntlLink
-                    href={isAnonymous ? "/login?intent=signup" : "/dashboard"}
-                    className="btn btn--primary"
-                  >
-                    {isAnonymous
-                      ? t("dashboard.cta_signup")
-                      : t("dashboard.cta_dashboard")}
+                  <IntlLink href="/login?intent=signup" className="btn btn--primary">
+                    {t("dashboard.cta_signup")}
                   </IntlLink>
                   <a href="#pricing" className="btn btn--ghost">
                     {t("dashboard.cta_pricing")}
@@ -686,7 +645,7 @@ export default async function HomePage({
 
       {/* ===================== FOOTER ===================== */}
       <LandingFooter t={t} />
-    </>
+    </LandingAuthGate>
   )
 }
 
