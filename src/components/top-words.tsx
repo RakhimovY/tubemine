@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { Lock, Sparkles } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { Link } from "@/i18n/navigation"
@@ -20,7 +21,13 @@ export function TopWordsPanel({
   commentsAnalyzed: number
 }) {
   const t = useTranslations("analytics.top_words")
+  const [expanded, setExpanded] = useState(false)
   if (items.length === 0) return null
+
+  const PRO_INITIAL_CAP = 30
+  const initialCap = tier === "pro" ? PRO_INITIAL_CAP : items.length
+  const displayedItems = expanded ? items : items.slice(0, initialCap)
+  const hasMore = tier === "pro" && items.length > PRO_INITIAL_CAP
 
   const max = items[0].count
   const remaining = Math.max(0, totalUnique - items.length)
@@ -43,7 +50,7 @@ export function TopWordsPanel({
           </span>
         </div>
         <div className="grid gap-1.5 sm:grid-cols-2">
-          {items.map(({ word, count }) => {
+          {displayedItems.map(({ word, count }) => {
             const pct = Math.max(4, Math.round((count / max) * 100))
             return (
               <div
@@ -66,6 +73,15 @@ export function TopWordsPanel({
             )
           })}
         </div>
+        {hasMore ? (
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="inline-flex w-fit items-center gap-1.5 text-xs text-foreground/80 underline-offset-4 hover:underline"
+          >
+            {expanded ? t("hide") : t("show_all", { count: items.length })}
+          </button>
+        ) : null}
         {cta ? (
           <Link
             href={cta.href}

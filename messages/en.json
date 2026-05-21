@@ -689,6 +689,8 @@
       "unique_top_shown": "{total} unique, top {shown} shown",
       "cta_anon": "{count} more words available with a free account",
       "cta_free": "{count} more words available in Pro",
+      "show_all": "Show all {count}",
+      "hide": "Hide",
       "footnote": "Frequency-based, after stripping common stopwords, URLs, and mentions. Multi-language aware. Use this to spot recurring themes at a glance."
     },
     "emoji": {
