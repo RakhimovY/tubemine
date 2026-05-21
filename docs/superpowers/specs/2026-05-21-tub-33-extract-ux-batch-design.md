@@ -53,7 +53,7 @@ This forces two clicks: submit URL, then confirm.
 
 The same `<form>` `onSubmit` handler picks the right action based on whether `preview` is non-null. The preview card becomes a passive info card with no buttons.
 
-Behaviour matrix:
+Behaviour matrix. `extractCount` is the existing derived value at line 320 of `tubemine.tsx`: `preview ? Math.min(preview.commentCount, budget?.remaining ?? preview.commentCount) : 0`. It already collapses both `commentCount` and quota into a single zero-or-positive integer, so the disabled gate can read it directly:
 
 | State | Button label | Button enabled | Submit handler |
 |---|---|---|---|
@@ -62,23 +62,25 @@ Behaviour matrix:
 | `preview && !extractLoading` | `tEx("analyze_n_comments", {count: extractCount})` | `extractCount > 0 && !preview.commentsDisabled` | `onExtract` |
 | `extractLoading` | loader plus `tEx("analyzing")` | false | n/a |
 
+Because `extractCount` already incorporates `budget.remaining`, the gate `extractCount > 0` covers both `preview.commentCount === 0` and `budget.remaining === 0`. The explicit `!preview.commentsDisabled` check stays because `commentCount` can be non-zero on a video whose comments are disabled (the API returns the count anyway).
+
 The button does not need a new pulse animation. The label flip from generic "Analyze" to the concrete "Analyze N comments" is the readiness signal; that is what the user actually consumes. No new keyframes, no new CSS class, no `prefers-reduced-motion` plumbing. This keeps the visual scope minimal and avoids interacting with Phase C contrast tokens.
 
 If the existing `.tm-design .btn--primary` token pair already passes WCAG AA (it does; same tokens used by the main CTA today), then the only state-driven CSS change is the existing `:disabled` styling which already covers the `commentsDisabled` / `commentCount === 0` / quota-exhausted gating described in 5.2.
 
 ### 5.3 Reset path
 
-Two reset triggers, both must be covered:
+Three triggers, all must be covered:
 
-1. **User edits the URL after preview loaded.** Use `useWatch({ control: form.control, name: "url" })` (NOT bare `form.watch(...)`, which is non-reactive without a subscription) to observe the URL field reactively. Store the URL that produced the current preview in a `previewSourceUrl: string | null` state alongside `preview`. In a `useEffect` triggered on the watched value: when `previewSourceUrl !== null && watchedUrl !== previewSourceUrl`, clear `preview`, `previewSourceUrl`, `comments`, `sentiment`, `distribution`, `analytics`. This covers both "type a different URL" and "clear the field".
+1. **User edits the URL after preview loaded.** Use `useWatch({ control: form.control, name: "url" })` (NOT bare `form.watch(...)`, which is non-reactive without a subscription) to observe the URL field reactively. Store the URL that produced the current preview in a `previewSourceUrl: string | null` state alongside `preview`. In a `useEffect` keyed on the watched value: when `previewSourceUrl !== null && watchedUrl !== previewSourceUrl`, clear `preview`, `previewSourceUrl`, `comments`, `sentiment`, `distribution`, `analytics`. The `previewSourceUrl !== null` guard ensures the effect cannot fire during the first preview load (before `previewSourceUrl` is set) and cannot wipe a freshly-set preview because of render-order races. `setPreview(data)` and `setPreviewSourceUrl(values.url)` are issued back-to-back in `onPreview` so React batches them into a single render.
 
-2. **In-flight preview race.** If the user types a new URL while a preview fetch is still in flight, the resolved response could overwrite cleared state with stale data tied to the old URL. The current two-step flow has the same latent race (the second click was a manual gate that masked it); collapsing to one step makes the race more reachable, so it is fixed defensively. Implementation: keep a `previewRequestIdRef = useRef(0)` counter. Increment in TWO places: (a) at the top of each `onPreview` call, and (b) inside the URL-change clear effect from trigger 1 (so any in-flight request becomes stale even if the user does not resubmit). Each `onPreview` captures the value, and at resolution time only sets state if `myId === previewRequestIdRef.current`. Stale responses are discarded.
+2. **In-flight preview race.** If the user types a new URL while a preview fetch is still in flight, the resolved response could overwrite cleared state with stale data tied to the old URL. Collapsing two-step into one step makes this race more reachable, so it is fixed defensively. Implementation: keep `previewRequestIdRef = useRef(0)`. Increment ONLY at the top of each `onPreview` call and capture `const myId = previewRequestIdRef.current`. At resolution time, only set state if `myId === previewRequestIdRef.current`. The trigger-1 clear effect does NOT increment the ref; it only clears `preview` and `previewSourceUrl`. The next user-driven submission increments naturally. Stale responses are discarded.
 
 3. **Preview fetch failure.** Existing error toast pathway in `onPreview` (lines 129 to 144) is unchanged. On failure, `preview` stays null, button stays in default-state. User retypes to retry. No new error UI required.
 
-The existing `reset()` function (line 215) stays in the file because the results section retains an explicit "start over" action below the comments table. The standalone "Try another URL" button inside the preview card (lines 459 to 467) is removed in Phase A.
+When extract is blocked because `extractCount === 0` (zero comments, comments disabled, or quota exhausted) the user types a new URL to recover. The disabled-button-plus-toast UX is the same as today; the only Phase A change is that the button now lives on the form row instead of inside the preview card.
 
-**Recovery affordance when extract is blocked.** When preview is loaded but the button is disabled due to `commentsDisabled` / `commentCount === 0` / `budget.remaining === 0`, the user cannot proceed. Recovery: typing a new URL or clearing the field invalidates the preview per trigger 1 above. To make this discoverable, render a small ghost text link "Try another URL" UNDER the preview card (visually distinct from the deleted in-card button) only when the button is disabled in a non-loading state. Implementation: `{preview && !previewLoading && !extractLoading && buttonIsDisabledForVideoReasons && <button className="btn btn--ghost btn-sm" onClick={reset}><RotateCcw/>{tEx("try_another_url")}</button>}`. This keeps the one-click happy path clean while not stranding the user on blocked videos.
+The existing `reset()` function (line 215) stays in the file because the results section retains an explicit "start over" action below the comments table. The standalone "Try another URL" button inside the preview card (lines 459 to 467) is removed in Phase A.
 
 ### 5.4 Preview card after Phase A
 
@@ -100,8 +102,8 @@ No new keys required. All reused keys already exist in `messages/{en,ru}.json`:
 - After paste plus single click sequence on a Pro account with a valid public video, extract completes and results render. No second click required.
 - Replacing the URL in the input after preview is shown invalidates the preview (the info card disappears, button reverts to `t("cta")` label).
 - Typing a new URL while preview fetch is still in flight does NOT cause the stale response to repopulate state.
-- On a video with `commentsDisabled: true` or `commentCount === 0`: button is disabled, recovery affordance ("Try another URL" ghost link below the card) is visible. Click invokes `reset()`.
-- On a Pro account at 0 remaining quota: same disabled-plus-recovery state.
+- On a video with `commentsDisabled: true`: button is disabled. Typing a new URL into the input invalidates the preview (per 5.3 trigger 1) and re-enables the form for a new submission.
+- On a Pro account at 0 remaining quota: button is disabled (via `extractCount === 0`). Same recovery path as above.
 
 ## 6. Phase B: Top words tier-aware pagination
 
@@ -113,26 +115,22 @@ The panel renders every item it receives via `items.map`. For Pro the API return
 
 Behaviour by tier. Initial display is capped on the client per `TIER_INITIAL_CAP` (see snippet below) in addition to whatever the server returns; both layers must agree.
 
-| Tier | Initial client cap | Expand control |
+| Tier | Initial display | Expand control |
 |---|---|---|
-| anonymous | 5 items | none |
-| free | 15 items | none |
-| pro | 30 items | "Show all NNN" plus "Hide" toggle when `items.length > 30` |
+| anonymous | server-returned (already capped at 5 per `TOP_WORDS_LIMIT_BY_TIER.anonymous`) | none |
+| free | server-returned (already capped at 15) | none |
+| pro | first 30 of server-returned items | "Show all NNN" plus "Hide" toggle when `items.length > 30` |
 
-Implementation: introduce `const [expanded, setExpanded] = useState(false)` and derive `displayedItems`. Client also applies defensive per-tier caps so that any server-side regression (caching bug, mid-session tier flip, future API change) cannot leak rows past the intended tier limit:
+Implementation: introduce `const [expanded, setExpanded] = useState(false)` and derive `displayedItems`. The server already enforces tier limits in `src/app/api/extract/route.ts`; client only paginates Pro because that is where the wall-of-text problem exists. Anon and Free render whatever the server sends (already capped at 5 / 15):
 
 ```tsx
-const TIER_INITIAL_CAP: Record<ExtractTier, number> = {
-  anonymous: 5,
-  free: 15,
-  pro: 30,
-}
-const initialCap = TIER_INITIAL_CAP[tier]
+const PRO_INITIAL_CAP = 30
+const initialCap = tier === "pro" ? PRO_INITIAL_CAP : items.length
 const displayedItems = expanded ? items : items.slice(0, initialCap)
-const hasMore = tier === "pro" && items.length > initialCap
+const hasMore = tier === "pro" && items.length > PRO_INITIAL_CAP
 ```
 
-Note: existing `if (items.length === 0) return null` guard at line 23 of `top-words.tsx` is unchanged. The empty-items branch is already handled by short-circuiting the panel render.
+The Top Words card header (lines 38 to 43 of `top-words.tsx`) keeps `shown: items.length` (NOT `displayedItems.length`). Rationale: the header advertises the value-prop (Pro got the full ranked list from the server); only the grid is paginated. Changing the header count to track collapse state would make Pro feel like they got 30 items, defeating the goal.
 
 The `<div className="grid gap-1.5 sm:grid-cols-2">` block iterates `displayedItems` instead of `items`. The expand button (rendered after the grid, before the upgrade CTA and the footnote) appears only when `hasMore` is true.
 
@@ -140,7 +138,7 @@ Use existing `Button` import (or, to avoid adding the import, a plain `<button>`
 
 The button label uses `t("show_all", {count: items.length})` when collapsed and `t("hide")` when expanded.
 
-The `unique_top_shown` meta in the header (line 38 to 43) keeps the existing `shown: items.length` semantic but should reflect what is actually shown. Replace `shown: items.length` with `shown: displayedItems.length` so the count tracks the expand state.
+The `unique_top_shown` meta in the header (lines 38 to 43) is unchanged: it continues to read `shown: items.length` (the count the server returned to the client for this tier).
 
 ### 6.3 Tier coupling
 
@@ -168,7 +166,7 @@ Add to `messages/ru.json` under `analytics.top_words`:
 - For Pro on a video with 30 or fewer unique words: no expand button shown.
 - For Free: panel shows up to 15 rows (current behaviour). No expand button.
 - For Anon: panel shows up to 5 rows (current behaviour). No expand button.
-- The "shown" meta count in the header reflects `displayedItems.length`.
+- The header "shown" count reflects the count the server returned (`items.length`), not the collapsed-grid row count.
 
 ## 7. Phase C: Action button contrast
 
@@ -182,16 +180,16 @@ Scope: per the user's request, the fix targets the **Save CSV** button. Save JSO
 
 The main extract CTA already uses a high-contrast token pair via `.tm-design .btn--primary` (line 303 of globals.css): `--btn-bg: var(--color-surface-muted)` plus `--btn-fg: var(--color-text-inverse)`. The fix re-applies that pair to the Save CSV button.
 
-Approach: do NOT change shadcn `Button` defaults globally (would affect other surfaces). Add a stable class `tm-action-btn` to each `<Button>` in `export-bar.tsx` via the `className` prop. shadcn's `buttonVariants` is built with Tailwind utilities; the override in `globals.css` must out-rank those utilities. Tailwind utilities are emitted at a single-class specificity. The override below uses a 2-class chain (`.tm-design .tm-action-btn`) which beats single-class utilities by specificity, and lands AFTER the Tailwind utility layer in the cascade because it sits in plain `globals.css` (not inside `@layer utilities`). The plan must verify this assumption on prod after first deploy; if Tailwind still wins, fall back to `!important` on the two affected properties.
+Approach: do NOT change shadcn `Button` defaults globally (would affect other surfaces). Add a stable class `tm-action-btn` to the Save CSV `<Button>` in `export-bar.tsx` via the `className` prop. shadcn's `buttonVariants` is built with Tailwind utilities; Tailwind v4 layer ordering is sensitive to `@import` order in `globals.css`, so relying on cascade order alone is fragile. The override uses `!important` on the two contrast-critical properties (`background-color` and `color`) up front. The 2-class chain `.tm-design .tm-action-btn` also raises specificity above shadcn's single-class utilities. This single-PR approach avoids the post-deploy "did Tailwind win?" loop.
 
 ```css
-/* TUB-33 Phase C: WCAG AA contrast on the export action bar. */
+/* TUB-33 Phase C: WCAG AA contrast on the Save CSV action button. */
 .tm-design .tm-action-btn {
-  background: var(--color-surface-muted);
-  color: var(--color-text-inverse);
+  background-color: var(--color-surface-muted) !important;
+  color: var(--color-text-inverse) !important;
   border: 1px solid var(--color-surface-muted);
 }
-.tm-design .tm-action-btn:hover { background: #ececef; }
+.tm-design .tm-action-btn:hover { background-color: #ececef !important; }
 .tm-design .tm-action-btn:focus-visible {
   outline: 2px solid var(--color-text-primary);
   outline-offset: 2px;
@@ -203,7 +201,7 @@ Approach: do NOT change shadcn `Button` defaults globally (would affect other su
 }
 ```
 
-If the baseline measurement also flags Save JSON and Save Excel: re-use the same `tm-action-btn` class on those `<Button variant="outline">` instances and rely on shadcn's `variant="outline"` prop (already set in `export-bar.tsx` lines 40 and 44) to provide the visual contrast naturally; the class above will sit on top of the outline variant since the `background` of outline is transparent and the override's `background: var(--color-surface-muted)` would conflict. To avoid that, the class is applied ONLY to the default-variant Save CSV button. If outline buttons need a fix, the plan introduces a sibling class `tm-action-btn-outline` rather than overloading `tm-action-btn`. Decision deferred to the plan after Phase C baseline measurement.
+Save JSON / Save Excel are out of scope by default. If the Phase C baseline measurement step (7.3) shows them ALSO failing AA, the plan adds a sibling class `tm-action-btn-outline` and applies it to the `<Button variant="outline">` instances (lines 40 and 44 of `export-bar.tsx`) with a separate CSS block that respects the outline aesthetic (transparent background, high-contrast border and text). If baseline shows them passing, no change is made. The Phase C acceptance criteria (7.5) and verification (§9) gate JSON/Excel assertions on this measurement.
 
 Focus ring uses `outline` plus `outline-offset` against the high-contrast text token, ensuring focus visibility passes WCAG 2.4.7 (non-text contrast at least 3.0:1 against the surrounding card background, which uses `--color-bg-card`).
 
@@ -266,13 +264,12 @@ PR-C: `fix(export-bar): WCAG AA contrast on action buttons [TUB-33]`
 
 ### Phase C verification
 
-- Run extract.
-- For each Save CSV / Save JSON / Save Excel button:
-  - `getComputedStyle(el).backgroundColor`
-  - `getComputedStyle(el).color`
-  - Compute relative luminance for each, compute contrast ratio.
-- Assert each ratio crosses its WCAG threshold (4.5:1 for filled, 3.0:1 for outline icon-led).
-- Screenshot the export bar.
+1. **Baseline (pre-deploy or pre-edit measurement).** Run extract. For each of Save CSV, Save JSON, Save Excel: capture `getComputedStyle(el).backgroundColor` and `.color`, compute WCAG contrast ratio. Record the three baseline ratios in the Linear comment for Phase C.
+2. **Apply fix.** The Phase C edit always covers Save CSV. Save JSON / Save Excel only if their baseline ratio fails AA per 7.2.
+3. **Post-deploy assertion.**
+   - Save CSV: ratio >= 4.5:1 (or >= 3.0:1 if classified as large text). HARD pass/fail gate.
+   - Save JSON / Save Excel: assertion runs ONLY IF baseline showed failure AND fix was applied. Otherwise no assertion (out-of-scope).
+4. Screenshot the export bar.
 
 ## 10. Linear and vault updates
 
