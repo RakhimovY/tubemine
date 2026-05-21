@@ -414,7 +414,8 @@ export function TubeMine({ tier: initialTier }: { tier: ExtractTier }) {
               <img
                 src={preview.thumbnail}
                 alt=""
-                className="aspect-video w-full max-w-[180px] flex-none rounded-lg object-cover"
+                className="aspect-video w-full flex-none rounded-lg object-cover"
+                style={{ maxWidth: 180 }}
               />
             )}
             <div className="min-w-0 flex-1">
@@ -530,7 +531,10 @@ function PreviewSkeleton() {
   return (
     <div className="mt-6 rounded-xl border border-border/60 bg-muted/30 p-4 sm:p-5">
       <div className="flex gap-4">
-        <Skeleton className="aspect-video w-full max-w-[180px] flex-none rounded-lg" />
+        <Skeleton
+          className="aspect-video w-full flex-none rounded-lg"
+          style={{ maxWidth: 180 }}
+        />
         <div className="flex-1 space-y-2">
           <Skeleton className="h-4 w-3/4" />
           <Skeleton className="h-3 w-1/3" />
