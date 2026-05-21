@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { saveAnalysis } from "@/lib/analyses"
+import type { StoredComment } from "@/lib/comments"
 import {
   MONTHLY_BUDGET,
   getBudgetStatus,
@@ -263,6 +264,14 @@ export async function POST(req: NextRequest) {
         .map((e) => ({ emoji: e.emoji, count: e.count, percent: e.share * 100 }))
 
       const metaSnippet = (await metaPromise)?.data.items?.[0]?.snippet ?? null
+      const storedComments: StoredComment[] = comments.map((c) => ({
+        authorName: c.author ?? null,
+        text: c.text,
+        likes: c.likes,
+        replies: c.replies,
+        publishedAt: c.publishedAt,
+        sentiment: c.sentiment ?? null,
+      }))
       await saveAnalysis({
         userId,
         videoId,
@@ -277,6 +286,8 @@ export async function POST(req: NextRequest) {
         sentiment: sentimentAggregate,
         topWords: topWordsStored,
         emojiFrequency: emojiStored,
+        tier: userQuota.tier,
+        comments: storedComments,
       })
     } catch (e) {
       console.warn("[analyses] save threw (extract continues)", {

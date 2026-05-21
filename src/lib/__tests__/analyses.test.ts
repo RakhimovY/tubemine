@@ -35,6 +35,8 @@ describe("saveAnalysis", () => {
       sentiment: sampleAnalysisInsert.sentiment,
       topWords: sampleAnalysisInsert.top_words,
       emojiFrequency: sampleAnalysisInsert.emoji_frequency,
+      tier: "free",
+      comments: [],
     })
 
     expect(client.from).toHaveBeenCalledWith("analyses")

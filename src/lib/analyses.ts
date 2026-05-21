@@ -2,11 +2,25 @@ import "server-only"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { createServiceClient } from "@/lib/supabase/server"
 import type { SentimentAggregate } from "@/lib/sentiment"
+import type { StoredComment } from "@/lib/comments"
+import {
+  commentsBlobPath,
+  uploadCommentsBlob,
+  downloadCommentsBlob,
+  deleteCommentsBlob,
+} from "@/lib/supabase/storage"
 
-// Keep in sync with 01_analyses.sql DEFAULT `expires_at` interval. saveAnalysis
-// writes expires_at explicitly so the SQL default never applies; this constant
-// is the source of truth.
-const ANALYSES_TTL_MS = 30 * 24 * 60 * 60 * 1000
+// Tier-aware TTL: Free 30 days, Pro 100 days (TUB-34).
+const FREE_TTL_DAYS = 30
+const PRO_TTL_DAYS = 100
+
+export function computeExpiresAt(now: Date, tier: "free" | "pro"): Date {
+  const days = tier === "pro" ? PRO_TTL_DAYS : FREE_TTL_DAYS
+  return new Date(now.getTime() + days * 24 * 60 * 60 * 1000)
+}
+
+const COMMENTS_INLINE_THRESHOLD_BYTES = 5 * 1024 * 1024
+const COMMENTS_HARD_MAX_BYTES = 45 * 1024 * 1024
 
 export const ANALYSES_LIST_MIN = 1
 export const ANALYSES_LIST_MAX = 100
@@ -43,7 +57,19 @@ export type AnalysisInsert = {
   sentiment: SentimentAggregate | null
   topWords: TopWord[]
   emojiFrequency: EmojiFreq[]
+  tier: "free" | "pro"
+  comments: StoredComment[]
 }
+
+export type AnalysisDetailRow = AnalysisRow & {
+  comments: StoredComment[] | null
+  comments_blob_path: string | null
+}
+
+export type GetAnalysisByIdResult =
+  | { ok: true; row: AnalysisDetailRow }
+  | { ok: false; reason: "not_found" }
+  | { ok: false; reason: "comments_unavailable"; row: AnalysisDetailRow }
 
 export type Cursor = { processed_at: string; id: string }
 
@@ -55,7 +81,28 @@ export type ListResult = {
 export async function saveAnalysis(input: AnalysisInsert): Promise<void> {
   const sb = createServiceClient()
   const now = new Date()
-  const expires = new Date(now.getTime() + ANALYSES_TTL_MS)
+  const expires = computeExpiresAt(now, input.tier)
+
+  const serialized = JSON.stringify(input.comments)
+  const size = Buffer.byteLength(serialized, "utf-8")
+  if (size > COMMENTS_HARD_MAX_BYTES) {
+    console.warn("[analyses] comments payload exceeds hard max, skipping persistence", {
+      size,
+      userId: input.userId,
+      videoId: input.videoId,
+    })
+    return
+  }
+  const useBlob = size > COMMENTS_INLINE_THRESHOLD_BYTES
+  let commentsJson: StoredComment[] | null
+  let commentsBlobPathValue: string | null
+  if (useBlob) {
+    commentsBlobPathValue = commentsBlobPath(input.userId, input.videoId)
+    commentsJson = null
+  } else {
+    commentsJson = input.comments
+    commentsBlobPathValue = null
+  }
 
   const { error } = await sb.from("analyses").upsert(
     {
@@ -68,6 +115,8 @@ export async function saveAnalysis(input: AnalysisInsert): Promise<void> {
       sentiment: input.sentiment,
       top_words: input.topWords,
       emoji_frequency: input.emojiFrequency,
+      comments: commentsJson,
+      comments_blob_path: commentsBlobPathValue,
       processed_at: now.toISOString(),
       expires_at: expires.toISOString(),
     },
@@ -80,7 +129,63 @@ export async function saveAnalysis(input: AnalysisInsert): Promise<void> {
       userId: input.userId,
       videoId: input.videoId,
     })
+    return
   }
+
+  if (commentsBlobPathValue) {
+    try {
+      await uploadCommentsBlob(input.userId, input.videoId, serialized)
+    } catch (e) {
+      // Row already upserted with comments_blob_path; missing blob surfaces
+      // as 500 comments_unavailable on detail reads. User can re-extract.
+      console.warn("[analyses] blob upload failed after row upsert", {
+        error: (e as Error).message,
+        path: commentsBlobPathValue,
+      })
+    }
+  }
+}
+
+/**
+ * Load a single analysis for the detail view, including comments.
+ *
+ * CRITICAL: `userSb` MUST be the user-scoped client (from createClient()).
+ * The row-level SELECT through RLS is the authorization gate. If RLS returns
+ * nothing, blob fetch never runs. Passing a service client here would
+ * silently expose cross-user comments.
+ */
+export async function getAnalysisById(
+  userSb: SupabaseClient,
+  id: string,
+): Promise<GetAnalysisByIdResult> {
+  if (!UUID_RE.test(id)) return { ok: false, reason: "not_found" }
+  const { data, error } = await userSb
+    .from("analyses")
+    .select(
+      "id, video_id, video_title, channel_name, thumbnail_url, comment_count, sentiment, top_words, emoji_frequency, comments, comments_blob_path, processed_at, expires_at",
+    )
+    .eq("id", id)
+    .maybeSingle()
+
+  if (error) {
+    console.warn("[analyses] getAnalysisById error", { error: error.message, id })
+    return { ok: false, reason: "not_found" }
+  }
+  if (!data) return { ok: false, reason: "not_found" }
+  const row = data as AnalysisDetailRow
+  if (row.comments_blob_path && !row.comments) {
+    try {
+      row.comments = await downloadCommentsBlob(row.comments_blob_path)
+    } catch (e) {
+      console.warn("[analyses] blob download failed", {
+        error: (e as Error).message,
+        path: row.comments_blob_path,
+      })
+      row.comments = null
+      return { ok: false, reason: "comments_unavailable", row }
+    }
+  }
+  return { ok: true, row }
 }
 
 export function encodeCursor(c: Cursor): string {
@@ -119,6 +224,9 @@ export async function listAnalyses(
   // defense in depth.
   const cap = Math.min(Math.max(ANALYSES_LIST_MIN, limit), ANALYSES_LIST_MAX)
 
+  // IMPORTANT (TUB-34): never include `comments` or `comments_blob_path` here.
+  // TOAST decompression of multi-MB JSONB across every list render would crater
+  // perf. Only getAnalysisById and the export cache branch SELECT those columns.
   let query = sb
     .from("analyses")
     .select(
@@ -165,28 +273,47 @@ export async function deleteAnalysis(
   const { data, error } = await sb
     .from("analyses")
     .delete()
-    .select("id")
+    .select("id, comments_blob_path")
     .eq("id", id)
 
   if (error) {
     console.warn("[analyses] delete failed", { error: error.message, id })
     return 0
   }
+  for (const row of data ?? []) {
+    const path = (row as { comments_blob_path: string | null }).comments_blob_path
+    if (path) void deleteCommentsBlob(path)
+  }
   return data?.length ?? 0
 }
 
 export async function purgeExpiredAnalyses(): Promise<number> {
   const sb = createServiceClient()
+  const cutoff = new Date().toISOString()
+  // Collect blob paths BEFORE deleting rows.
+  const { data: expired, error: selErr } = await sb
+    .from("analyses")
+    .select("id, comments_blob_path")
+    .lt("expires_at", cutoff)
+  if (selErr) {
+    console.warn("[analyses] cron list expired failed", { error: selErr.message })
+    return 0
+  }
+  const blobPaths = (expired ?? [])
+    .map((r) => (r as { comments_blob_path: string | null }).comments_blob_path)
+    .filter((p): p is string => !!p)
+
   const { data, error } = await sb
     .from("analyses")
     .delete()
     .select("id")
-    .lt("expires_at", new Date().toISOString())
-
+    .lt("expires_at", cutoff)
   if (error) {
     console.warn("[analyses] cron purge failed", { error: error.message })
     return 0
   }
+  // Best-effort blob cleanup. Orphans accepted per spec §5.3.
+  await Promise.all(blobPaths.map((p) => deleteCommentsBlob(p)))
   return data?.length ?? 0
 }
 
