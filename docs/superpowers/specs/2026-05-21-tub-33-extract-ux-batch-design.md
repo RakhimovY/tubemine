@@ -62,7 +62,9 @@ Behaviour matrix. `extractCount` is the existing derived value at line 320 of `t
 | `preview && !extractLoading` | `tEx("analyze_n_comments", {count: extractCount})` | `extractCount > 0 && !preview.commentsDisabled` | `onExtract` |
 | `extractLoading` | loader plus `tEx("analyzing")` | false | n/a |
 
-Because `extractCount` already incorporates `budget.remaining`, the gate `extractCount > 0` covers both `preview.commentCount === 0` and `budget.remaining === 0`. The explicit `!preview.commentsDisabled` check stays because `commentCount` can be non-zero on a video whose comments are disabled (the API returns the count anyway).
+Because `extractCount` already incorporates `budget.remaining`, the gate `extractCount > 0` covers both `preview.commentCount === 0` and `budget.remaining === 0` whenever `budget` is loaded. The explicit `!preview.commentsDisabled` check stays because `commentCount` can be non-zero on a video whose comments are disabled (the API returns the count anyway).
+
+Null-budget edge: `extractCount` defaults to `preview.commentCount` when `budget` is null (the budget GET has not yet resolved). To match the existing gate at line 447 of `tubemine.tsx` (`(budget?.remaining ?? 1) === 0`, which means "treat unloaded budget as 'has quota'"), the new disabled condition is written as: `(preview.commentsDisabled || extractCount === 0 || (budget?.remaining ?? 1) === 0)`. With `budget === null` and `preview.commentCount > 0` the gate evaluates false (button enabled), preserving today's behavior. Once `budget` loads, `(budget?.remaining ?? 1) === 0` becomes the real check.
 
 The button does not need a new pulse animation. The label flip from generic "Analyze" to the concrete "Analyze N comments" is the readiness signal; that is what the user actually consumes. No new keyframes, no new CSS class, no `prefers-reduced-motion` plumbing. This keeps the visual scope minimal and avoids interacting with Phase C contrast tokens.
 
