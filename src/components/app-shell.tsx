@@ -78,7 +78,7 @@ export function AppShell({
   }, [])
 
   return (
-    <div className="dashboard-page shell">
+    <div className="dashboard-page"><div className="shell">
       <header className="topbar">
         <div className="topbar-left">
           <button
@@ -157,6 +157,6 @@ export function AppShell({
       <main className="main">
         <div className="main-inner">{children}</div>
       </main>
-    </div>
+    </div></div>
   )
 }
