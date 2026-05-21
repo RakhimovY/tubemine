@@ -30,7 +30,7 @@ Reduce `/dashboard` sidebar nav-item INP from 2,097 ms to **< 600 ms** (60-70 % 
 Success criteria:
 
 - INP for sidebar nav-item clicks measured under 600 ms via Vercel Web Analytics or Chrome DevTools INP overlay on prod after Step 4 ships.
-- All 8 Tier 1 verify TCs (see § 7) pass on prod after each step.
+- All 9 Tier 1 verify TCs (see § 7) pass on prod after each step.
 - No new RLS errors (`PGRST301`) in Vercel logs during the 24-hour observation window after final step.
 - Multi-user isolation: User A's data never visible to User B (incognito smoke).
 
@@ -68,7 +68,7 @@ This refactor does not change architecture; it changes:
 - Quick analyze block placeholder (height matches `.card.quick-analyze`).
 - Recent analyses list with 5 `<div className="recent-row is-loading">` placeholders.
 
-Skeleton visual: each block is a `<div data-slot="skeleton" className="animate-pulse rounded-md bg-muted">` from the existing `src/components/ui/skeleton.tsx` primitive, or matching `.is-placeholder` pattern already in `globals.css:1776`. Final exact markup chosen during plan phase by matching real dashboard `.dashboard-page` section heights so transition has no visible jump.
+Skeleton visual: each block is a `<div data-slot="skeleton" className="animate-pulse rounded-md bg-muted">` from the existing `src/components/ui/skeleton.tsx` primitive. The reserved class `.is-placeholder` (owned by `dashboard-page .recent-thumb.is-placeholder` at `globals.css:1776` for missing-thumbnail fallback) MUST NOT be used here. Final exact markup chosen during plan phase by matching real dashboard `.dashboard-page` section heights so transition has no visible jump.
 
 **No translations, no auth, no data deps.** This file is a static React component.
 
@@ -162,12 +162,28 @@ Single case: mock supabase client returning `{ count: 7, error: null }`, helper 
 
 **File 1:** `src/lib/supabase/server.ts` (modify; co-locate with the existing `createClient` to avoid a new module).
 
-Append after the existing exports:
+Append after the existing exports, with the JSDoc restriction below preserved verbatim:
 
 ```ts
 import { cache } from "react"
 // ... existing exports above (createClient, createServiceClient)
 
+/**
+ * Per-request memoized auth lookup. RSC-ONLY.
+ *
+ * Use ONLY from server components rendered inside the React render tree
+ * (layouts, pages under `src/app/[locale]/(app)/`).
+ *
+ * Do NOT call from:
+ *   - Route handlers (`app/api/.../route.ts`)
+ *   - Server actions
+ *   - Middleware (`middleware.ts`)
+ *   - Webhook handlers
+ *
+ * `react.cache` only dedupes within a single RSC render pass. Calling from
+ * non-RSC contexts gives no dedup and may surprise future readers; use the
+ * direct `(await createClient()).auth.getUser()` pattern there instead.
+ */
 export const getCachedUser = cache(async () => {
   const sb = await createClient()
   const {
@@ -251,7 +267,7 @@ Per research doc § Theme 3 Option 2 (staged commits + PR previews + Vercel Inst
 For each step:
 
 1. New branch `fix/tub-28-step-N-<slug>` off `main`.
-2. One commit per step. Commit message style: `perf(tub-28): step N <short summary>`. Multi-file steps (Step 4 touches 5 files) MUST land as a single atomic commit so the build never sees partial state where a caller of `getCachedUser` ships before the export exists.
+2. One commit per step. Commit message style: `perf(tub-28): step N <short summary>`. Multi-file steps (Step 4 touches 6 files: `lib/supabase/server.ts`, `lib/quota.ts`, `(app)/layout.tsx`, `dashboard/page.tsx`, `profile/page.tsx`, `history/page.tsx`) MUST land as a single atomic commit so the build never sees partial state where a caller of `getCachedUser` ships before the export exists.
 3. Push, open PR, Vercel auto-creates preview.
 4. Local + preview verify (lint + tsc + vitest + manual preview check).
 5. Merge to `main` -> Vercel auto-deploys to prod.
@@ -267,7 +283,7 @@ Final summary: append to `~/vault/daily/2026-05-21.md` per prompt § Hand-off wh
 
 ---
 
-## 7. Verify-on-prod subset (Tier 1, 8 TCs)
+## 7. Verify-on-prod subset (Tier 1, 9 TCs)
 
 From `~/vault/projects/yt-comments/qa/test-cases.md`:
 
@@ -278,7 +294,8 @@ From `~/vault/projects/yt-comments/qa/test-cases.md`:
 5. **TC-INT-003** - `/history` row `video_title` renders real title, not `videoId` fallback.
 6. **Auth/RLS** - User A in regular browser, Recent Analyses + sidebar count show User A data only.
 7. **Auth/RLS** - User B in incognito, sees their own data, no User A leakage.
-8. **Loading state** - after Step 1: navigate sidebar items, skeleton visible during transition (DOM assertion: `document.querySelector('[data-slot="skeleton"], .is-placeholder')` returns non-null within 100 ms of click).
+8. **Loading state** - after Step 1: navigate sidebar items, skeleton visible during transition (DOM assertion: `document.querySelector('[data-slot="skeleton"]')` returns non-null within 100 ms of click; `.is-placeholder` is NOT a valid skeleton signal here).
+9. **Sidebar count badge** - after Step 2: when an authed user has at least 1 analysis, `document.querySelector('aside .count')` exists and shows the real total. When count is 0 (brand-new user or RLS-denied fallback), the `aside .count` span is absent (per `side-nav.tsx:68` guard `historyCount > 0`).
 
 **Skip (research validated):** TC-CSS-* (no CSS changes); TC-EXP-* (CSV/Excel export unchanged); TC-CORE-* extract pipeline (untouched); TC-I18N-* (no message changes); TC-AUTH-OAuth (auth flow code untouched).
 
