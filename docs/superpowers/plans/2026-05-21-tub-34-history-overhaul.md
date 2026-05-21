@@ -1978,50 +1978,46 @@ Spec §10 forbids touching `src/components/tubemine.tsx`. The rapid-re-extract d
 
 No tasks here. Skip to Task 3.4.
 
-### Task 3.4: Refactor recent-analyses to use AnalysesList
+### Task 3.4: Bump dashboard recent block from 5 to 10 items (in-place)
 
 **Files:**
-- Modify: `src/components/recent-analyses.tsx`
+- Modify: `src/app/[locale]/(app)/dashboard/page.tsx`
 
-- [ ] **Step 1: Replace contents**
+Recon-confirmed: `RecentAnalyses` (the existing component in `src/components/recent-analyses.tsx`) is unused dead code. The dashboard page inlines its own `.recent-list` markup at lines 186-225+, fetching 5 items via `listAnalyses(supabase, null, 5)`. To honor spec §5.15 (dashboard shows 10 items with no action buttons, view-all link works) WITHOUT destroying the existing `.recent-row` design system, change only the limit number.
 
-Full file:
+- [ ] **Step 1: Bump fetch limit**
 
-```tsx
-import { listAnalyses } from "@/lib/analyses"
-import { createClient } from "@/lib/supabase/server"
-import { AnalysesList } from "@/components/analyses-list"
+In `src/app/[locale]/(app)/dashboard/page.tsx` line ~70, change:
 
-type Tier = "free" | "pro"
-
-export async function RecentAnalyses({ tier }: { tier: Tier }) {
-  const supabase = await createClient()
-  const { items, nextCursor } = await listAnalyses(supabase, null, 10)
-  return (
-    <AnalysesList
-      initialItems={items}
-      initialCursor={nextCursor}
-      tier={tier}
-      compact={true}
-      showActions={false}
-      paginated={false}
-      limit={10}
-    />
-  )
-}
+```ts
+listAnalyses(supabase, null, 5),
 ```
 
-- [ ] **Step 2: Build**
+to:
+
+```ts
+listAnalyses(supabase, null, 10),
+```
+
+- [ ] **Step 2: Confirm recent rows link to /history/:id**
+
+Verify the existing dashboard `.recent-row` markup wraps each row in a link to `/history/${item.id}` (use the i18n `<Link>` from `@/i18n/navigation`). If not already linked, wrap each `<article>` content in a `<Link href={`/history/${item.id}`}>`. This makes dashboard rows navigable into the detail view per spec §5.13 "Click row navigates via Next.js Link to /history/:id".
+
+If the existing markup already navigates somewhere else (e.g. opens the YT video URL), keep that behavior on the thumbnail / external-link affordance but add a separate row-area click target that navigates to /history/:id. Keep changes minimal; do not redesign the row.
+
+- [ ] **Step 3: Build**
 
 Run: `pnpm build`
 Expected: SUCCESS.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
-git add src/components/recent-analyses.tsx
-git commit -m "refactor(tub-34): RecentAnalyses uses unified AnalysesList (10 items, no actions)"
+git add 'src/app/[locale]/(app)/dashboard/page.tsx'
+git commit -m "feat(tub-34): dashboard recent block bumped 5->10 + links to /history/:id"
 ```
+
+Note: the unused `src/components/recent-analyses.tsx` is left untouched (dead code; cleanup is out of scope). The new `<AnalysesList>` component still ships from Task 3.2 and is consumed by /history page (Task 3.5 in-place changes integrate the same patterns).
 
 ### Task 3.5: Add new actions in-place to existing history-client (preserve visual port)
 
