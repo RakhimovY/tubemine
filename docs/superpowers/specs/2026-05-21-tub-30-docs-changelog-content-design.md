@@ -1,4 +1,4 @@
-# TUB-30 — Docs + Changelog content sprint (design spec)
+# TUB-30: Docs + Changelog content sprint (design spec)
 
 Status: draft (turbo-pipeline Phase 1 output, pre-review)
 Date: 2026-05-21
@@ -69,13 +69,13 @@ Footer is the legal footer pattern: navigation links to `/`, `/#features`, `/pri
 
 Both pages declare a `const LAST_UPDATED = "May 21, 2026"` matching the privacy / terms convention. The constant renders verbatim in both locales (locale-aware date formatting is out of scope; existing privacy and terms already use this English-style date in RU too).
 
-## 4. Page outline — Docs
+## 4. Page outline: Docs
 
 File: `src/app/[locale]/docs/page.tsx`
 
 8 numbered sections, all bilingual (EN + RU keys in `messages/{en,ru}.json` under namespace `docs.*`).
 
-### 4.1 Section 01 — Overview
+### 4.1 Section 01: Overview
 
 Source: `README.md` "What it does" paragraph (lines 27-31).
 
@@ -86,7 +86,7 @@ Content shape:
 
 No marketing superlatives. Mirror the README's neutral instructional tone.
 
-### 4.2 Section 02 — Quick start (anonymous flow)
+### 4.2 Section 02: Quick start (anonymous flow)
 
 Source: README "How it works" steps 1-3 (lines 70-75), pricing comparison row `row_monthly_anon` ("1,000 / video"), comparison row `row_export_anon` ("CSV"), comparison row `row_saved_anon` ("Single session").
 
@@ -100,7 +100,7 @@ Content shape:
 
 No claims about anonymous-tier sentiment beyond what the pricing comparison table shows ("Total count only" per `compare.row_sentiment_dir_anon`).
 
-### 4.3 Section 03 — Sign in (Free flow)
+### 4.3 Section 03: Sign in (Free flow)
 
 Source: README plans table (lines 56-65) Free column, pricing comparison `row_monthly_free` ("5,000 / month"), `row_saved_free` ("Last 10"), `row_export_free` ("CSV"), `compare.row_sentiment_dir_free` ("Direction (qualitative)").
 
@@ -114,7 +114,7 @@ Content shape:
 
 No fabricated experience claims ("most users find" etc).
 
-### 4.4 Section 04 — Pro flow
+### 4.4 Section 04: Pro flow
 
 Source: README plans table Pro column, pricing `pricing.pro.price` ($19) + `pricing.pro.unit` (/month) + `pricing.pro.b4` (3-day trial), `pricing.faq.a5` (cancel anytime, 7-day refund window, no trial-and-refund stacking), comparison `row_monthly_pro` ("100,000 / month"), `row_saved_pro` ("Last 100"), `row_export_pro` ("CSV, JSON, Excel"), `compare.row_sentiment_exact_pro` ("Yes").
 
@@ -127,7 +127,7 @@ Content shape:
 - `b4` 100,000 comments per month, 100 saved analyses, additional output formats.
 - `p2` link to `/pricing` for full plan comparison. This anchors the existing pricing FAQ at `/pricing#faq` as the canonical FAQ source (no FAQ duplication in this sprint).
 
-### 4.5 Section 05 — Output formats (CSV, JSON, Excel)
+### 4.5 Section 05: Output formats (CSV, JSON, Excel)
 
 Source: README "How it works" step 3 (lines 73-74) for Papa Parse columns `author, text, likes, replies, publishedAt`. ExcelJS server-side mentioned in README "Stack" line 88. TUB-23 Done in Linear for the formula-injection sanitization (CSV + XLSX).
 
@@ -141,7 +141,7 @@ Content shape:
 
 No fake sample CSV row in code blocks (would be invented data). Instead, link the README "How it works" section for the column list.
 
-### 4.6 Section 06 — Limits and quotas
+### 4.6 Section 06: Limits and quotas
 
 Source: README plans table all rows, README "Quota enforcement" sentence (line 75), README "Stack" Vercel KV + Supabase Postgres references.
 
@@ -152,31 +152,31 @@ Content shape:
 - `user_text` Free and Pro: per-user budget via Supabase Postgres, race-free via the `bump_usage` RPC. Resets monthly on calendar month boundary.
 - `yt_text` shared YouTube Data API v3 quota (TubeMine uses its own daily quota; no user API key needed per README features bullet line 41).
 
-No invented numbers about API daily quota size (the actual YouTube API daily limit is 10,000 units, but that is operational infrastructure, not user-facing — out of scope for this section).
+No invented numbers about API daily quota size. The actual YouTube API daily limit is 10,000 units, but that is operational infrastructure, not user-facing, so it stays out of scope for this section.
 
-### 4.7 Section 07 — Troubleshooting
+### 4.7 Section 07: Troubleshooting
 
 Source: verbatim API error strings from the codebase:
 
-- `src/app/api/preview/route.ts:39` — "Video not found" (HTTP 404)
-- `src/app/api/extract/route.ts:203` — "Comments are disabled for this video by the uploader" (HTTP 403 with YouTube API reason `commentsDisabled`)
-- `src/app/api/extract/route.ts:211` — "TubeMine has hit its YouTube API daily quota. Please try again tomorrow." (HTTP 403 with YouTube API reason `quotaExceeded`)
-- `src/app/api/extract/route.ts:139` — "Monthly budget exhausted" (HTTP 429, signed-in user hit per-account cap)
-- `messages/en.json` `extractor.errors.url_invalid_youtube` — "That does not look like a YouTube video URL"
-- `messages/en.json` `extractor.errors.url_required` — "Paste a YouTube URL"
+- `src/app/api/preview/route.ts:39` : "Video not found" (HTTP 404)
+- `src/app/api/extract/route.ts:203` : "Comments are disabled for this video by the uploader" (HTTP 403 with YouTube API reason `commentsDisabled`)
+- `src/app/api/extract/route.ts:211` : "TubeMine has hit its YouTube API daily quota. Please try again tomorrow." (HTTP 403 with YouTube API reason `quotaExceeded`)
+- `src/app/api/extract/route.ts:139` : "Monthly budget exhausted" (HTTP 429, signed-in user hit per-account cap)
+- `messages/en.json` `extractor.errors.url_invalid_youtube` : "That does not look like a YouTube video URL"
+- `messages/en.json` `extractor.errors.url_required` : "Paste a YouTube URL"
 
 Content shape:
 
 - `p1` what to do when extract or preview fails.
-- `err1_q` "Video not found" — `err1_a` URL is wrong, video is private, or video was removed; try a public URL.
-- `err2_q` "Comments are disabled for this video" — `err2_a` the uploader has disabled comments at the YouTube level; nothing TubeMine can do.
-- `err3_q` "TubeMine has hit its YouTube API daily quota" — `err3_a` daily quota refresh happens at midnight Pacific Time per YouTube Data API. Try again then.
-- `err4_q` "Monthly budget exhausted" — `err4_a` your account has hit the monthly cap (5,000 Free, 100,000 Pro). Quota resets on the 1st of the next calendar month, visible in `/profile`.
+- `err1_q` "Video not found" : `err1_a` URL is wrong, video is private, or video was removed; try a public URL.
+- `err2_q` "Comments are disabled for this video" : `err2_a` the uploader has disabled comments at the YouTube level; nothing TubeMine can do.
+- `err3_q` "TubeMine has hit its YouTube API daily quota" : `err3_a` daily quota refresh happens at midnight Pacific Time per YouTube Data API. Try again then.
+- `err4_q` "Monthly budget exhausted" : `err4_a` your account has hit the monthly cap (5,000 Free, 100,000 Pro). Quota resets on the 1st of the next calendar month, visible in `/profile`.
 - `p_contact` link to `mailto:hello@tubemine.app` (existing `SUPPORT_EMAIL` constant pattern from privacy / terms pages).
 
-Note: "midnight Pacific Time" is a documented YouTube Data API behavior, not a TubeMine claim. It is verifiable on the YouTube Data API public docs and matches the wording in our `extract/route.ts:211` user-facing message ("try again tomorrow"). If the brainstorm-Phase-2 review pushes back on quoting this specific time zone, we soften to "the quota resets daily on YouTube's schedule" — not a load-bearing detail.
+Note: "midnight Pacific Time" is a documented YouTube Data API behavior, not a TubeMine claim. It is verifiable on the YouTube Data API public docs and matches the wording in our `extract/route.ts:211` user-facing message ("try again tomorrow"). If the brainstorm-Phase-2 review pushes back on quoting this specific time zone, we soften to "the quota resets daily on YouTube's schedule" (not a load-bearing detail).
 
-### 4.8 Section 08 — Open source
+### 4.8 Section 08: Open source
 
 Source: README Contributing + License sections (lines 162-173), GitHub repo URL `https://github.com/RakhimovY/tubemine` (already a constant on multiple pages).
 
@@ -186,7 +186,7 @@ Content shape:
 - `link_github` GitHub repo link.
 - `p2` how to contribute (fork → branch → PR), pointing at the README Contributing section.
 
-## 5. Page outline — Changelog
+## 5. Page outline: Changelog
 
 File: `src/app/[locale]/changelog/page.tsx`
 
@@ -218,7 +218,7 @@ Each release section has the structure:
 
 The h3 subsections (Added / Changed / Fixed / Security) follow Keep-a-Changelog conventions. Each release renders only the subsections that have entries for that date.
 
-#### 5.2.1 Release `01 — 2026-05-21`
+#### 5.2.1 Release `01: 2026-05-21`
 
 Verifiable sources: TUB-8, TUB-11 hotfixes, TUB-12, TUB-13, TUB-16..27 (Linear Done). Commits `ee9fc16`, `7e172e0`, `f7f288e`, `4b3fbe5`, `fefeb02`, `55b0460`, `552e7cc`, `f5a89b3`, `ffe3ff2`, `2d21bc0`, `21091b7`, `59cd134`, `5eb799d`, `856dfce`, `ab2e3e8`, `c8d00d4`, `cdc17c3`, `ddcb2a6`, `5e7aac9`.
 
@@ -227,7 +227,7 @@ Verifiable sources: TUB-8, TUB-11 hotfixes, TUB-12, TUB-13, TUB-16..27 (Linear D
 - Fixed: Pro sentiment label localized for Russian locale (TUB-21). Profile plan card no longer renders raw ICU `{cap, number}` placeholder (TUB-17). Dashboard cards now gap correctly (TUB-19) and breadcrumb updates per route (TUB-18). Recent Analyses and History rows now persist real video title, channel, and thumbnail instead of placeholders (TUB-20). Russian profile no longer doubles the word "использовано" (TUB-22). Extract and "Try another URL" buttons match the design system instead of low-contrast shadcn primitives (TUB-25). Dashboard quota info no longer renders three times for Pro users (TUB-26). Quick Analyze preview thumbnail respects 180px width cap via inline style (TUB-27).
 - Security: CSV and XLSX exports sanitize formula-injection vectors (`=`, `+`, `-`, `@`, plus full-width Unicode variants) per OWASP guidance. Affects every export across Anonymous, Free, and Pro tiers (TUB-23, P0).
 
-#### 5.2.2 Release `02 — 2026-05-20`
+#### 5.2.2 Release `02: 2026-05-20`
 
 Verifiable sources: TUB-1 (visual port), TUB-11 (branding Phase 1), TUB-7 (FAQ refund / trial coexistence). Commits `534e15f`..`80b0a21`, `5e7aac9`.
 
@@ -235,20 +235,20 @@ Verifiable sources: TUB-1 (visual port), TUB-11 (branding Phase 1), TUB-7 (FAQ r
 - Changed: Pricing FAQ refund and 3-day trial wording clarified to avoid the "3-day trial plus 7-day refund" cognitive collision (TUB-7).
 - Fixed: Privacy and Terms bullet text no longer wraps per-word (`9101ea5`). OAuth redirect now hard-pins to `NEXT_PUBLIC_ORIGIN` (`be79dd3`).
 
-#### 5.2.3 Release `03 — 2026-05-19`
+#### 5.2.3 Release `03: 2026-05-19`
 
 Verifiable sources: Phase H + Phase J git tags (`32423b5`, `f381746`, `860e277`, `73d68b3`, `030147d`, `6eacfe3`, `165b759`, `6f46952`). Pricing FAQ `a5` cancel-anytime detail.
 
 - Added: 3-day free Pro trial (no card charged until day 4). Tier-aware Recent Analyses rows on the dashboard (qualitative label for Free, exact percentages for Pro). JSON and Excel exports for Pro. History retention bumped to 100 entries for Pro. Russian sentiment labels (positive / neutral / negative). Google OAuth profile metadata (email, name, avatar) copied into the profile record.
 - Changed: Landing hero shows only for anonymous visitors; signed-in visitors land directly on the dashboard.
 
-#### 5.2.4 Release `04 — 2026-05-17`
+#### 5.2.4 Release `04: 2026-05-17`
 
 Verifiable sources: Phase 1.5 and Phase 2 git tags (`217b793`, `93644e0`). README roadmap line 156.
 
 - Added: Sentiment analysis on every comment (positive, neutral, negative direction). Top words and emoji frequency rankings. CSV download for Anonymous and Free tiers with quota gating. Google OAuth sign-in. Pricing page with Free vs Pro comparison.
 
-#### 5.2.5 Release `05 — 2026-05-15`
+#### 5.2.5 Release `05: 2026-05-15`
 
 Verifiable sources: initial scaffold commits (`9e91f3a`, `7957565`, `2860ebb`, `1a182d9`, `6e47459`). README roadmap line 155.
 
@@ -426,7 +426,7 @@ This sprint enforces the following non-negotiable rules. Any violation fails the
 
 ### 9.1 Em-dash and en-dash ban
 
-The Unicode characters U+2014 (em-dash, `—`) and U+2013 (en-dash, `–`) appear zero times in:
+The Unicode characters U+2014 (em-dash, `:`) and U+2013 (en-dash, `-`) appear zero times in:
 
 - `src/app/[locale]/docs/page.tsx`
 - `src/app/[locale]/changelog/page.tsx`
@@ -549,4 +549,4 @@ None at draft time. The Phase 2 5x parallel review will surface any completeness
 
 ## 13. Hand-off
 
-After this spec passes the 5x parallel review and `writing-plans` skill completes, the implementation phase begins. No new design decisions are made during plan-writing or implementation — any spec-level question that surfaces during plan-writing returns control here for an amendment.
+After this spec passes the 5x parallel review and `writing-plans` skill completes, the implementation phase begins. No new design decisions are made during plan-writing or implementation. Any spec-level question that surfaces during plan-writing returns control here for an amendment.
