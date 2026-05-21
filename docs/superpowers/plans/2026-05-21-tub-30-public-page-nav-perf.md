@@ -277,9 +277,13 @@ export async function SiteHeader() {
 }
 ```
 
-- [ ] **Step 2: Update `src/components/site-header-client.tsx`**
+### Sub-steps for Step 2 (single file, three logical edits)
 
-Two edit blocks. First, replace the imports + props type + state + effect block at the top of the file. Currently lines 1-39 look like:
+The edit on `site-header-client.tsx` splits into three logical sub-steps for checkpointing. All three apply BEFORE the commit in Step 8. Run `pnpm tsc --noEmit` after Step 2c to verify the file compiles end-to-end.
+
+- [ ] **Step 2a: Replace imports + props type + add `computeInitials` helper**
+
+Replace the top of the file. Currently lines 1-39 look like:
 
 ```tsx
 "use client"
@@ -325,7 +329,7 @@ export function SiteHeaderClient({
   const [drawerOpen, setDrawerOpen] = useState(false)
 ```
 
-Replace with:
+Replace with (Step 2a covers imports, props type/signature swap, and the `computeInitials` helper):
 
 ```tsx
 "use client"
@@ -389,6 +393,13 @@ export function SiteHeaderClient({
   repoUrl: string
   labels: Labels
 }) {
+```
+
+- [ ] **Step 2b: Add `useState` lazy initializers for authState and initials**
+
+Inside the `SiteHeaderClient` function body, after the existing `useState` calls for `scrolled` and `drawerOpen`, add the new auth state hooks:
+
+```tsx
   const [scrolled, setScrolled] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [authState, setAuthState] = useState<AuthState>(() => {
@@ -396,7 +407,15 @@ export function SiteHeaderClient({
     return hint === "signed-in" ? "signed-in" : "anonymous"
   })
   const [initials, setInitials] = useState<string>("")
+```
 
+The existing `useEffect` calls (for scroll, drawer open, key handlers, media query) stay where they are. Do NOT remove or reorder them.
+
+- [ ] **Step 2c: Add `useEffect` with `onAuthStateChange` listener**
+
+Add a new `useEffect` block right after the existing media-query `useEffect` (currently around line 76 of the original file, which has the `mq.addEventListener("change", handle)` block). The new effect mounts once and subscribes to Supabase auth state:
+
+```tsx
   useEffect(() => {
     let sb
     try {
@@ -436,6 +455,8 @@ export function SiteHeaderClient({
     }
   }, [])
 ```
+
+After Step 2c, run `pnpm tsc --noEmit` once to verify the file compiles. If it fails on `sb` being possibly undefined (TS2454 / TS2532), change `let sb` to `let sb: ReturnType<typeof createClient> | undefined` and add an `if (!sb) return` guard before the listener subscribe. Other TS errors should not occur.
 
 - [ ] **Step 3: Add `suppressHydrationWarning` to desktop nav-actions region**
 
@@ -507,12 +528,12 @@ Expected: clean. If lint flags an unused variable or hook-dependency issue, addr
 
 - [ ] **Step 7: Local unit tests**
 
-Run:
+Run the full vitest suite to confirm no regressions plus the new auth-hint tests:
 ```bash
-pnpm test
+pnpm vitest run
 ```
 
-Expected: all tests pass, including the new `auth-hint.test.ts` from Task 1. No prior tests should regress (none touch SiteHeader directly).
+Expected: all tests pass, including the 9 new `auth-hint.test.ts` cases from Task 1. No prior tests should regress (none touch SiteHeader directly).
 
 - [ ] **Step 8: Commit**
 
@@ -666,36 +687,73 @@ Confirm 3 new commits on top of the spec commits, total 6 commits since `main` o
 
 (Order may include rounds 1-4 from spec review.)
 
-- [ ] **Step 2: Push main**
+- [ ] **Step 2: Create feature branch and push**
 
-Working branch is `main` per the brief ("One PR per phase. Phase A in one PR. Phase B (if shipped) in a second PR.") and prior turbo-pipeline practice (TUB-28, TUB-31 each merged directly to main via squash from feature branches OR direct push). Inspect prior PR pattern via:
-
-```bash
-git log --oneline --merges -5
-```
-
-If recent work shows feature branches → PR → squash merge pattern, follow it. Otherwise, push directly to main:
+The brief mandates "One PR per phase". Prior turbo-pipeline work (TUB-28 #4, TUB-31) used feature-branch + PR + squash merge. Follow that pattern.
 
 ```bash
-git push origin main
+git checkout -b erkebulan622/tub-30-public-page-nav-perf
+git push -u origin erkebulan622/tub-30-public-page-nav-perf
 ```
 
-If a feature branch is preferred, the steps are: create branch `erkebulan622/tub-30-public-page-nav-perf-avg-1860ms-transition-346ms-ttfb` (Linear-suggested), push, open PR via `gh pr create` with title `perf(tub-30): SiteHeader lazy auth hydration` and body referencing the spec/plan paths.
+The branch name matches Linear's suggested branch convention (trimmed for length).
 
-- [ ] **Step 3: Wait for Vercel preview deploy (only if PR'd, not direct push)**
+- [ ] **Step 3: Open the PR**
 
-If a PR is open, wait for the Vercel preview deployment status to become `READY`. Use `gh pr checks <pr-number>` to poll. If pushing directly to main, Vercel will deploy production from main on commit; wait for that.
-
-Either way: confirm the deploy reaches `READY` state before proceeding to verification.
-
-- [ ] **Step 4: Verify deploy completed**
-
-Run:
 ```bash
-gh run list --limit 3
+gh pr create --title "perf(tub-30): SiteHeader lazy auth hydration" --body "$(cat <<'EOF'
+## Summary
+
+Phase B1 of TUB-30. Removes supabase.auth.getUser() from SiteHeader server render so public pages (/pricing, /docs, /changelog, /privacy, /terms, /login) become statically prerenderable, unlocking full RSC prefetching for warm Link navigations.
+
+Phase A skipped (vault note pre-flagged cache() dedup=0 on single-caller-per-render). Phase B2 (Edge runtime) unnecessary once routes go static. Phase C (use cache: private) still deferred for same blocker as cancelled TUB-29.
+
+Spec: docs/superpowers/specs/2026-05-21-tub-30-public-page-nav-perf-design.md
+Plan: docs/superpowers/plans/2026-05-21-tub-30-public-page-nav-perf.md
+Linear: TUB-30
+
+## Test plan
+
+- [ ] pnpm vitest run passes (9 new auth-hint cases plus regression suite)
+- [ ] pnpm tsc --noEmit clean
+- [ ] pnpm lint clean
+- [ ] pnpm build succeeds; public routes show static markers
+- [ ] Chrome MCP measurement on prod: avg TTFB < 100ms, total < 800ms
+- [ ] Anonymous incognito /en/pricing shows Get started, no console errors
+- [ ] Signed-in /en/changelog hard reload shows Dashboard + avatar with no flicker
+- [ ] CLS < 0.01 on cold load
+
+Generated with Claude Code via turbo-pipeline.
+EOF
+)"
 ```
 
-OR check Vercel dashboard. Wait until status is `READY` for the latest commit.
+- [ ] **Step 4: Wait for Vercel preview READY**
+
+The PR triggers a Vercel preview deployment automatically. Use the Vercel MCP tool to confirm READY status:
+
+```
+mcp__vercel__list_deployments {
+  projectId: "tubemine",
+  limit: 5
+}
+```
+
+Find the deployment whose `gitSource.ref` matches the branch `erkebulan622/tub-30-public-page-nav-perf`. Confirm `readyState` is `READY` (poll every ~30 seconds if still `BUILDING`).
+
+Capture the preview URL (`url` field) for the next task.
+
+If the Vercel MCP is not available, fall back to `gh pr checks <pr-number>` and watch for the Vercel check to turn green. The PR number is visible in the URL from Step 3 or via `gh pr list --head erkebulan622/tub-30-public-page-nav-perf --json number,url`.
+
+- [ ] **Step 5: Squash-merge the PR to main**
+
+Once the preview is green and the next task (verification) passes against the preview URL, squash-merge:
+
+```bash
+gh pr merge <pr-number> --squash --delete-branch
+```
+
+Wait for the production deploy to flip READY. Note: Task 5 verification runs against the preview URL FIRST; only after verification passes does the PR get merged to main and verified again on production. The Linear update happens AFTER the production-side verification confirms numbers.
 
 ---
 
@@ -707,15 +765,23 @@ This task is the verification-on-prod gate per `~/vault/feedback/qa-verify-on-pr
 
 ### Task 5 steps
 
-- [ ] **Step 1: Open production in a Chrome MCP-controlled tab**
+- [ ] **Step 1: Open the deploy URL in a Chrome MCP-controlled tab**
+
+Verification runs first against the Vercel preview URL captured in Task 4 Step 4, then again on production after merge. The same tool sequence applies to both; substitute the URL.
 
 Use the MCP tool sequence:
 
 ```
-mcp__claude-in-chrome__tabs_create_mcp { url: "https://tubemine.tech/en/pricing" }
+mcp__claude-in-chrome__tabs_create_mcp { url: "<PREVIEW_OR_PROD_URL>/en/pricing" }
 ```
 
-Wait for page to fully load (use `mcp__claude-in-chrome__wait_for` or 3s explicit wait).
+Wait for page load with an explicit JavaScript-based delay (the claude-in-chrome MCP does not expose a `wait_for` tool; use `javascript_tool` with a Promise-based sleep):
+
+```
+mcp__claude-in-chrome__javascript_tool {
+  code: "await new Promise(r => setTimeout(r, 3000)); 'ready'"
+}
+```
 
 - [ ] **Step 2: Confirm signed-in baseline state (or anon, per scenario)**
 
@@ -732,15 +798,15 @@ Expected for signed-in: array of one or more `sb-...` cookies present. If empty,
 
 - [ ] **Step 3: Run the verification measurement script (5 alternating navigations)**
 
-Paste the exact script from `~/vault/references/tubemine-public-page-nav-perf-2026-05-21.md` §"Verification methodology" into:
+Run the inlined script via:
 
 ```
 mcp__claude-in-chrome__javascript_tool {
-  code: "<script body>"
+  code: "(async () => { const samples = []; for (let i = 0; i < 5; i++) { performance.clearResourceTimings(); const startTime = performance.now(); const target = i % 2 === 0 ? '/docs' : '/changelog'; const link = document.querySelector(`a[href*=\"${target}\"]`); if (!link) { samples.push({ iter: i, error: `no link for ${target}` }); continue; } const startUrl = location.pathname; link.click(); await new Promise(r => { const iv = setInterval(() => { if (location.pathname !== startUrl) { setTimeout(() => { clearInterval(iv); r(); }, 300); } }, 20); setTimeout(r, 6000); }); const rsc = performance.getEntriesByType('resource').find(r => r.name.includes(location.hostname) && r.initiatorType === 'fetch' && !r.name.includes('/view') && r.transferSize > 1000); samples.push({ total_ms: Math.round(performance.now() - startTime), ttfb: rsc ? Math.round(rsc.responseStart - rsc.requestStart) : null }); await new Promise(r => setTimeout(r, 800)); } console.table(samples); return samples; })()"
 }
 ```
 
-The script clicks 5 alternating links between `/docs` and `/changelog` and prints a `console.table(samples)` with `total_ms` and `ttfb` columns.
+The script (sourced from `~/vault/references/tubemine-public-page-nav-perf-2026-05-21.md` §"Verification methodology", with two small hardenings: hostname-derived match instead of hardcoded `tubemine.tech` so the same script works on the Vercel preview domain, and an early-out if the link element is not found) clicks 5 alternating links between `/docs` and `/changelog`, prints a `console.table(samples)` with `total_ms` and `ttfb` columns, and returns the array as the tool result for direct capture.
 
 - [ ] **Step 4: Capture the table output**
 
@@ -953,7 +1019,7 @@ Summary block content (NO em-dashes):
 
 After all 7 tasks complete:
 
-- [ ] All 8 commits land on `main` (1 spec + 4 spec-review-fix + 3 impl commits + 1 CSS).
+- [ ] PR squash-merged to `main`. The squash commit subsumes 3 implementation commits (auth-hint module, SiteHeader rewrite, CSS rule). Spec and review-fix commits are already on `main` from the brainstorm/review phases.
 - [ ] `pnpm tsc --noEmit` clean.
 - [ ] `pnpm lint` clean.
 - [ ] `pnpm test` passes (all existing + 9 new auth-hint tests).
