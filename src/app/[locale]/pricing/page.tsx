@@ -92,8 +92,36 @@ export default async function PricingPage({
     },
   ]
 
+  const faqSchema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: [
+      { q: t("faq.q1"), a: t("faq.a1") },
+      { q: t("faq.q2"), a: t("faq.a2") },
+      { q: t("faq.q3"), a: t("faq.a3") },
+      {
+        q: t("faq.q4"),
+        a: `${t("faq.a4_prefix")} ${t("faq.a4_link_terms")}${t("faq.a4_suffix")}`,
+      },
+      { q: t("faq.q5"), a: t("faq.a5") },
+      { q: t("faq.q6"), a: t("faq.a6") },
+      {
+        q: t("faq.q7"),
+        a: `${t("faq.a7_prefix")} ${t("faq.a7_link_privacy")}${t("faq.a7_suffix")}`,
+      },
+    ].map(({ q, a }) => ({
+      "@type": "Question",
+      name: q,
+      acceptedAnswer: { "@type": "Answer", text: a },
+    })),
+  }
+
   return (
     <div className="pricing-page">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+      />
       <main>
         {/* ===================== HERO ===================== */}
         <section className="hero">
