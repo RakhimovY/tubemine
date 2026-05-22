@@ -16,8 +16,8 @@
   },
   "changelog": {
     "meta": {
-      "title": "Changelog | TubeMine",
-      "description": "Public release notes for TubeMine."
+      "title": "TubeMine Changelog, Recent Updates and Feature Releases",
+      "description": "Public release notes for TubeMine: new features, fixes, performance improvements, and product changes since launch in May 2026."
     },
     "hero": {
       "badge": "Changelog",
@@ -32,9 +32,9 @@
   },
   "landing": {
     "meta": {
-      "title": "TubeMine, YouTube Audience Analytics. Free. No Setup.",
-      "description": "Paste a YouTube URL. Get sentiment, top words, and audience themes in seconds. Free up to 5,000 comments per month with a free account.",
-      "og_description": "Paste a URL. Get instant audience analytics: sentiment, top words, emojis."
+      "title": "TubeMine, YouTube Comments Analytics + CSV Export. Free.",
+      "description": "Paste a YouTube URL, get sentiment, top words, and emoji insights from public comments in seconds. Export to CSV or JSON. Free up to 5,000 comments per month.",
+      "og_description": "Paste a URL, get instant comment analytics: sentiment, top words, emojis. Export to CSV."
     },
     "hero_title_a": "Understand any",
     "hero_title_b": "YouTube video's audience.",
@@ -365,8 +365,8 @@
   },
   "pricing": {
     "meta": {
-      "title": "Pricing, TubeMine",
-      "description": "Free up to 5,000 comments per month, signed in. Pro at $19/mo for 100,000 comments per month. Cancel anytime."
+      "title": "YouTube Comments Pricing, Free up to 5K/mo, TubeMine",
+      "description": "Anonymous: 1,000 comments per video, no signup. Free: 5,000 comments per month, signed in. Pro: 100,000 comments per month for $19, 3-day free trial. Cancel anytime."
     },
     "hero": {
       "badge": "Pricing",
@@ -557,8 +557,8 @@
   },
   "docs": {
     "meta": {
-      "title": "Docs | TubeMine",
-      "description": "How to use TubeMine: quick start, plans, output formats, limits, and common errors."
+      "title": "TubeMine Docs, Extract YouTube Comments to CSV or JSON",
+      "description": "How to use TubeMine: paste a video URL, pick a plan (Anonymous, Free 5K/mo, Pro 100K/mo), get sentiment + top words + emojis, export to CSV or JSON, handle common errors."
     },
     "hero": {
       "badge": "Docs",

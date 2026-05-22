@@ -48,6 +48,8 @@ export async function generateMetadata({
       card: "summary_large_image",
       title,
       description: ogDescription,
+      site: "@yerkeRakhimov",
+      creator: "@yerkeRakhimov",
     },
     alternates: seoAlternates("", locale),
   }
