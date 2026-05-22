@@ -3,6 +3,7 @@ import { Link as IntlLink } from "@/i18n/navigation"
 import { LegalToc } from "@/components/legal-toc"
 import { SiteFooter } from "@/components/site-footer"
 import { REPO_URL } from "@/lib/site-links"
+import { seoAlternates } from "@/lib/seo-alternates"
 
 const SUPPORT_EMAIL = "hello@tubemine.app"
 const LAST_UPDATED = "May 21, 2026"
@@ -19,6 +20,7 @@ export async function generateMetadata({
   return {
     title: t("title"),
     description: t("description"),
+    alternates: seoAlternates("/docs", locale),
   }
 }
 

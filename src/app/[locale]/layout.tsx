@@ -2,12 +2,13 @@ import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { NextIntlClientProvider, hasLocale } from "next-intl"
-import { setRequestLocale } from "next-intl/server"
+import { getTranslations, setRequestLocale } from "next-intl/server"
 import { notFound } from "next/navigation"
 import { Toaster } from "@/components/ui/sonner"
 import { SiteHeader } from "@/components/site-header"
 import { SiteHeaderGate } from "@/components/site-header-gate"
 import { routing } from "@/i18n/routing"
+import { seoAlternates, ogLocale, SEO_SITE_BASE } from "@/lib/seo-alternates"
 import "../globals.css"
 
 const geistSans = Geist({
@@ -26,36 +27,29 @@ export async function generateMetadata({
   params: Promise<{ locale: string }>
 }): Promise<Metadata> {
   const { locale } = await params
-  const base = "https://tubemine.tech"
+  const t = await getTranslations({ locale, namespace: "landing.meta" })
+  const title = t("title")
+  const description = t("description")
+  const ogDescription = t("og_description")
   return {
-    title: "TubeMine, YouTube Audience Analytics. Free. No Setup.",
-    description:
-      "Paste a YouTube URL. Get sentiment, top words, and audience themes in seconds. Free up to 5,000 comments per month with a free account.",
-    metadataBase: new URL(base),
+    title,
+    description,
+    metadataBase: new URL(SEO_SITE_BASE),
     manifest: "/site.webmanifest",
     openGraph: {
-      title: "TubeMine, YouTube Audience Analytics",
-      description:
-        "Paste a URL. Get instant audience analytics: sentiment, top words, emojis.",
+      title,
+      description: ogDescription,
       type: "website",
-      url: `${base}/${locale}`,
+      url: `${SEO_SITE_BASE}/${locale}`,
       siteName: "TubeMine",
-      locale,
+      locale: ogLocale(locale),
     },
     twitter: {
       card: "summary_large_image",
-      title: "TubeMine, YouTube Audience Analytics",
-      description:
-        "Paste a URL. Get instant audience analytics: sentiment, top words, emojis.",
+      title,
+      description: ogDescription,
     },
-    alternates: {
-      canonical: `${base}/${locale}`,
-      languages: {
-        en: `${base}/en`,
-        ru: `${base}/ru`,
-        "x-default": `${base}/en`,
-      },
-    },
+    alternates: seoAlternates("", locale),
   }
 }
 
@@ -110,12 +104,35 @@ export default async function LocaleLayout({
                 "@type": "Person",
                 name: "Yerken Rakhimov",
                 url: "https://github.com/RakhimovY",
+                sameAs: [
+                  "https://github.com/RakhimovY",
+                  "https://x.com/yerkeRakhimov",
+                  "https://www.linkedin.com/in/rakhimov-yerkebulan/",
+                ],
               },
               sourceOrganization: {
                 "@type": "Organization",
                 name: "TubeMine",
                 url: "https://github.com/RakhimovY/tubemine",
               },
+            }),
+          }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "Organization",
+              name: "TubeMine",
+              url: "https://tubemine.tech",
+              logo: "https://tubemine.tech/icon.png",
+              sameAs: [
+                "https://github.com/RakhimovY/tubemine",
+                "https://x.com/yerkeRakhimov",
+                "https://www.linkedin.com/in/rakhimov-yerkebulan/",
+                "https://t.me/ai_yerke",
+              ],
             }),
           }}
         />

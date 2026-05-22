@@ -5,6 +5,7 @@ import { LandingFaq } from "@/components/landing-faq"
 import { PricingTierAware } from "@/components/pricing-tier-aware"
 import { SiteFooter } from "@/components/site-footer"
 import { REPO_URL } from "@/lib/site-links"
+import { seoAlternates } from "@/lib/seo-alternates"
 
 const SUPPORT_EMAIL = "hello@tubemine.app"
 
@@ -18,6 +19,7 @@ export async function generateMetadata({
   return {
     title: t("title"),
     description: t("description"),
+    alternates: seoAlternates("/pricing", locale),
   }
 }
 

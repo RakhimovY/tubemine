@@ -2,6 +2,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server"
 import { Link as IntlLink } from "@/i18n/navigation"
 import { LegalToc } from "@/components/legal-toc"
 import { SiteFooter } from "@/components/site-footer"
+import { seoAlternates } from "@/lib/seo-alternates"
 
 const SUPPORT_EMAIL = "hello@tubemine.app"
 const YT_API_TOS_URL =
@@ -25,6 +26,7 @@ export async function generateMetadata({
   return {
     title: t("title"),
     description: t("description"),
+    alternates: seoAlternates("/terms", locale),
   }
 }
 

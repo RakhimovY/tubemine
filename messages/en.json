@@ -31,6 +31,11 @@
     }
   },
   "landing": {
+    "meta": {
+      "title": "TubeMine, YouTube Audience Analytics. Free. No Setup.",
+      "description": "Paste a YouTube URL. Get sentiment, top words, and audience themes in seconds. Free up to 5,000 comments per month with a free account.",
+      "og_description": "Paste a URL. Get instant audience analytics: sentiment, top words, emojis."
+    },
     "hero_title_a": "Understand any",
     "hero_title_b": "YouTube video's audience.",
     "hero_subtitle": "Sentiment, top words, and the emojis your audience leans on, in seconds. Try 1,000 comments instantly, no signup. Sign in for 5,000.",
