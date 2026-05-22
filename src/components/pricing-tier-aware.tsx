@@ -105,7 +105,7 @@ export function PricingTierAware() {
           ))}
         </ul>
         <div className="price-foot" suppressHydrationWarning>
-          <FreeCardCta tier={state.tier} locale={locale} />
+          <FreeCardCta tier={state.tier} />
         </div>
       </article>
 
@@ -148,12 +148,12 @@ export function PricingTierAware() {
   )
 }
 
-function FreeCardCta({ tier, locale }: { tier: Tier; locale: string }) {
+function FreeCardCta({ tier }: { tier: Tier }) {
   const t = useTranslations("pricing")
   if (tier === "anonymous") {
     return (
       <IntlLink
-        href={`/login?next=/${locale}/pricing&intent=signup`}
+        href="/login?intent=signup"
         className="btn btn--primary"
         style={{ gap: 10 }}
       >
@@ -196,12 +196,7 @@ function ProCardCta({ tier, locale }: { tier: Tier; locale: string }) {
   if (tier === "free") {
     return (
       <>
-        <form action="/api/checkout" method="POST">
-          <button type="submit" className="btn btn--primary">
-            {t("pro.cta_free")}
-            <ArrowRightIcon />
-          </button>
-        </form>
+        <ProUpgradeButton label={t("pro.cta_free")} />
         <p className="price-note">{t("pro.note_free")}</p>
       </>
     )
@@ -211,6 +206,44 @@ function ProCardCta({ tier, locale }: { tier: Tier; locale: string }) {
       <NextLink href="/api/portal" className="btn btn--secondary">{t("pro.cta_pro")}</NextLink>
       <p className="price-note">{t("pro.note_pro")}</p>
     </>
+  )
+}
+
+function ProUpgradeButton({ label }: { label: string }) {
+  const [loading, setLoading] = useState(false)
+  async function handleClick() {
+    if (loading) return
+    setLoading(true)
+    try {
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        credentials: "include",
+      })
+      if (!res.ok) {
+        setLoading(false)
+        return
+      }
+      const data = (await res.json()) as { url?: string }
+      if (data?.url) {
+        window.location.assign(data.url)
+      } else {
+        setLoading(false)
+      }
+    } catch {
+      setLoading(false)
+    }
+  }
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      disabled={loading}
+      aria-busy={loading ? "true" : "false"}
+      className="btn btn--primary"
+    >
+      {label}
+      <ArrowRightIcon />
+    </button>
   )
 }
 

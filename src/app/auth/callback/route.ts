@@ -30,17 +30,28 @@ export async function GET(request: NextRequest) {
     console.error("[auth/callback] welcome failed:", err),
   )
 
-  // Pricing signup intent: bounce back to /pricing so PricingIntentRedirect
-  // can run the Pro checkout POST. Locale is derived from the validated
-  // next param (which always starts with /en/ or /ru/ when present),
-  // defaulting to en when next was missing or rejected by safeNext.
-  if (intent === "signup") {
+  // Pro signup intent: bounce back to /pricing so PricingIntentRedirect
+  // can run the Pro checkout POST. Only fires when the user explicitly
+  // picked the Pro plan (intent=signup&plan=pro from the Pro card CTA).
+  // Generic signup intent (no plan, e.g. header "Get started" or Free
+  // card CTA) falls through to the default-target branch below.
+  if (intent === "signup" && plan === "pro") {
     const localeMatch = next.match(/^\/(en|ru)\//)
     const locale = localeMatch?.[1] ?? "en"
     const pricingUrl = new URL(`/${locale}/pricing`, origin)
     pricingUrl.searchParams.set("intent", "signup")
-    if (plan === "pro") pricingUrl.searchParams.set("plan", "pro")
+    pricingUrl.searchParams.set("plan", "pro")
     return NextResponse.redirect(pricingUrl)
+  }
+
+  // Default post-OAuth target: dashboard, not the landing page. safeNext
+  // returns "/" when no next was set (header "Get started", bare /login
+  // visits). Without this branch a freshly authenticated user would be
+  // dumped on the marketing landing, which is confusing.
+  if (next === "/") {
+    const localeCookie = request.cookies.get("NEXT_LOCALE")?.value
+    const locale = localeCookie === "ru" ? "ru" : "en"
+    return NextResponse.redirect(`${origin}/${locale}/dashboard`)
   }
 
   return NextResponse.redirect(`${origin}${next}`)
