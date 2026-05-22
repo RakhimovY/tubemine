@@ -15,9 +15,15 @@ import { createClient } from "@/lib/supabase/client"
   supabase.auth.signInWithOAuth({provider: "google"}) flow. The button
   carries the .google-btn class (white-on-black pill with Google "G")
   and gains .is-loading + aria-busy while the redirect is being kicked
-  off, mirroring the design's tiny loading affordance script. The next
-  param (and downstream redirect targets like ?intent=signup&plan=pro)
-  flows through unchanged so post-auth handlers stay intact.
+  off, mirroring the design's tiny loading affordance script.
+
+  Pricing-intent forwarding: when /login is hit with ?intent=signup
+  (optionally with &plan=pro from the Pro card CTA), those params are
+  copied onto the OAuth redirectTo URL so the /auth/callback route can
+  bounce the user back to /pricing?intent=signup[&plan=pro], where
+  PricingIntentRedirect triggers the Pro checkout POST. Bare ?next=
+  still works for non-pricing entry points (privacy/terms back-link
+  etc) and takes precedence when no intent is set.
 */
 
 type LoginLabels = {
@@ -55,6 +61,8 @@ type LoginLabels = {
 export function LoginClient({ labels }: { labels: LoginLabels }) {
   const search = useSearchParams()
   const next = search.get("next") ?? "/"
+  const intent = search.get("intent")
+  const plan = search.get("plan")
   const errorParam = search.get("error")
   const [loading, setLoading] = useState(false)
 
@@ -67,6 +75,8 @@ export function LoginClient({ labels }: { labels: LoginLabels }) {
         process.env.NEXT_PUBLIC_ORIGIN?.trim() || window.location.origin
       const redirectTo = new URL("/auth/callback", origin)
       redirectTo.searchParams.set("next", next)
+      if (intent) redirectTo.searchParams.set("intent", intent)
+      if (plan) redirectTo.searchParams.set("plan", plan)
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: { redirectTo: redirectTo.toString() },

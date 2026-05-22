@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { useSearchParams } from "next/navigation"
-import { useTranslations } from "next-intl"
+import { useLocale, useTranslations } from "next-intl"
 import NextLink from "next/link"
 import { Link as IntlLink } from "@/i18n/navigation"
 import { createClient } from "@/lib/supabase/client"
@@ -25,8 +25,10 @@ const INITIAL_STATE: State = {
 
 export function PricingTierAware() {
   const t = useTranslations("pricing")
+  const locale = useLocale()
   const searchParams = useSearchParams()
   const intent = searchParams?.get("intent") ?? null
+  const plan = searchParams?.get("plan") ?? null
 
   const [state, setState] = useState<State>(INITIAL_STATE)
   const requestIdRef = useRef(0)
@@ -103,7 +105,7 @@ export function PricingTierAware() {
           ))}
         </ul>
         <div className="price-foot" suppressHydrationWarning>
-          <FreeCardCta tier={state.tier} />
+          <FreeCardCta tier={state.tier} locale={locale} />
         </div>
       </article>
 
@@ -130,13 +132,14 @@ export function PricingTierAware() {
           ))}
         </ul>
         <div className="price-foot" suppressHydrationWarning>
-          <ProCardCta tier={state.tier} />
+          <ProCardCta tier={state.tier} locale={locale} />
         </div>
       </article>
 
       {state.resolved && (
         <PricingIntentRedirect
           intent={intent}
+          plan={plan}
           signedIn={state.signedIn}
           tier={state.tier}
         />
@@ -145,11 +148,15 @@ export function PricingTierAware() {
   )
 }
 
-function FreeCardCta({ tier }: { tier: Tier }) {
+function FreeCardCta({ tier, locale }: { tier: Tier; locale: string }) {
   const t = useTranslations("pricing")
   if (tier === "anonymous") {
     return (
-      <IntlLink href="/login?intent=signup" className="btn btn--primary" style={{ gap: 10 }}>
+      <IntlLink
+        href={`/login?next=/${locale}/pricing&intent=signup`}
+        className="btn btn--primary"
+        style={{ gap: 10 }}
+      >
         <GoogleIcon />
         {t("free.cta_anon")}
       </IntlLink>
@@ -171,12 +178,15 @@ function FreeCardCta({ tier }: { tier: Tier }) {
   )
 }
 
-function ProCardCta({ tier }: { tier: Tier }) {
+function ProCardCta({ tier, locale }: { tier: Tier; locale: string }) {
   const t = useTranslations("pricing")
   if (tier === "anonymous") {
     return (
       <>
-        <IntlLink href="/login?intent=signup&plan=pro" className="btn btn--primary">
+        <IntlLink
+          href={`/login?next=/${locale}/pricing&intent=signup&plan=pro`}
+          className="btn btn--primary"
+        >
           {t("pro.cta_anon")}
         </IntlLink>
         <p className="price-note">{t("pro.note_anon")}</p>

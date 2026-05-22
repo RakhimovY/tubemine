@@ -9,6 +9,8 @@ export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get("code")
   const next = safeNext(searchParams.get("next"))
+  const intent = searchParams.get("intent")
+  const plan = searchParams.get("plan")
 
   if (!code) {
     return NextResponse.redirect(`${origin}/login?error=missing_code`)
@@ -27,6 +29,19 @@ export async function GET(request: NextRequest) {
   await maybeSendWelcome().catch((err) =>
     console.error("[auth/callback] welcome failed:", err),
   )
+
+  // Pricing signup intent: bounce back to /pricing so PricingIntentRedirect
+  // can run the Pro checkout POST. Locale is derived from the validated
+  // next param (which always starts with /en/ or /ru/ when present),
+  // defaulting to en when next was missing or rejected by safeNext.
+  if (intent === "signup") {
+    const localeMatch = next.match(/^\/(en|ru)\//)
+    const locale = localeMatch?.[1] ?? "en"
+    const pricingUrl = new URL(`/${locale}/pricing`, origin)
+    pricingUrl.searchParams.set("intent", "signup")
+    if (plan === "pro") pricingUrl.searchParams.set("plan", "pro")
+    return NextResponse.redirect(pricingUrl)
+  }
 
   return NextResponse.redirect(`${origin}${next}`)
 }
