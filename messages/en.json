@@ -245,6 +245,10 @@
     }
   },
   "dashboard": {
+    "meta": {
+      "title": "Dashboard | TubeMine",
+      "description": "Your TubeMine usage and subscription."
+    },
     "title": "Dashboard",
     "recent_analyses_heading": "Recent analyses",
     "view_all": "View all",
@@ -255,6 +259,8 @@
     "trial_manage_cta": "Manage subscription",
     "trial_banner_text_canceled": "Trial: {days, plural, one {# day} other {# days}} left, ends {date}.",
     "trial_banner_today_canceled": "Trial ends today, {date}.",
+    "trial_sub_active": "Pro features active. Cancel anytime via customer portal.",
+    "trial_sub_canceled": "Pro features active until period end.",
     "shell": {
       "brand": "TubeMine",
       "crumb": "Dashboard",
@@ -470,6 +476,10 @@
     }
   },
   "profile": {
+    "meta": {
+      "title": "Profile | TubeMine",
+      "description": "Account settings, plan, billing, and danger zone."
+    },
     "title": "Profile",
     "section_account": "Account",
     "section_account_sub": "Your sign-in details, sourced from Google.",

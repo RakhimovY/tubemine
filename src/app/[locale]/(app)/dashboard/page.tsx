@@ -20,9 +20,17 @@ import { loadTrialState } from "@/components/trial-banner"
 import { TubeMine } from "@/components/tubemine"
 import { WelcomePulse } from "@/components/dashboard/welcome-pulse"
 
-export const metadata = {
-  title: "Dashboard - TubeMine",
-  description: "Your TubeMine usage and subscription.",
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>
+}) {
+  const { locale } = await params
+  const t = await getTranslations({ locale, namespace: "dashboard.meta" })
+  return {
+    title: t("title"),
+    description: t("description"),
+  }
 }
 
 export const dynamic = "force-dynamic"
@@ -114,11 +122,24 @@ export default async function DashboardPage({
         {/* ===== Trial countdown banner ===== */}
         {trial ? (
           <TrialBanner
-            tier={tier}
-            kind={trial.kind}
-            canceled={trial.canceled}
-            daysLeft={trial.kind === "active" ? trial.daysLeft : 0}
-            endsDate={trialEndsLabel}
+            text={
+              trial.kind === "today"
+                ? trial.canceled
+                  ? t("trial_banner_today_canceled", { date: trialEndsLabel })
+                  : t("trial_banner_today")
+                : trial.canceled
+                  ? t("trial_banner_text_canceled", {
+                      days: trial.daysLeft,
+                      date: trialEndsLabel,
+                    })
+                  : t("trial_banner_text", { days: trial.daysLeft })
+            }
+            sub={
+              trial.canceled
+                ? t("trial_sub_canceled")
+                : t("trial_sub_active")
+            }
+            cta={t("trial_manage_cta")}
           />
         ) : null}
 
@@ -575,33 +596,19 @@ function UsageCardCapped({
 }
 
 function TrialBanner({
-  kind,
-  canceled,
-  daysLeft,
-  endsDate,
+  text,
+  sub,
+  cta,
 }: {
-  tier: Tier
-  kind: "active" | "today"
-  canceled: boolean
-  daysLeft: number
-  endsDate: string
+  text: string
+  sub: string
+  cta: string
 }) {
-  // Inline static-text trial banner styled to design. Copy uses ASCII commas
-  // and dots only (no em-dash). We do NOT use next-intl plural here because
-  // the design's verbatim copy keeps a simple plain English sentence.
-  let text: string
-  if (kind === "today") {
-    text = canceled
-      ? `Trial ends today, ${endsDate}.`
-      : "Trial ends today, then $19/mo."
-  } else if (canceled) {
-    text = `Trial: ${daysLeft} ${daysLeft === 1 ? "day" : "days"} left, ends ${endsDate}.`
-  } else {
-    text = `Trial: ${daysLeft} ${daysLeft === 1 ? "day" : "days"} left, then $19/mo.`
-  }
-  const sub = canceled
-    ? "Pro features active until period end."
-    : "Pro features active. Cancel anytime via customer portal."
+  // Inline trial banner styled to design (.trial-banner scope). Copy +
+  // ICU plurals are resolved by the parent server component via
+  // getTranslations("dashboard"). This component stays a pure display
+  // primitive so it works in both /en and /ru locales without parallel
+  // code paths.
   return (
     <div className="trial-banner" role="status" aria-live="polite">
       <div className="trial-copy">
@@ -618,7 +625,7 @@ function TrialBanner({
       </div>
       <div className="trial-action">
         <NextLink href="/api/portal" className="btn btn--secondary btn-sm">
-          Manage subscription
+          {cta}
         </NextLink>
       </div>
     </div>

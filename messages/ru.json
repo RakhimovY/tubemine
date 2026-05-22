@@ -245,6 +245,10 @@
     }
   },
   "dashboard": {
+    "meta": {
+      "title": "Панель управления | TubeMine",
+      "description": "Использование TubeMine и ваша подписка."
+    },
     "title": "Панель управления",
     "recent_analyses_heading": "Последние анализы",
     "view_all": "Смотреть все",
@@ -255,6 +259,8 @@
     "trial_manage_cta": "Управлять подпиской",
     "trial_banner_text_canceled": "Пробный период: осталось {days, plural, one {# день} few {# дня} many {# дней} other {# дней}}, заканчивается {date}.",
     "trial_banner_today_canceled": "Пробный период заканчивается сегодня, {date}.",
+    "trial_sub_active": "Pro подписка активна. Отмените в любой момент через клиентский портал.",
+    "trial_sub_canceled": "Pro подписка активна до конца периода.",
     "shell": {
       "brand": "TubeMine",
       "crumb": "Дашборд",
@@ -470,6 +476,10 @@
     }
   },
   "profile": {
+    "meta": {
+      "title": "Профиль | TubeMine",
+      "description": "Настройки аккаунта, план, биллинг и опасная зона."
+    },
     "title": "Профиль",
     "section_account": "Аккаунт",
     "section_account_sub": "Данные входа, полученные от Google.",

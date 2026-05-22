@@ -7,9 +7,17 @@ import { formatNumber } from "@/lib/format"
 import { AccountIdCopy } from "@/components/profile/account-id-copy"
 import { CanceledToast } from "@/components/profile/canceled-toast"
 
-export const metadata = {
-  title: "Profile - TubeMine",
-  description: "Account settings, plan, billing, and danger zone.",
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>
+}) {
+  const { locale } = await params
+  const t = await getTranslations({ locale, namespace: "profile.meta" })
+  return {
+    title: t("title"),
+    description: t("description"),
+  }
 }
 
 export const dynamic = "force-dynamic"
