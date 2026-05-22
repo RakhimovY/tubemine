@@ -1,8 +1,14 @@
 import { ImageResponse } from "next/og"
+import { getTranslations } from "next-intl/server"
+import { routing } from "@/i18n/routing"
 
-export const alt = "TubeMine, YouTube Audience Analytics. Free. No Setup."
+export const alt = "TubeMine, YouTube Audience Analytics"
 export const size = { width: 1200, height: 630 }
 export const contentType = "image/png"
+
+export function generateStaticParams() {
+  return routing.locales.map((locale) => ({ locale }))
+}
 
 const BRAND_MARK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#18181b"/><stop offset="100%" stop-color="#2a2a2e"/></linearGradient></defs><rect width="64" height="64" rx="15" ry="15" fill="url(#g)" stroke="rgba(245,245,247,0.12)" stroke-width="1"/><path d="M26 20 L26 44 L43 32 Z" fill="#f5f5f7" fill-opacity="0.95"/></svg>`
 const BRAND_MARK_DATA_URI = `data:image/svg+xml;utf8,${encodeURIComponent(BRAND_MARK_SVG)}`
@@ -17,7 +23,22 @@ async function loadFont(url: string): Promise<ArrayBuffer | null> {
   }
 }
 
-export default async function OpenGraphImage() {
+export default async function OpenGraphImage({
+  params,
+}: {
+  params: { locale: string }
+}) {
+  const t = await getTranslations({
+    locale: params.locale,
+    namespace: "landing",
+  })
+  const heroA = t("hero_title_a")
+  const heroB = t("hero_title_b")
+  const tagline = params.locale === "ru" ? "Бесплатно. Без настройки." : "Free. No setup."
+  const subtitle = params.locale === "ru"
+    ? "Тональность, ключевые слова и эмодзи аудитории, за секунды."
+    : "Sentiment, top words, and emoji insights in seconds."
+
   const [bold, regular] = await Promise.all([
     loadFont(
       "https://cdn.jsdelivr.net/npm/geist@1/dist/fonts/geist-sans/Geist-Bold.ttf",
@@ -99,7 +120,7 @@ export default async function OpenGraphImage() {
               letterSpacing: "-0.04em",
             }}
           >
-            Understand any
+            {heroA}
           </div>
           <div
             style={{
@@ -111,7 +132,7 @@ export default async function OpenGraphImage() {
               marginTop: "4px",
             }}
           >
-            YouTube audience.
+            {heroB}
           </div>
           <div
             style={{
@@ -123,7 +144,7 @@ export default async function OpenGraphImage() {
               marginTop: "20px",
             }}
           >
-            Free. No setup.
+            {tagline}
           </div>
           <div
             style={{
@@ -134,7 +155,7 @@ export default async function OpenGraphImage() {
               letterSpacing: "-0.01em",
             }}
           >
-            Sentiment, top words, and emoji insights in seconds.
+            {subtitle}
           </div>
         </div>
 
