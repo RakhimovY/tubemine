@@ -697,6 +697,11 @@ function LandingFooter({
                   GitHub
                 </a>
               </li>
+              <li>
+                <a href="mailto:support@tubemine.tech">
+                  {t("footer.support")}
+                </a>
+              </li>
             </ul>
           </div>
           <div className="footer-col">
