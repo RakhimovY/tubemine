@@ -146,6 +146,13 @@ export async function handleSubscriptionCanceled(
 ): Promise<void> {
   // User clicked cancel. Access stays until current_period_end. Polar will
   // emit subscription.revoked when access actually ends -> we downgrade then.
+  //
+  // We preserve Polar's reported status (typically "trialing" or "active")
+  // and only flip cancel_at_period_end=true. Hardcoding status="canceled"
+  // here broke the TrialBanner: loadTrialState gates on status === "trialing"
+  // so the canceled-variant copy (which the i18n keys + display already
+  // support) was never reached after cancel. The semantic "still in trial
+  // but scheduled to end" lives entirely in cancel_at_period_end.
   const userId = await resolveUserId(data)
   if (!userId) return
 
@@ -155,7 +162,7 @@ export async function handleSubscriptionCanceled(
   await sb
     .from("subscriptions")
     .update({
-      status: "canceled",
+      status: data.status ?? "canceled",
       cancel_at_period_end: true,
       current_period_end: toIso(data.endsAt ?? data.currentPeriodEnd),
       updated_at: now,
