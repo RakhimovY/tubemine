@@ -5,7 +5,7 @@ import { LandingFaq } from "@/components/landing-faq"
 import { PricingTierAware } from "@/components/pricing-tier-aware"
 import { SiteFooter } from "@/components/site-footer"
 import { REPO_URL } from "@/lib/site-links"
-import { seoAlternates } from "@/lib/seo-alternates"
+import { breadcrumbSchema, seoAlternates } from "@/lib/seo-alternates"
 
 const SUPPORT_EMAIL = "hello@tubemine.app"
 
@@ -116,11 +116,17 @@ export default async function PricingPage({
     })),
   }
 
+  const breadcrumb = breadcrumbSchema(locale, "/pricing")
+
   return (
     <div className="pricing-page">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
       />
       <main>
         {/* ===================== HERO ===================== */}

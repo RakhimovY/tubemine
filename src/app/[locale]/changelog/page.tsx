@@ -2,7 +2,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server"
 import { Link as IntlLink } from "@/i18n/navigation"
 import { LegalToc } from "@/components/legal-toc"
 import { SiteFooter } from "@/components/site-footer"
-import { seoAlternates } from "@/lib/seo-alternates"
+import { breadcrumbSchema, seoAlternates } from "@/lib/seo-alternates"
 
 const LAST_UPDATED = "May 21, 2026"
 
@@ -235,8 +235,14 @@ export default async function ChangelogPage({
     },
   ]
 
+  const breadcrumb = breadcrumbSchema(locale, "/changelog")
+
   return (
     <div className="legal-page">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+      />
       <LegalToc />
 
       {locale === "ru" ? (

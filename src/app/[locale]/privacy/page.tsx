@@ -2,7 +2,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server"
 import { Link as IntlLink } from "@/i18n/navigation"
 import { LegalToc } from "@/components/legal-toc"
 import { SiteFooter } from "@/components/site-footer"
-import { seoAlternates } from "@/lib/seo-alternates"
+import { breadcrumbSchema, seoAlternates } from "@/lib/seo-alternates"
 
 const SUPPORT_EMAIL = "hello@tubemine.app"
 /*
@@ -197,8 +197,14 @@ export default async function PrivacyPage({
     },
   ]
 
+  const breadcrumb = breadcrumbSchema(locale, "/privacy")
+
   return (
     <div className="legal-page">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
+      />
       <LegalToc />
 
       <main>
