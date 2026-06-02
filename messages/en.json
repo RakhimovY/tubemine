@@ -686,6 +686,7 @@
     "col_likes": "Likes",
     "col_replies": "Replies",
     "col_when": "When",
+    "col_sentiment": "Sentiment",
     "dash_placeholder": "-",
     "toast_preview_failed": "Preview failed",
     "toast_analysis_failed": "Analysis failed",
@@ -711,7 +712,7 @@
       "footnote": "Frequency-based, after stripping common stopwords, URLs, and mentions. Multi-language aware. Use this to spot recurring themes at a glance."
     },
     "emoji": {
-      "heading": "Top emojis",
+      "heading": "Emoji",
       "sub": "how your audience reacts",
       "unique_top_shown": "{total} unique, top {shown} shown",
       "cta_anon": "{count} more emojis available with a free account",
@@ -723,6 +724,8 @@
       "anon_prefix": "Audience sentiment analyzed.",
       "anon_link": "Sign up free",
       "anon_suffix": "to see whether the room leans positive, negative, or mixed.",
+      "anon_locked_text": "Sign in to see the sentiment breakdown for this video.",
+      "anon_locked_cta": "Sign in",
       "ru_experimental": "Experimental for Russian",
       "ru_experimental_title": "Russian lexicon coverage is approximate",
       "free_bar_aria": "Sentiment distribution, proportional bar",
