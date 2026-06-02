@@ -1772,8 +1772,16 @@ Expected: succeeds (this runs `vitest run` + `check-message-parity` + `next buil
 
 - [ ] **Step 6: Em-dash / en-dash sweep on the files changed.**
 
-Run: `grep -nP "[\x{2014}\x{2013}]" src/components/result-block.tsx src/components/demo-sample-result.tsx src/components/sentiment.tsx src/components/top-words.tsx src/components/emoji-frequency.tsx src/components/export-bar.tsx src/components/tubemine.tsx messages/en.json messages/ru.json docs/superpowers/plans/2026-06-02-result-block-redesign.md docs/superpowers/specs/2026-06-02-result-block-redesign-design.md || echo "CLEAN: no em-dash/en-dash"`
-Expected: prints "CLEAN: no em-dash/en-dash".
+Run (portable, uses perl which ships on macOS; avoids non-portable `grep -P`):
+```bash
+perl -CSD -ne 'print "$ARGV line $.: $_" if /[\x{2014}\x{2013}]/' \
+  src/components/result-block.tsx src/components/demo-sample-result.tsx \
+  src/components/sentiment.tsx src/components/top-words.tsx \
+  src/components/emoji-frequency.tsx src/components/export-bar.tsx \
+  src/components/tubemine.tsx messages/en.json messages/ru.json \
+  | grep . && echo "FOUND em-dash/en-dash above" || echo "CLEAN: no em-dash/en-dash"
+```
+Expected: prints "CLEAN: no em-dash/en-dash" (the perl scan emits nothing, so `grep .` fails and the `||` branch runs).
 
 - [ ] **Step 7: Manual visual check (dev server).**
 
