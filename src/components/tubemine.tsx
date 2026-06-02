@@ -10,30 +10,17 @@ import { track } from "@vercel/analytics"
 import { Loader2, Link as LinkIcon } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { Link as IntlLink } from "@/i18n/navigation"
-import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { extractVideoId, type Comment, type VideoMeta } from "@/lib/types"
 import { sanitizeCommentRowForSpreadsheet } from "@/lib/csv-safe"
 import type { BudgetStatus } from "@/lib/budget"
 import type { WordCount } from "@/lib/top-words"
 import type { EmojiCount } from "@/lib/emoji-frequency"
-import { formatDateRelative, formatNumber } from "@/lib/format"
-import { TopWordsPanel } from "@/components/top-words"
 import {
-  SentimentPanel,
   type SentimentAggregateProp,
   type SentimentDistribution,
 } from "@/components/sentiment"
-import { EmojiPanel } from "@/components/emoji-frequency"
-import { ExportBar } from "@/components/export-bar"
+import { ResultBlock, ResultBlockSkeleton } from "@/components/result-block"
 import { DemoSampleResult } from "@/components/demo-sample-result"
 
 export type ExtractTier = "anonymous" | "free" | "pro"
@@ -510,51 +497,30 @@ export function TubeMine({ tier: initialTier }: { tier: ExtractTier }) {
         with matching geometry (header row + bars/grid).
       */}
       {extractLoading && comments.length === 0 && preview && (
-        <>
-          <TopWordsSkeleton />
-          <SentimentSkeleton />
-          <EmojiSkeleton />
-        </>
+        <div className="mt-6">
+          <ResultBlockSkeleton />
+        </div>
       )}
 
       {comments.length > 0 && (
-        <>
-          <TopWordsPanel
+        <div className="mt-6">
+          <ResultBlock
             tier={tier}
-            items={analytics.topWords}
-            totalUnique={analytics.uniqueWordsTotal}
             commentsAnalyzed={comments.length}
-          />
-          <SentimentPanel
-            tier={tier}
-            aggregate={sentiment}
-            distribution={distribution}
-            commentsAnalyzed={comments.length}
-          />
-          <EmojiPanel
-            tier={tier}
-            items={analytics.topEmoji}
-            totalUnique={analytics.uniqueEmojiTotal}
-          />
-          <ResultsPanel
-            comments={comments}
             videoTitle={preview?.title ?? ""}
-            videoId={preview?.videoId}
-            tier={tier}
+            channel={preview?.channel ?? ""}
+            sentiment={sentiment}
+            distribution={distribution}
+            topWords={analytics.topWords}
+            uniqueWordsTotal={analytics.uniqueWordsTotal}
+            topEmoji={analytics.topEmoji}
+            uniqueEmojiTotal={analytics.uniqueEmojiTotal}
+            comments={comments}
             onDownloadCsv={downloadCsv}
             onDownloadJson={downloadJson}
             onDownloadExcel={downloadExcel}
-            labels={{
-              header: tEx("results_header", { count: comments.length }),
-              colAuthor: tEx("col_author"),
-              colComment: tEx("col_comment"),
-              colLikes: tEx("col_likes"),
-              colReplies: tEx("col_replies"),
-              colWhen: tEx("col_when"),
-              dash: tEx("dash_placeholder"),
-            }}
           />
-        </>
+        </div>
       )}
     </>
   )
@@ -575,189 +541,5 @@ function PreviewSkeleton() {
         </div>
       </div>
     </div>
-  )
-}
-
-/*
-  TUB-13 M24: skeleton placeholders for the 3 analytics panels. Geometry
-  mirrors the loaded state (header row + content shape) per the skeleton
-  screens design rule. Uses the shadcn <Skeleton /> primitive (shimmer
-  animation via `animate-pulse` baked in).
-*/
-function TopWordsSkeleton() {
-  return (
-    <Card
-      className="mt-6 border-border/60"
-      role="status"
-      aria-live="polite"
-      aria-busy="true"
-      data-testid="top-words-skeleton"
-    >
-      <CardContent className="flex flex-col gap-4 p-6 sm:p-7">
-        <div className="flex items-center gap-2">
-          <Skeleton className="size-4 rounded" />
-          <Skeleton className="h-4 w-24" />
-          <Skeleton className="ml-auto h-3 w-32" />
-        </div>
-        <div className="grid gap-1.5 sm:grid-cols-2">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div
-              key={i}
-              className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3"
-            >
-              <Skeleton className="h-7 w-full rounded-md" />
-              <Skeleton className="h-3 w-8" />
-            </div>
-          ))}
-        </div>
-        <Skeleton className="h-2.5 w-3/4" />
-      </CardContent>
-    </Card>
-  )
-}
-
-function SentimentSkeleton() {
-  return (
-    <Card
-      className="mt-6 border-border/60"
-      role="status"
-      aria-live="polite"
-      aria-busy="true"
-      data-testid="sentiment-skeleton"
-    >
-      <CardContent className="flex flex-col gap-4 p-6 sm:p-7">
-        <div className="flex items-center gap-2">
-          <Skeleton className="size-4 rounded" />
-          <Skeleton className="h-4 w-20" />
-          <Skeleton className="ml-auto h-3 w-28" />
-        </div>
-        <Skeleton className="h-7 w-full rounded-md" />
-        <div className="flex items-center gap-3">
-          <Skeleton className="h-3 w-20" />
-          <Skeleton className="h-3 w-20" />
-          <Skeleton className="h-3 w-20" />
-        </div>
-        <Skeleton className="h-2.5 w-2/3" />
-      </CardContent>
-    </Card>
-  )
-}
-
-function EmojiSkeleton() {
-  return (
-    <Card
-      className="mt-6 border-border/60"
-      role="status"
-      aria-live="polite"
-      aria-busy="true"
-      data-testid="emoji-skeleton"
-    >
-      <CardContent className="flex flex-col gap-4 p-6 sm:p-7">
-        <div className="flex items-center gap-2">
-          <Skeleton className="size-4 rounded" />
-          <Skeleton className="h-4 w-24" />
-          <Skeleton className="ml-auto h-3 w-32" />
-        </div>
-        <div className="grid grid-cols-5 gap-2 sm:grid-cols-10">
-          {Array.from({ length: 10 }).map((_, i) => (
-            <Skeleton key={i} className="h-16 rounded-lg" />
-          ))}
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
-type ResultsPanelLabels = {
-  header: string
-  colAuthor: string
-  colComment: string
-  colLikes: string
-  colReplies: string
-  colWhen: string
-  dash: string
-}
-
-function ResultsPanel({
-  comments,
-  videoTitle,
-  videoId,
-  tier,
-  onDownloadCsv,
-  onDownloadJson,
-  onDownloadExcel,
-  labels,
-}: {
-  comments: Comment[]
-  videoTitle: string
-  videoId?: string
-  tier: ExtractTier
-  onDownloadCsv: () => void
-  onDownloadJson: () => void | Promise<void>
-  onDownloadExcel: () => void | Promise<void>
-  labels: ResultsPanelLabels
-}) {
-  return (
-    <Card className="mt-6 border-border/60">
-      <CardContent className="p-0">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 px-6 py-4">
-          <div>
-            <p className="text-sm font-medium">{labels.header}</p>
-            {videoTitle && (
-              <p className="line-clamp-1 text-xs text-muted-foreground">
-                {videoTitle}
-              </p>
-            )}
-          </div>
-          <ExportBar
-            tier={tier}
-            videoId={videoId}
-            onDownloadCsv={onDownloadCsv}
-            onDownloadJson={onDownloadJson}
-            onDownloadExcel={onDownloadExcel}
-          />
-        </div>
-        <div className="max-h-[60vh] overflow-auto">
-          <Table>
-            <TableHeader className="sticky top-0 z-10 bg-card">
-              <TableRow>
-                <TableHead className="w-[160px]">{labels.colAuthor}</TableHead>
-                <TableHead>{labels.colComment}</TableHead>
-                <TableHead className="w-[80px] text-right">
-                  {labels.colLikes}
-                </TableHead>
-                <TableHead className="w-[80px] text-right">
-                  {labels.colReplies}
-                </TableHead>
-                <TableHead className="w-[100px] text-right">
-                  {labels.colWhen}
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {comments.map((c, i) => (
-                <TableRow key={i}>
-                  <TableCell className="align-top text-xs font-medium">
-                    {c.author}
-                  </TableCell>
-                  <TableCell className="align-top text-sm">
-                    <p className="whitespace-pre-wrap break-words">{c.text}</p>
-                  </TableCell>
-                  <TableCell className="align-top text-right text-xs tabular-nums text-muted-foreground">
-                    {formatNumber(c.likes)}
-                  </TableCell>
-                  <TableCell className="align-top text-right text-xs tabular-nums text-muted-foreground">
-                    {c.replies > 0 ? formatNumber(c.replies) : labels.dash}
-                  </TableCell>
-                  <TableCell className="align-top text-right text-xs text-muted-foreground">
-                    {formatDateRelative(c.publishedAt)}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </CardContent>
-    </Card>
   )
 }
