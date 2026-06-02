@@ -209,13 +209,27 @@ columns:                 Author | Comment | Sentiment | Likes | Replies | When
 </div>
 ```
 
+Scroll + sticky header (critical): `.ctable-scroll` MUST set `max-height: 580px;
+overflow: auto;` (design value). `position: sticky` on the `thead th` needs a
+bounded scrolling ancestor; `container-type: inline-size` on `.result-block`
+does NOT create a vertical scroll context. Without the bounded `.ctable-scroll`
+the header would not stick within the card (regression vs today's
+`max-h-[60vh] overflow-auto`). The `<table className="ctable">` uses
+`table-layout: fixed; min-width: 760px;` so the colgroup widths hold; the
+`min-width` is removed in the 640px mobile reflow.
+
 Per-cell:
 - `col-author`: `<div className="c-author" title={author}>{author}</div>`
   (truncates with ellipsis).
 - `col-comment`: `<div className="c-text">{text}</div>` (wraps,
   `overflow-wrap: anywhere`, never breaks layout).
 - `col-sent`: sentiment chip from `Comment.sentiment`
-  (`"positive"|"negative"|"neutral"|"unknown"|undefined`):
+  (`"positive"|"negative"|"neutral"|"unknown"|undefined`). The chip
+  (`.c-sent`) is `white-space: nowrap; min-width: 0; overflow: hidden;
+  text-overflow: ellipsis` so a long RU label (e.g. "Нейтрально", which is
+  borderline in the 116px column) ellipsizes rather than overflowing the cell.
+  On mobile (stacked card) the chip sits in a flex row with room, no
+  truncation. Value:
   - positive -> `<span className="c-sent pos"><span className="dot"/>{label}</span>`
   - negative -> `c-sent neg`
   - neutral  -> `c-sent neu`
@@ -256,10 +270,11 @@ markup (Result Block HTML lines 738-785) 1:1:
 
 - Shimmer primitive: a scoped `.tm-design .result-block .skel` class using the
   design's gradient + `background-size: 200% 100%` and a `@keyframes
-  shimmer-rb` animation (named `-rb` to avoid colliding with the existing
-  global `@keyframes shimmer` already in `globals.css` at ~line 158). Add a
-  `@media (prefers-reduced-motion: reduce)` rule slowing it to 3s. `.sk-line`
-  is the thin-line variant.
+  shimmer-rb` animation. (The repo has no global `@keyframes shimmer`; current
+  skeletons use shadcn `<Skeleton>` with `animate-pulse`. The `-rb` suffix is
+  just namespacing hygiene next to the existing `tm-spin` / `dashboard-pulse`
+  keyframes.) Add a `@media (prefers-reduced-motion: reduce)` rule slowing it to
+  3s. `.sk-line` is the thin-line variant.
 - Header: `.skw-head` (flex, two stacked shimmer lines on the left, a 104px x
   34px pill shimmer on the right).
 - Widgets: a `.rb-widgets` grid of three `.widget` skeletons:
@@ -267,9 +282,12 @@ markup (Result Block HTML lines 738-785) 1:1:
     plus 3 `.sk-line` rows.
   - top-words widget: header lines, then a `.tw-grid` of 8 `height:26px`
     shimmer bars.
-  - emoji widget: header lines, then a `.sk-emgrid` (2-col) of 8 `.sk-emrow`
-    (34px) shimmer rows. Use the new `.sk-emgrid`/`.sk-emrow` names (NOT the
-    old global `.emoji-grid`/`.emoji-row`), to respect the isolation rule.
+  - emoji widget: header lines, then an `.em-grid` (the SAME class the real
+    emoji panel uses, so the skeleton inherits the 720/640px single-column
+    collapse) containing 8 `.sk-emrow` (34px) shimmer rows. Do NOT introduce a
+    separate `.sk-emgrid`, or the skeleton's emoji block would not reflow like
+    the real panel on mobile. Do NOT use the old global `.emoji-grid`/
+    `.emoji-row` names (isolation rule).
 - Comments table: `.sk-ctable` containing a sticky `.sk-cthead` header row plus
   4 `.sk-ctrow` rows. `.sk-ctrow` uses the SAME 6-col grid as the real table:
   `grid-template-columns: 168px minmax(0,1fr) 116px 76px 76px 84px`.
@@ -440,8 +458,13 @@ comma-formatted `"1,240"` strings; `formatNumber` adds separators at render).
 The mock sentiment aggregate is a `SentimentAggregateProp`; the words list is
 `WordCount[]`; the emoji list is `EmojiCount[]` (with `share`). Since
 `tier="anonymous"`, the mock numbers shown match the anon view (top 5 words /
-emoji, locked sentiment). Use a fixed (non-`Date.now()`) base so render is
-deterministic.
+emoji, locked sentiment). The "When" column renders the fixed ISO dates through
+`formatDateRelative` (which is relative to the current time), so the displayed
+strings ("today" / "Nd ago" / "Nw ago" ...) shift over time at day-bucket
+granularity. This is acceptable for a static teaser and mirrors how real
+results render time; it is the existing behavior for the live comments table, so
+no hydration mismatch (the buckets are coarse). Do NOT claim deterministic
+output and do NOT call `Date.now()` directly in the mock.
 
 ## Layout and width
 
@@ -534,9 +557,15 @@ jsdom`, mock `next-intl` so `useTranslations` returns the key, mock
 - UPDATE `emoji-frequency.test.tsx`: keep the M17 percent-gate assertions
   (anon/free hide `%`, pro shows `%`); add an assertion that `.em-row` and an
   `.em-bar` render.
-- UPDATE `analytics-skeleton.test.tsx`: assert `result-block-skeleton` testid is
-  absent when idle (no preview, not loading); drop references to the removed
-  `top-words-skeleton` / `sentiment-skeleton` / `emoji-skeleton` testids.
+- UPDATE `analytics-skeleton.test.tsx`: in the first test, assert
+  `result-block-skeleton` testid is absent when idle (no preview, not loading),
+  replacing the three removed `top-words-skeleton` / `sentiment-skeleton` /
+  `emoji-skeleton` queries. DELETE the second test (`"on extractLoading: renders
+  all 3 analytics skeletons"`) and its stale comment block: it currently asserts
+  only `expect(true).toBe(true)` (vacuous) and its name + comments describe the
+  removed 3-skeleton model. The idle-absence assertion plus the new
+  `result-block.test.tsx` coverage replace it; this is removing dead/stale test
+  scaffolding, not weakening real coverage.
 - `export-bar.test.tsx`: unchanged (text-based) and must still pass.
 
 ## Manual verification
