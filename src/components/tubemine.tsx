@@ -9,6 +9,7 @@ import { toast } from "sonner"
 import { track } from "@vercel/analytics"
 import { Loader2, Link as LinkIcon } from "lucide-react"
 import { useTranslations } from "next-intl"
+import { Link as IntlLink } from "@/i18n/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
@@ -33,6 +34,7 @@ import {
 } from "@/components/sentiment"
 import { EmojiPanel } from "@/components/emoji-frequency"
 import { ExportBar } from "@/components/export-bar"
+import { DemoSampleResult } from "@/components/demo-sample-result"
 
 export type ExtractTier = "anonymous" | "free" | "pro"
 
@@ -356,14 +358,9 @@ export function TubeMine({ tier: initialTier }: { tier: ExtractTier }) {
     ? Math.min(preview.commentCount, budget?.remaining ?? preview.commentCount)
     : 0
 
-  const quotaLine =
-    tier === "anonymous"
-      ? t("quota_anon")
-      : budget
-        ? t(tier === "pro" ? "quota_pro" : "quota_free", {
-            remaining: formatNumber(budget.remaining),
-          })
-        : null
+  const anonExhausted = tier === "anonymous" && budget?.remaining === 0
+  const freeExhausted = tier === "free" && budget?.remaining === 0
+  const quotaExhausted = anonExhausted || freeExhausted
 
   return (
     <>
@@ -395,7 +392,7 @@ export function TubeMine({ tier: initialTier }: { tier: ExtractTier }) {
             inputMode="url"
             placeholder={tEx("input_placeholder")}
             className="input"
-            disabled={previewLoading || extractLoading}
+            disabled={previewLoading || extractLoading || quotaExhausted}
             autoComplete="off"
             spellCheck={false}
             aria-label={tEx("input_label")}
@@ -419,36 +416,38 @@ export function TubeMine({ tier: initialTier }: { tier: ExtractTier }) {
             }}
           />
         </div>
-        <button
-          type="submit"
-          className={`btn btn--primary btn-lg${previewLoading || extractLoading ? " is-loading" : ""}`}
-          disabled={
-            previewLoading ||
-            extractLoading ||
-            (preview !== null &&
-              (preview.commentsDisabled ||
-                extractCount === 0 ||
-                (budget?.remaining ?? 1) === 0))
-          }
-        >
-          {previewLoading || extractLoading ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : preview ? (
-            tEx("analyze_n_comments", { count: extractCount })
-          ) : (
-            t("cta")
-          )}
-        </button>
+        {anonExhausted ? (
+          <IntlLink
+            href="/login?intent=signup"
+            className="btn btn--primary btn-lg"
+          >
+            {t("cta_exhausted_anon")}
+          </IntlLink>
+        ) : freeExhausted ? (
+          <IntlLink href="/dashboard" className="btn btn--primary btn-lg">
+            {t("cta_exhausted_free")}
+          </IntlLink>
+        ) : (
+          <button
+            type="submit"
+            className={`btn btn--primary btn-lg${previewLoading || extractLoading ? " is-loading" : ""}`}
+            disabled={
+              previewLoading ||
+              extractLoading ||
+              (preview !== null &&
+                (preview.commentsDisabled || extractCount === 0))
+            }
+          >
+            {previewLoading || extractLoading ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : preview ? (
+              tEx("analyze_n_comments", { count: extractCount })
+            ) : (
+              t("cta")
+            )}
+          </button>
+        )}
       </form>
-
-      {/* Show the quota meta only for anonymous users. Authed users (free
-          and pro) see their canonical Monthly usage card on /dashboard,
-          so showing the same info inside the form is redundant noise. */}
-      {tier === "anonymous" && quotaLine && (
-        <div className="demo-quota" role="status">
-          <span>{quotaLine}</span>
-        </div>
-      )}
 
       {form.formState.errors.url && (
         <p className="mt-2 text-xs text-destructive">
@@ -457,6 +456,17 @@ export function TubeMine({ tier: initialTier }: { tier: ExtractTier }) {
           )}
         </p>
       )}
+
+      {/* Static promo sample shown as the empty-state placeholder for anonymous
+          visitors so the demo section never looks blank. It MUST hide as soon
+          as the real flow takes over (preview loaded, extract running, or real
+          comments rendered) otherwise the static sample sits below the real
+          analysis output and confuses the viewer. */}
+      {tier === "anonymous" &&
+        !preview &&
+        !previewLoading &&
+        !extractLoading &&
+        comments.length === 0 && <DemoSampleResult />}
 
       {previewLoading && <PreviewSkeleton />}
 

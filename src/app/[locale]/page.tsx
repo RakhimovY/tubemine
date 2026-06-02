@@ -83,7 +83,6 @@ export default async function HomePage({
         {/* ===================== HERO ===================== */}
         <section className="hero">
           <div className="container">
-            <p className="hero-eyebrow">{t("hero.eyebrow")}</p>
             <h1 className="hero-title">
               {t("hero.title_lead")}{" "}
               <span className="accent">{t("hero.title_accent")}</span>
@@ -140,70 +139,11 @@ export default async function HomePage({
         <section className="section" id="demo">
           <div className="container">
             <header className="section-head-center">
-              <p className="section-eyebrow">{t("demo.eyebrow")}</p>
               <h2 className="section-title">{t("demo.title")}</h2>
-              <p className="section-sub">{t("demo.sub")}</p>
             </header>
 
             <div className="demo-wrap">
               <TubeMine tier="anonymous" />
-
-              <div
-                className="demo-sample-strip"
-                role="note"
-                style={{ marginTop: "var(--space-7)" }}
-              >
-                  <span className="sample-primary">
-                    <span className="sample-icon" aria-hidden="true">
-                      <svg
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth={2}
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <circle cx="12" cy="12" r="9" />
-                        <path d="M12 8h.01" />
-                        <path d="M11 12h1v4h1" />
-                      </svg>
-                    </span>
-                    <span>
-                      <b>{t("demo.sample_label_strong")}</b>{" "}
-                      {t("demo.sample_label_text")}
-                    </span>
-                  </span>
-                  <span className="sample-meta">{t("demo.sample_meta")}</span>
-                </div>
-
-              <DemoSampleResult
-                  videoTitle={t("demo.sample.title")}
-                  videoChannel={t("demo.sample.channel")}
-                  videoDuration={t("demo.sample.duration")}
-                  videoStatsAnalyzed={t("demo.sample.stats_analyzed")}
-                  videoStatsViews={t("demo.sample.stats_views")}
-                  videoStatsLikes={t("demo.sample.stats_likes")}
-                  videoStatsLang={t("demo.sample.stats_lang")}
-                  sentimentLabel={t("demo.sample.sentiment_label")}
-                  sentimentTitle={t("demo.sample.sentiment_title")}
-                  sentimentSub={t("demo.sample.sentiment_sub")}
-                  sentimentAnalyzed={t("demo.sample.sentiment_analyzed")}
-                  sentimentPos={t("demo.sample.legend_pos")}
-                  sentimentNeu={t("demo.sample.legend_neu")}
-                  sentimentNeg={t("demo.sample.legend_neg")}
-                  sentimentFoot={t("demo.sample.sentiment_foot")}
-                  topWordsTitle={t("demo.sample.top_words_title")}
-                  topWordsSub={t("demo.sample.top_words_sub")}
-                  emojiTitle={t("demo.sample.emoji_title")}
-                  emojiSub={t("demo.sample.emoji_sub")}
-                  commentsTitle={t("demo.sample.comments_title")}
-                  commentsSub={t("demo.sample.comments_sub")}
-                  commentsFoot={t("demo.sample.comments_foot")}
-                  commentsFootCta={t("demo.sample.comments_foot_cta")}
-                  posLabel={t("demo.sample.sent_pos")}
-                  neuLabel={t("demo.sample.sent_neu")}
-                  negLabel={t("demo.sample.sent_neg")}
-                />
             </div>
           </div>
         </section>
@@ -215,35 +155,6 @@ export default async function HomePage({
         >
           <div className="container">
             <div className="ta-grid">
-              <div className="ta-copy">
-                <p className="section-eyebrow">{t("dashboard.eyebrow")}</p>
-                <h2 className="title">{t("dashboard.title")}</h2>
-                <p className="lede">{t("dashboard.lede")}</p>
-                <ul className="ta-list">
-                  {[
-                    t("dashboard.b1"),
-                    t("dashboard.b2"),
-                    t("dashboard.b3"),
-                    t("dashboard.b4"),
-                  ].map((b, i) => (
-                    <li key={i}>
-                      <span className="ta-check">
-                        <CheckIcon />
-                      </span>
-                      <span>{b}</span>
-                    </li>
-                  ))}
-                </ul>
-                <div className="row-inline">
-                  <IntlLink href="/login?intent=signup" className="btn btn--primary">
-                    {t("dashboard.cta_signup")}
-                  </IntlLink>
-                  <a href="#pricing" className="btn btn--ghost">
-                    {t("dashboard.cta_pricing")}
-                  </a>
-                </div>
-              </div>
-
               <DashboardMock
                 brand={t("header.brand")}
                 section={t("dashboard.mock.section")}
@@ -280,6 +191,34 @@ export default async function HomePage({
                   },
                 ]}
               />
+
+              <div className="ta-copy">
+                <h2 className="title">{t("dashboard.title")}</h2>
+                <p className="lede">{t("dashboard.lede")}</p>
+                <ul className="ta-list">
+                  {[
+                    t("dashboard.b1"),
+                    t("dashboard.b2"),
+                    t("dashboard.b3"),
+                    t("dashboard.b4"),
+                  ].map((b, i) => (
+                    <li key={i}>
+                      <span className="ta-check">
+                        <CheckIcon />
+                      </span>
+                      <span>{b}</span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="row-inline">
+                  <IntlLink href="/login?intent=signup" className="btn btn--primary">
+                    {t("dashboard.cta_signup")}
+                  </IntlLink>
+                  <a href="#pricing" className="btn btn--ghost">
+                    {t("dashboard.cta_pricing")}
+                  </a>
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -294,9 +233,6 @@ export default async function HomePage({
             {/* 1, Sentiment */}
             <div className="feature-block">
               <div className="feature-copy">
-                <p className="feature-eyebrow">
-                  {t("features.sentiment.eyebrow")}
-                </p>
                 <h3 className="feature-title">
                   {t("features.sentiment.title")}
                 </h3>
@@ -374,7 +310,6 @@ export default async function HomePage({
             {/* 2, Top words */}
             <div className="feature-block reverse">
               <div className="feature-copy">
-                <p className="feature-eyebrow">{t("features.words.eyebrow")}</p>
                 <h3 className="feature-title">{t("features.words.title")}</h3>
                 <p className="feature-body">{t("features.words.body")}</p>
               </div>
@@ -413,7 +348,6 @@ export default async function HomePage({
             {/* 3, Emoji */}
             <div className="feature-block">
               <div className="feature-copy">
-                <p className="feature-eyebrow">{t("features.emoji.eyebrow")}</p>
                 <h3 className="feature-title">{t("features.emoji.title")}</h3>
                 <p className="feature-body">{t("features.emoji.body")}</p>
               </div>
@@ -461,7 +395,6 @@ export default async function HomePage({
         >
           <div className="container">
             <header className="section-head-center">
-              <p className="section-eyebrow">{t("pricing.eyebrow")}</p>
               <h2 className="section-title">{t("pricing.title")}</h2>
               <p className="section-sub">{t("pricing.sub")}</p>
             </header>
@@ -586,7 +519,6 @@ export default async function HomePage({
         >
           <div className="container">
             <header className="section-head-center">
-              <p className="section-eyebrow">{t("faq.eyebrow")}</p>
               <h2 className="section-title">{t("faq.title")}</h2>
             </header>
 
@@ -774,250 +706,6 @@ function DashboardMock({
   )
 }
 
-/* =====================================================================
-   Sample/promo result block, shown above the real extractor for
-   anonymous visitors as an educational static preview. Direct port of
-   the design's #demoResult promo card.
-   ===================================================================== */
-function DemoSampleResult(props: {
-  videoTitle: string
-  videoChannel: string
-  videoDuration: string
-  videoStatsAnalyzed: string
-  videoStatsViews: string
-  videoStatsLikes: string
-  videoStatsLang: string
-  sentimentLabel: string
-  sentimentTitle: string
-  sentimentSub: string
-  sentimentAnalyzed: string
-  sentimentPos: string
-  sentimentNeu: string
-  sentimentNeg: string
-  sentimentFoot: string
-  topWordsTitle: string
-  topWordsSub: string
-  emojiTitle: string
-  emojiSub: string
-  commentsTitle: string
-  commentsSub: string
-  commentsFoot: string
-  commentsFootCta: string
-  posLabel: string
-  neuLabel: string
-  negLabel: string
-}) {
-  return (
-    <div
-      className="demo-result"
-      style={{ marginTop: "var(--space-7)" }}
-      aria-live="polite"
-    >
-      <div className="demo-result-head">
-        <div className="thumb" aria-hidden="true">
-          <span className="thumb-duration">{props.videoDuration}</span>
-        </div>
-        <div>
-          <h3 className="demo-meta-title">{props.videoTitle}</h3>
-          <div className="demo-meta-channel">{props.videoChannel}</div>
-          <div className="demo-meta-stats">
-            <span>
-              <strong>19,422</strong> {props.videoStatsAnalyzed}
-            </span>
-            <span>
-              <strong>847K</strong> {props.videoStatsViews}
-            </span>
-            <span>
-              <strong>32K</strong> {props.videoStatsLikes}
-            </span>
-            <span>{props.videoStatsLang}</span>
-          </div>
-        </div>
-      </div>
-
-      <div className="widget-grid">
-        <div className="widget">
-          <div className="widget-head">
-            <span className="widget-title">{props.sentimentTitle}</span>
-            <span className="widget-sub">{props.sentimentSub}</span>
-          </div>
-          <div
-            style={{
-              fontSize: 11,
-              color: "var(--color-text-tertiary)",
-              fontFamily: "var(--font-family-mono)",
-              marginBottom: 4,
-            }}
-          >
-            {props.sentimentAnalyzed}
-          </div>
-          <div
-            style={{
-              fontSize: 16,
-              color: "var(--color-text-primary)",
-              fontWeight: 500,
-              letterSpacing: "-0.005em",
-              marginBottom: "var(--space-4)",
-            }}
-          >
-            {props.sentimentLabel}
-          </div>
-          <div className="sentiment-bar" role="img" aria-label="">
-            <span className="sentiment-pos" style={{ width: "68%" }} />
-            <span className="sentiment-neu" style={{ width: "24%" }} />
-            <span className="sentiment-neg" style={{ width: "8%" }} />
-          </div>
-          <div className="sentiment-legend">
-            <span>
-              <span className="legend-dot legend-pos" />
-              {props.sentimentPos}
-            </span>
-            <span>
-              <span className="legend-dot legend-neu" />
-              {props.sentimentNeu}
-            </span>
-            <span>
-              <span className="legend-dot legend-neg" />
-              {props.sentimentNeg}
-            </span>
-          </div>
-          <div
-            style={{
-              fontSize: 11,
-              color: "var(--color-text-tertiary)",
-              fontFamily: "var(--font-family-mono)",
-            }}
-          >
-            {props.sentimentFoot}
-          </div>
-        </div>
-
-        <div className="widget">
-          <div className="widget-head">
-            <span className="widget-title">{props.topWordsTitle}</span>
-            <span className="widget-sub">{props.topWordsSub}</span>
-          </div>
-          <div className="tw-list">
-            {[
-              { w: "tutorial", pct: 100, n: "847" },
-              { w: "love", pct: 78, n: "662" },
-              { w: "workflow", pct: 64, n: "543" },
-              { w: "helpful", pct: 53, n: "449" },
-              { w: "thanks", pct: 47, n: "398" },
-              { w: "editing", pct: 43, n: "364" },
-              { w: "camera", pct: 36, n: "307" },
-              { w: "amazing", pct: 31, n: "261" },
-            ].map((row) => (
-              <div key={row.w} className="tw-row">
-                <span className="tw-word">{row.w}</span>
-                <span className="tw-bar">
-                  <span style={{ width: `${row.pct}%` }} />
-                </span>
-                <span className="tw-count">{row.n}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="widget">
-          <div className="widget-head">
-            <span className="widget-title">{props.emojiTitle}</span>
-            <span className="widget-sub">{props.emojiSub}</span>
-          </div>
-          <div className="emoji-grid">
-            {[
-              { g: "🔥", pct: 100, p: "18.2%" },
-              { g: "❤️", pct: 81, p: "14.7%" },
-              { g: "👏", pct: 62, p: "11.3%" },
-              { g: "💯", pct: 53, p: "9.6%" },
-              { g: "😍", pct: 46, p: "8.4%" },
-              { g: "🙏", pct: 40, p: "7.2%" },
-              { g: "👍", pct: 37, p: "6.8%" },
-              { g: "😂", pct: 32, p: "5.9%" },
-              { g: "⚡", pct: 25, p: "4.5%" },
-              { g: "💪", pct: 17, p: "3.1%" },
-            ].map((row, i) => (
-              <div key={i} className="emoji-row">
-                <span className="glyph">{row.g}</span>
-                <span className="pct-bar">
-                  <span style={{ width: `${row.pct}%` }} />
-                </span>
-                <span className="pct">{row.p}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="card comments-card">
-        <div
-          className="widget-head"
-          style={{ marginBottom: "var(--space-3)" }}
-        >
-          <span className="widget-title">{props.commentsTitle}</span>
-          <span className="widget-sub">{props.commentsSub}</span>
-        </div>
-        <div className="comments-list">
-          {SAMPLE_COMMENTS.map((c, i) => (
-            <div key={i} className="comment-row">
-              <span className="comment-author">{c.author}</span>
-              <span className="comment-text">{c.text}</span>
-              <span className={`comment-sent ${c.kind}`}>
-                <span className="dot" />
-                {c.kind === "pos"
-                  ? props.posLabel
-                  : c.kind === "neg"
-                    ? props.negLabel
-                    : props.neuLabel}
-              </span>
-            </div>
-          ))}
-        </div>
-        <div className="comments-foot">
-          <span>{props.commentsFoot}</span>
-          <IntlLink
-            href="/login?intent=signup"
-            style={{ color: "var(--color-text-secondary)" }}
-          >
-            {props.commentsFootCta}
-          </IntlLink>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-const SAMPLE_COMMENTS: Array<{
-  author: string
-  text: string
-  kind: "pos" | "neu" | "neg"
-}> = [
-  {
-    author: "@sarah_makes",
-    text: "This is the workflow video I've needed for months 🔥 The premiere shortcut at 4:12 alone is worth a sub. Thank you!",
-    kind: "pos",
-  },
-  {
-    author: "@mike.travels",
-    text: "Quick question, what mic are you using for the voiceover? It sounds amazing.",
-    kind: "neu",
-  },
-  {
-    author: "@designdaily",
-    text: "Love the part about cutting B-roll first. I always do it last and it slows me down so much. Trying this tomorrow ❤️",
-    kind: "pos",
-  },
-  {
-    author: "@noahcodes",
-    text: "Sponsored sections in the middle were kind of jarring tbh, but the actual tutorial parts were 💯",
-    kind: "neu",
-  },
-  {
-    author: "@priya.films",
-    text: "Way too long. Could've been a 6 min video honestly.",
-    kind: "neg",
-  },
-]
 
 function CheckIcon() {
   return (

@@ -55,11 +55,12 @@ The repo's `--radius-md` (14px) is wider than the design's 8px card radius and
 is deliberately NOT used by the result block. No new radius tokens are created.
 
 The design's neutral sentiment color is `rgba(245,245,247,0.30)` (`--neu`); the
-repo's `--color-sentiment-neutral` is `var(--color-text-secondary)` rendered at
-opacity 0.55 in the existing `.sentiment-neu` rule. For the result block we
-reproduce the design's neutral exactly with `rgba(245,245,247,0.30)` on the
-sentiment bar segment (scoped to `.result-block`, so the existing landing
-sentiment bar is untouched).
+repo's global `--color-sentiment-neutral` resolves differently. For the result
+block we reproduce the design neutral exactly with `rgba(245,245,247,0.30)`,
+applied (scoped under `.result-block`) to the sentiment bar neutral segment, the
+legend neutral dot, and the comment-table neutral chip dot. See the
+SentimentPanel "Neutral color" note for the exact selectors. The shipped landing
+feature-block `.sentiment-bar` lives outside `.result-block` and is untouched.
 
 ## Keystone architecture decision: scope ALL new CSS under `.tm-design .result-block`
 
@@ -231,7 +232,11 @@ Per-cell:
 
 Column header labels: `col_author`, `col_comment`, a NEW `col_sentiment`,
 `col_likes`, `col_replies`, `col_when` (all from the `extractor` namespace).
-`col_sentiment` is added to both locales (EN "Sentiment", RU "Тональность").
+`extractor.col_sentiment` does NOT exist yet and is added to both locales
+(EN "Sentiment", RU "Тональность"). Note: unrelated `history.col_sentiment`
+(RU "Тон") and `history_detail.column_sentiment` (RU "Тональность") already
+exist in other namespaces; do not reuse or modify them, add the new
+`extractor.col_sentiment`.
 
 Mobile reflow (`@container rb (max-width: 640px)`): the table reflows into
 stacked cards exactly as the design: `thead` + `colgroup` hidden, each `tr`
@@ -243,15 +248,37 @@ become visible on mobile only.
 ### `ResultBlockSkeleton`
 
 Replaces the three separate shadcn-based skeletons (`TopWordsSkeleton`,
-`SentimentSkeleton`, `EmojiSkeleton`) in `tubemine.tsx`. Renders the design's
-loading geometry: a `.skw-head` header shimmer, a `.rb-widgets` grid of three
-`.widget` skeletons (sentiment bar + lines, word-bar grid, emoji-row grid), and
-a `.sk-ctable` comment-table skeleton. All shimmer via a scoped `.result-block`
-`.skel` class (NOT the shadcn `<Skeleton>`, to avoid clashing and to match the
-design's shimmer keyframes). Carries `data-testid="result-block-skeleton"`,
-`role="status"`, `aria-live="polite"`, `aria-busy="true"`. The skeleton wrapper
-also uses `.result-block` so its widths and container query match the final
-geometry.
+`SentimentSkeleton`, `EmojiSkeleton`) in `tubemine.tsx`. The wrapper uses
+`.result-block` (so widths + container query match the final geometry) and
+carries `data-testid="result-block-skeleton"`, `role="status"`,
+`aria-live="polite"`, `aria-busy="true"`. Port the design's `renderLoading`
+markup (Result Block HTML lines 738-785) 1:1:
+
+- Shimmer primitive: a scoped `.tm-design .result-block .skel` class using the
+  design's gradient + `background-size: 200% 100%` and a `@keyframes
+  shimmer-rb` animation (named `-rb` to avoid colliding with the existing
+  global `@keyframes shimmer` already in `globals.css` at ~line 158). Add a
+  `@media (prefers-reduced-motion: reduce)` rule slowing it to 3s. `.sk-line`
+  is the thin-line variant.
+- Header: `.skw-head` (flex, two stacked shimmer lines on the left, a 104px x
+  34px pill shimmer on the right).
+- Widgets: a `.rb-widgets` grid of three `.widget` skeletons:
+  - sentiment widget: header lines, a 14px full-width pill shimmer (the bar),
+    plus 3 `.sk-line` rows.
+  - top-words widget: header lines, then a `.tw-grid` of 8 `height:26px`
+    shimmer bars.
+  - emoji widget: header lines, then a `.sk-emgrid` (2-col) of 8 `.sk-emrow`
+    (34px) shimmer rows. Use the new `.sk-emgrid`/`.sk-emrow` names (NOT the
+    old global `.emoji-grid`/`.emoji-row`), to respect the isolation rule.
+- Comments table: `.sk-ctable` containing a sticky `.sk-cthead` header row plus
+  4 `.sk-ctrow` rows. `.sk-ctrow` uses the SAME 6-col grid as the real table:
+  `grid-template-columns: 168px minmax(0,1fr) 116px 76px 76px 84px`.
+- Mobile (`@container rb (max-width: 640px)`): port the design's skeleton
+  reflow (lines 384-388): `.skw-head` wraps; `.sk-ctrow` becomes flex-wrap with
+  the second (comment) line spanning 100% at `order: 6`.
+
+Counts (8 word bars, 8 emoji rows, 4 comment rows) and the exact px values are
+taken verbatim from the design `renderLoading`.
 
 ## Panel restyles
 
@@ -288,6 +315,22 @@ Body by tier:
   count via `formatNumber`), then a `.s-label` summary, then a `.s-foot`
   coverage footnote `t("footnote", { percent })`.
 
+Segment rendering rule (preserve current guards): render each pos/neu/neg
+segment ONLY when its underlying COUNT is > 0 (today's code conditions on
+`aggregate.positive > 0` etc., NOT on `dist >= floor`). A 0-count segment must
+not render a zero-width div, which would leave a 1px border/background seam at
+the boundary. Keep this count-based condition in the new `.s-bar` markup for
+both free and pro.
+
+Neutral color (1:1): the design's neutral is `rgba(245,245,247,0.30)` (`--neu`),
+which differs from the existing global `--color-sentiment-neutral` rendering.
+Inside `.result-block` ONLY, use `rgba(245,245,247,0.30)` for the neutral
+sentiment bar segment (`.s-bar .neu`), the legend neutral dot
+(`.s-legend .ld.neu`), and the comment-table neutral chip dot
+(`.c-sent.neu .dot`). The shipped landing feature-block `.sentiment-bar` and its
+`.sentiment-neu` are a different element outside `.result-block` and are left
+untouched.
+
 Keep all existing sentiment keys, `track("sentiment_*")` events, and the
 `deriveDistribution` / `qualitativeSummary` logic unchanged.
 
@@ -309,10 +352,16 @@ the title when tight). Body:
 ```
 
 - `pct = max(8, round(count / maxCount * 100))` (design uses an 8% floor so
-  short bars stay legible).
-- `.tw-word` has `min-width:0; overflow:hidden; text-overflow:ellipsis`. Full
-  words stay visible at normal widths; the long mock word `colorgradingworkflow`
-  is the truncation stress test.
+  short bars stay legible). `maxCount = items[0].count` (the list is sorted
+  descending and non-empty here, since the panel returns null when empty).
+- Critical: `.tw-fill` is `position: absolute` (the colored bar), and `.tw-word`
+  is the only IN-FLOW child of `.tw-bar`, so the word span occupies the FULL bar
+  width (not the fill width). The ellipsis container is therefore the whole
+  `.tw-bar` (`.tw-word { white-space:nowrap; overflow:hidden;
+  text-overflow:ellipsis }`), NOT the 8% fill. Do not clip the word to the
+  fill, or a long word at an 8% bar would show a single letter. Full words stay
+  visible at normal widths; the long mock word `colorgradingworkflow` is the
+  truncation stress test (it ellipsizes against the bar, never overflows it).
 - Pro: initial cap 30 (`PRO_INITIAL_CAP`, unchanged) with a `.tier-cta.btnlike`
   toggle `show_all` / `hide` and a chevron that rotates 180 degrees when
   expanded.
@@ -323,9 +372,14 @@ the title when tight). Body:
 ### EmojiPanel (`emoji-frequency.tsx`)
 
 Bare `.widget`. Head: `.widget-title` "Emoji" (heading value changes from
-"Top emojis" to "Emoji" in both locales) + `.widget-sub` (`sub`) +
-`.widget-meta` (`unique_top_shown`). Body is the compact 2-column row list (NOT
-the old 10-across grid):
+"Top emojis" to "Emoji" in both locales) + `.widget-sub` (existing `sub` key) +
+`.widget-meta` (`unique_top_shown`). The design's sub copy "N comments with
+emoji" is a computed count NOT present in the panel's props (only `items` and
+`totalUnique`); we deliberately keep the existing `sub` copy
+("how your audience reacts") rather than invent a new data field. The sub line
+is a small mono caption, not a fidelity-critical layout element, so this is an
+acceptable copy divergence (documented). Body is the compact 2-column row list
+(NOT the old 10-across grid):
 
 ```
 <div className="em-grid">             // 2 cols; 1 col on mobile
@@ -338,8 +392,11 @@ the old 10-across grid):
 </div>
 ```
 
-- `barPct = round(share / maxShare * 100)` (proportional bar, shown for ALL
-  tiers).
+- `maxShare = items[0]?.share ?? 0` (list is sorted descending). `barPct =
+  maxShare > 0 ? Math.round((share / maxShare) * 100) : 0` (proportional bar,
+  shown for ALL tiers; the `maxShare > 0` guard prevents a `NaN%` width when a
+  degenerate set has share 0). The panel already returns null when
+  `items.length === 0`.
 - `value` resolves the percent gate (M17 product logic, preserved):
   - pro -> `${round(share*100)}%`
   - anon / free -> `formatNumber(count)` (integer count, NOT a percent)
@@ -374,6 +431,17 @@ Export handlers are no-ops for the static teaser (it is a visual preview; the
 anon "Save CSV" gate behavior is unchanged elsewhere). The component still
 mounts only when there is no real preview / results (gating in `TubeMine`
 unchanged).
+
+Mock data shape (important): the mock comments must be typed as `Comment[]`, so
+`publishedAt` is an ISO date string (e.g. a fixed `"2026-05-30T12:00:00.000Z"`,
+NOT the design's relative `"2d ago"` which would break `formatDateRelative`),
+and `likes` / `replies` are NUMBERS (e.g. `1240`, `0`, NOT the design's
+comma-formatted `"1,240"` strings; `formatNumber` adds separators at render).
+The mock sentiment aggregate is a `SentimentAggregateProp`; the words list is
+`WordCount[]`; the emoji list is `EmojiCount[]` (with `share`). Since
+`tier="anonymous"`, the mock numbers shown match the anon view (top 5 words /
+emoji, locked sentiment). Use a fixed (non-`Date.now()`) base so render is
+deterministic.
 
 ## Layout and width
 
@@ -411,7 +479,22 @@ breakpoints exactly:
 Every flex/grid child that holds truncatable text gets `min-width: 0`
 (`.rb-head-l`, `.widget-head-l`, `.tw-word`, `.c-author`, `.result-block > *`).
 Acceptance: at ~1120 / ~880 / mobile there is ZERO text overflow, ZERO
-header/meta overlap, ZERO disappearing labels, and NO horizontal page scroll.
+header/meta overlap, NO horizontal page scroll, and no STRUCTURAL label
+(column header, widget meta, tier CTA) is clipped or overlapped. Note: the
+single-line ellipsis truncation of the long video subline (`.rb-head-video`) is
+the intended, designed behavior (the full text stays available via the `title`
+attribute) and is NOT a "disappearing label"; when both the title and channel
+are long the channel is the part ellipsized away, which is acceptable.
+
+`.rb-widgets` grid: keep `grid-template-columns: repeat(3, 1fr)` (NOT auto-fit).
+A panel returning `null` (e.g. `EmojiPanel` when a video has no emoji, or
+`SentimentPanel` when its aggregate is null) leaves a trailing empty grid cell.
+This is acceptable (the remaining widgets stay at their designed 3-up width with
+empty space on the right; no overflow, no overlap). Do NOT switch to
+auto-fit/auto-fill, which would re-stretch 2 widgets and break the 3-up
+proportions. In the common path (the result block only renders when
+`comments.length > 0`, so the header count is always >= 1) all three widgets
+render.
 
 ## i18n changes (EN + RU parity maintained)
 
@@ -420,6 +503,10 @@ header/meta overlap, ZERO disappearing labels, and NO horizontal page scroll.
 - Add `extractor.col_sentiment`: EN "Sentiment", RU "Тональность".
 - Add `analytics.sentiment.anon_locked_text` and
   `analytics.sentiment.anon_locked_cta` (EN + RU).
+- All three new keys (`col_sentiment`, `anon_locked_text`, `anon_locked_cta`)
+  are PLAIN static strings with no `{count}` / ICU plural, so the RU
+  `one/few/many/other` plural-branch assertions in `analytics-i18n-parity.test`
+  do not apply to them.
 - All other existing keys are kept (no deletions), so `check-message-parity`
   and `analytics-i18n-parity.test` stay green. New keys are added to BOTH
   locales in the same edit.
