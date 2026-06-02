@@ -283,7 +283,7 @@ markup (Result Block HTML lines 738-785) 1:1:
   - top-words widget: header lines, then a `.tw-grid` of 8 `height:26px`
     shimmer bars.
   - emoji widget: header lines, then an `.em-grid` (the SAME class the real
-    emoji panel uses, so the skeleton inherits the 720/640px single-column
+    emoji panel uses, so the skeleton inherits the 640px single-column
     collapse) containing 8 `.sk-emrow` (34px) shimmer rows. Do NOT introduce a
     separate `.sk-emgrid`, or the skeleton's emoji block would not reflow like
     the real panel on mobile. Do NOT use the old global `.emoji-grid`/
