@@ -384,8 +384,11 @@ the title when tight). Body:
   toggle `show_all` / `hide` and a chevron that rotates 180 degrees when
   expanded.
 - anon/free CTA: existing `.tier-cta` (sign-in icon or lock icon + existing
-  `cta_anon` / `cta_free` link). The footnote `t("footnote")` is kept but moves
-  under the body as a `.widget-foot` caption (small, muted). Keep all keys.
+  `cta_anon` / `cta_free` link). The methodology footnote `t("footnote")` is
+  NOT rendered in the compact widget (the authoritative design omits it; the
+  dense 3-up widget has no room). The `analytics.top_words.footnote` KEY is kept
+  in both locales (it is in the `analytics-i18n-parity.test` required list), it
+  is simply no longer rendered. Keep all other keys.
 
 ### EmojiPanel (`emoji-frequency.tsx`)
 
