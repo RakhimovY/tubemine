@@ -1,10 +1,9 @@
 "use client"
 
 import { useState } from "react"
-import { Lock, Sparkles } from "lucide-react"
+import { ChevronDown, Lock, LogIn } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { Link } from "@/i18n/navigation"
-import { Card, CardContent } from "@/components/ui/card"
 import { formatNumber } from "@/lib/format"
 import type { WordCount } from "@/lib/top-words"
 import type { ExtractTier } from "@/components/tubemine"
@@ -34,68 +33,57 @@ export function TopWordsPanel({
   const cta = upgradeCta(t, tier, remaining)
 
   return (
-    <Card className="mt-6 border-border/60">
-      <CardContent className="flex flex-col gap-4 p-6 sm:p-7">
-        <div className="flex flex-wrap items-center gap-2">
-          <Sparkles className="size-4 text-foreground/70" />
-          <h2 className="text-sm font-medium">{t("heading")}</h2>
-          <span className="text-xs text-muted-foreground">
-            {t("across_comments", { count: commentsAnalyzed })}
-          </span>
-          <span className="ml-auto text-xs text-muted-foreground">
-            {t("unique_top_shown", {
-              total: totalUnique,
-              shown: items.length,
-            })}
-          </span>
+    <div className="widget" data-testid="top-words-widget">
+      <div className="widget-head">
+        <div className="widget-head-l">
+          <div className="widget-title">{t("heading")}</div>
+          <div className="widget-sub">{t("across_comments", { count: commentsAnalyzed })}</div>
         </div>
-        <div className="grid gap-1.5 sm:grid-cols-2">
+        <div className="widget-meta">
+          {t("unique_top_shown", { total: totalUnique, shown: items.length })}
+        </div>
+      </div>
+      <div className="widget-body">
+        <div className="tw-grid">
           {displayedItems.map(({ word, count }) => {
-            const pct = Math.max(4, Math.round((count / max) * 100))
+            const pct = Math.max(8, Math.round((count / max) * 100))
             return (
-              <div
-                key={word}
-                className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3"
-              >
-                <div className="relative h-7 overflow-hidden rounded-md bg-muted/60">
-                  <div
-                    className="absolute inset-y-0 left-0 bg-primary/15"
-                    style={{ width: `${pct}%` }}
-                  />
-                  <span className="relative z-10 flex h-full items-center pl-3 text-xs font-medium">
-                    {word}
-                  </span>
+              <div key={word} className="tw-row">
+                <div className="tw-bar">
+                  <span className="tw-fill" style={{ width: `${pct}%` }} />
+                  <span className="tw-word">{word}</span>
                 </div>
-                <span className="text-xs tabular-nums text-muted-foreground">
-                  {formatNumber(count)}
-                </span>
+                <div className="tw-count">{formatNumber(count)}</div>
               </div>
             )
           })}
         </div>
-        {hasMore ? (
-          <button
-            type="button"
-            onClick={() => setExpanded((v) => !v)}
-            className="inline-flex w-fit items-center gap-1.5 text-xs text-foreground/80 underline-offset-4 hover:underline"
-          >
-            {expanded ? t("hide") : t("show_all", { count: items.length })}
-          </button>
-        ) : null}
-        {cta ? (
-          <Link
-            href={cta.href}
-            className="inline-flex w-fit items-center gap-1.5 text-xs text-foreground/80 underline-offset-4 hover:underline"
-          >
-            <Lock className="size-3" />
-            {cta.label}
-          </Link>
-        ) : null}
-        <p className="text-[11px] leading-relaxed text-muted-foreground">
-          {t("footnote")}
-        </p>
-      </CardContent>
-    </Card>
+      </div>
+      {hasMore ? (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="tier-cta btnlike widget-foot"
+        >
+          <ChevronDown
+            className="size-3"
+            aria-hidden="true"
+            style={{ transform: expanded ? "rotate(180deg)" : undefined }}
+          />
+          <span>{expanded ? t("hide") : t("show_all", { count: items.length })}</span>
+        </button>
+      ) : null}
+      {cta ? (
+        <div className="tier-cta widget-foot">
+          {tier === "anonymous" ? (
+            <LogIn className="size-3" aria-hidden="true" />
+          ) : (
+            <Lock className="size-3" aria-hidden="true" />
+          )}
+          <Link href={cta.href}>{cta.label}</Link>
+        </div>
+      ) : null}
+    </div>
   )
 }
 
@@ -106,16 +94,10 @@ function upgradeCta(
 ): { href: string; label: string } | null {
   if (remaining <= 0) return null
   if (tier === "anonymous") {
-    return {
-      href: "/login?next=/",
-      label: t("cta_anon", { count: remaining }),
-    }
+    return { href: "/login?next=/", label: t("cta_anon", { count: remaining }) }
   }
   if (tier === "free") {
-    return {
-      href: "/pricing",
-      label: t("cta_free", { count: remaining }),
-    }
+    return { href: "/pricing", label: t("cta_free", { count: remaining }) }
   }
   return null
 }

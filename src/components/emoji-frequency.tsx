@@ -1,11 +1,10 @@
 "use client"
 
 import { useEffect } from "react"
-import { Lock, Smile } from "lucide-react"
+import { Lock, LogIn } from "lucide-react"
 import { track } from "@vercel/analytics"
 import { useTranslations } from "next-intl"
 import { Link } from "@/i18n/navigation"
-import { Card, CardContent } from "@/components/ui/card"
 import { emojiName, type EmojiCount } from "@/lib/emoji-frequency"
 import { formatNumber } from "@/lib/format"
 import type { ExtractTier } from "@/components/tubemine"
@@ -33,56 +32,57 @@ export function EmojiPanel({
 
   const remaining = Math.max(0, totalUnique - items.length)
   const cta = upgradeCta(t, tier, remaining)
+  const maxShare = items[0]?.share ?? 0
 
   return (
-    <Card className="mt-6 border-border/60">
-      <CardContent className="flex flex-col gap-4 p-6 sm:p-7">
-        <div className="flex flex-wrap items-center gap-2">
-          <Smile className="size-4 text-foreground/70" />
-          <h2 className="text-sm font-medium">{t("heading")}</h2>
-          <span className="text-xs text-muted-foreground">{t("sub")}</span>
-          <span className="ml-auto text-xs text-muted-foreground">
-            {t("unique_top_shown", {
-              total: totalUnique,
-              shown: items.length,
-            })}
-          </span>
+    <div className="widget" data-testid="emoji-widget">
+      <div className="widget-head">
+        <div className="widget-head-l">
+          <div className="widget-title">{t("heading")}</div>
+          <div className="widget-sub">{t("sub")}</div>
         </div>
-        <div className="grid grid-cols-5 gap-2 sm:grid-cols-10">
-          {items.map(({ emoji, count, share }) => (
-            <div
-              key={emoji}
-              role="img"
-              aria-label={
-                tier === "pro"
-                  ? `${emojiName(emoji)}, ${count} occurrences (${Math.round(share * 100)} percent)`
-                  : `${emojiName(emoji)}, ${count} occurrences`
-              }
-              className="flex flex-col items-center justify-center gap-1 rounded-lg border border-border/40 bg-muted/40 px-2 py-3"
-            >
-              <span className="text-2xl leading-none">{emoji}</span>
-              <span className="text-xs font-medium tabular-nums">
-                {formatNumber(count)}
-              </span>
-              {tier === "pro" && (
-                <span className="text-[10px] tabular-nums text-muted-foreground">
-                  {Math.round(share * 100)}%
+        <div className="widget-meta">
+          {t("unique_top_shown", { total: totalUnique, shown: items.length })}
+        </div>
+      </div>
+      <div className="widget-body">
+        <div className="em-grid">
+          {items.map(({ emoji, count, share }) => {
+            const barPct = maxShare > 0 ? Math.round((share / maxShare) * 100) : 0
+            return (
+              <div
+                key={emoji}
+                className="em-row"
+                role="img"
+                aria-label={
+                  tier === "pro"
+                    ? `${emojiName(emoji)}, ${count} occurrences (${Math.round(share * 100)} percent)`
+                    : `${emojiName(emoji)}, ${count} occurrences`
+                }
+              >
+                <span className="glyph">{emoji}</span>
+                <span className="em-bar">
+                  <span style={{ width: `${barPct}%` }} />
                 </span>
-              )}
-            </div>
-          ))}
+                <span className="em-pct">
+                  {tier === "pro" ? `${Math.round(share * 100)}%` : formatNumber(count)}
+                </span>
+              </div>
+            )
+          })}
         </div>
-        {cta ? (
-          <Link
-            href={cta.href}
-            className="inline-flex w-fit items-center gap-1.5 text-xs text-foreground/80 underline-offset-4 hover:underline"
-          >
-            <Lock className="size-3" />
-            {cta.label}
-          </Link>
-        ) : null}
-      </CardContent>
-    </Card>
+      </div>
+      {cta ? (
+        <div className="tier-cta widget-foot">
+          {tier === "anonymous" ? (
+            <LogIn className="size-3" aria-hidden="true" />
+          ) : (
+            <Lock className="size-3" aria-hidden="true" />
+          )}
+          <Link href={cta.href}>{cta.label}</Link>
+        </div>
+      ) : null}
+    </div>
   )
 }
 
@@ -93,16 +93,10 @@ function upgradeCta(
 ): { href: string; label: string } | null {
   if (remaining <= 0) return null
   if (tier === "anonymous") {
-    return {
-      href: "/login?next=/",
-      label: t("cta_anon", { count: remaining }),
-    }
+    return { href: "/login?next=/", label: t("cta_anon", { count: remaining }) }
   }
   if (tier === "free") {
-    return {
-      href: "/pricing",
-      label: t("cta_free", { count: remaining }),
-    }
+    return { href: "/pricing", label: t("cta_free", { count: remaining }) }
   }
   return null
 }

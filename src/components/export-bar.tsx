@@ -2,7 +2,6 @@
 
 import { Download } from "lucide-react"
 import { useTranslations } from "next-intl"
-import { Button } from "@/components/ui/button"
 import type { ExtractTier } from "@/components/tubemine"
 
 export function ExportBar({
@@ -19,32 +18,31 @@ export function ExportBar({
 }) {
   const tCommon = useTranslations("common")
 
-  // Phase K + TUB-1 Phase 1: anon and free tiers share the same single CSV button.
-  // Papa.unparse runs client-side, so no backend gate needed. Sign-in interstitial removed.
+  // anon + free share the single CSV control (Papa.unparse runs client-side).
   if (tier === "anonymous" || tier === "free") {
     return (
-      <Button onClick={onDownloadCsv} size="sm" className="tm-action-btn">
-        <Download className="size-4" />
+      <button type="button" onClick={onDownloadCsv} className="btn btn--primary tm-action-btn">
+        <Download className="icon icon-sm" aria-hidden="true" />
         {tCommon("save_csv")}
-      </Button>
+      </button>
     )
   }
 
   // tier === "pro"
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <Button onClick={onDownloadCsv} size="sm" className="tm-action-btn">
-        <Download className="size-4" />
+    <>
+      <button type="button" onClick={onDownloadCsv} className="btn btn--primary tm-action-btn">
+        <Download className="icon icon-sm" aria-hidden="true" />
         {tCommon("save_csv")}
-      </Button>
-      <Button onClick={onDownloadJson} size="sm" variant="outline">
-        <Download className="size-4" />
+      </button>
+      <button type="button" onClick={() => void onDownloadJson()} className="btn btn--outline">
+        <Download className="icon icon-sm" aria-hidden="true" />
         {tCommon("save_json")}
-      </Button>
-      <Button onClick={onDownloadExcel} size="sm" variant="outline">
-        <Download className="size-4" />
+      </button>
+      <button type="button" onClick={() => void onDownloadExcel()} className="btn btn--outline">
+        <Download className="icon icon-sm" aria-hidden="true" />
         {tCommon("save_excel")}
-      </Button>
-    </div>
+      </button>
+    </>
   )
 }
