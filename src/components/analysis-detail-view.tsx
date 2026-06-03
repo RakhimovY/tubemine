@@ -5,14 +5,12 @@ import { track } from "@vercel/analytics"
 import { useTranslations } from "next-intl"
 import { toast } from "sonner"
 import { useRouter } from "@/i18n/navigation"
-import { TopWordsPanel } from "@/components/top-words"
-import { SentimentPanel, type SentimentAggregateProp } from "@/components/sentiment"
-import { EmojiPanel } from "@/components/emoji-frequency"
-import { CommentsTable } from "@/components/comments-table"
-import { Button } from "@/components/ui/button"
-import type { AnalysisDetailRow, TopWord, EmojiFreq } from "@/lib/analyses"
-import type { SentimentAggregate } from "@/lib/sentiment"
+import { ResultBlock } from "@/components/result-block"
+import type { SentimentAggregateProp } from "@/components/sentiment"
+import type { AnalysisDetailRow } from "@/lib/analyses"
+import type { WordCount } from "@/lib/top-words"
 import type { EmojiCount } from "@/lib/emoji-frequency"
+import type { Comment } from "@/lib/types"
 
 type Tier = "free" | "pro"
 
@@ -21,6 +19,12 @@ export type AnalysisDetailViewProps = {
   row: AnalysisDetailRow & { has_comments: boolean }
 }
 
+/*
+  History detail view. Renders the SAME shared <ResultBlock> the dashboard uses
+  (dense 3-up widget grid + comments table), fed from the cached analysis row.
+  The only detail-specific chrome is the slim meta strip (processed / expires)
+  plus a Delete control. Downloads reuse the cache-mode export endpoint.
+*/
 export function AnalysisDetailView({ tier, row }: AnalysisDetailViewProps) {
   const t = useTranslations("history_detail")
   const router = useRouter()
@@ -83,130 +87,72 @@ export function AnalysisDetailView({ tier, row }: AnalysisDetailViewProps) {
     }
   }
 
-  const sentiment = row.sentiment as SentimentAggregate | null
-  const topWords = (row.top_words ?? []) as TopWord[]
-  const emojis = (row.emoji_frequency ?? []) as EmojiFreq[]
+  const aggregate = (row.sentiment as SentimentAggregateProp | null) ?? null
+  const topWords: WordCount[] = (row.top_words ?? []).map((w) => ({
+    word: w.token,
+    count: w.count,
+  }))
+  const emojisAll = row.emoji_frequency ?? []
+  // Free tier sees the first 15 stored emoji (matches the dashboard cap); pro
+  // sees everything stored. uniqueEmojiTotal is the full stored count so the
+  // panel can surface the "top N shown" upgrade hint to free users.
+  const emojiVisible = tier === "pro" ? emojisAll : emojisAll.slice(0, 15)
+  const topEmoji: EmojiCount[] = emojiVisible.map((e) => ({
+    emoji: e.emoji,
+    count: e.count,
+    share: (e.percent ?? 0) / 100,
+  }))
+  const comments: Comment[] = (row.comments ?? []).map((c) => ({
+    author: c.authorName ?? "",
+    text: c.text,
+    likes: c.likes,
+    replies: c.replies ?? 0,
+    publishedAt: c.publishedAt ?? "",
+    sentiment: c.sentiment ?? undefined,
+  }))
 
   return (
     <div className="dashboard-page">
-    <div className="mx-auto max-w-5xl px-4 py-8">
-      <div className="mb-6 flex flex-wrap items-start gap-4">
-        {row.thumbnail_url && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={row.thumbnail_url}
-            alt=""
-            className="h-24 w-40 rounded object-cover"
-          />
-        )}
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate text-xl font-semibold">
-            {row.video_title ?? row.video_id}
-          </h1>
-          <p className="truncate text-sm text-muted-foreground">
-            {row.channel_name}
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {t("processed_at_label")}:{" "}
-            {new Date(row.processed_at).toLocaleString()}
-            {" · "}
-            {t("expires_at_label")}:{" "}
-            {new Date(row.expires_at).toLocaleDateString()}
-            {" · "}
-            {row.comment_count} {t("comment_count_label")}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={!row.has_comments}
-            onClick={() => download("csv")}
-          >
-            {t("download_csv")}
-          </Button>
-          {tier === "pro" && (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={!row.has_comments}
-                onClick={() => download("json")}
-              >
-                {t("download_json")}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={!row.has_comments}
-                onClick={() => download("xlsx")}
-              >
-                {t("download_excel")}
-              </Button>
-            </>
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onDelete}
-            disabled={deleting}
-          >
-            {t("delete")}
-          </Button>
-        </div>
+      <div className="detail-toolbar">
+        <p className="detail-meta">
+          {t("processed_at_label")}:{" "}
+          {new Date(row.processed_at).toLocaleString()}
+          {" · "}
+          {t("expires_at_label")}:{" "}
+          {new Date(row.expires_at).toLocaleDateString()}
+        </p>
+        <button
+          type="button"
+          className="btn btn--outline"
+          onClick={onDelete}
+          disabled={deleting}
+        >
+          {t("delete")}
+        </button>
       </div>
 
       {!row.has_comments && (
-        <p
-          role="note"
-          className="mt-3 rounded-md border border-yellow-500/40 bg-yellow-500/10 p-3 text-sm text-yellow-900 dark:text-yellow-200"
-        >
+        <p role="note" className="detail-legacy-note">
           {t("legacy_no_comments")}
         </p>
       )}
 
-      {topWords.length > 0 && (
-        <TopWordsPanel
-          tier={tier}
-          items={topWords.map((w) => ({ word: w.token, count: w.count }))}
-          totalUnique={topWords.length}
-          commentsAnalyzed={row.comment_count}
-        />
-      )}
-
-      {sentiment && (
-        <SentimentPanel
-          tier={tier}
-          aggregate={sentiment as SentimentAggregateProp}
-          distribution={null}
-          commentsAnalyzed={row.comment_count}
-        />
-      )}
-
-      {emojis.length > 0 && (() => {
-        const visible = tier === "pro" ? emojis : emojis.slice(0, 15)
-        return (
-          <EmojiPanel
-            tier={tier}
-            items={visible.map<EmojiCount>((e) => ({
-              emoji: e.emoji,
-              count: e.count,
-              share: (e.percent ?? 0) / 100,
-            }))}
-            totalUnique={emojis.length}
-          />
-        )
-      })()}
-
-      <h2 className="mt-8 text-sm font-medium">{t("comments_table_heading")}</h2>
-      {row.has_comments && row.comments ? (
-        <CommentsTable comments={row.comments} />
-      ) : (
-        <p className="mt-2 text-sm text-muted-foreground">
-          {t("legacy_no_comments")}
-        </p>
-      )}
-    </div>
+      <ResultBlock
+        tier={tier}
+        commentsAnalyzed={row.comment_count}
+        videoTitle={row.video_title ?? row.video_id}
+        channel={row.channel_name ?? ""}
+        sentiment={aggregate}
+        distribution={null}
+        topWords={topWords}
+        uniqueWordsTotal={topWords.length}
+        topEmoji={topEmoji}
+        uniqueEmojiTotal={emojisAll.length}
+        comments={comments}
+        onDownloadCsv={() => download("csv")}
+        onDownloadJson={() => download("json")}
+        onDownloadExcel={() => download("xlsx")}
+      />
     </div>
   )
 }

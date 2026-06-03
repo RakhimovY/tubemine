@@ -1556,6 +1556,30 @@ body.no-scroll { overflow: hidden; }
   margin: 0 auto;
 }
 
+/* ===== History detail (reuses the shared .result-block) ===== */
+.tm-design .detail-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.tm-design .detail-meta {
+  margin: 0;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+}
+.tm-design .detail-legacy-note {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-warning-border, var(--color-border-subtle));
+  background: var(--color-warning-bg, var(--color-surface-raised));
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
 /* ===== Welcome strip ===== */
 .tm-design .dashboard-page .welcome-strip {
   display: flex;
