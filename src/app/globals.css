@@ -4043,7 +4043,7 @@ body.no-scroll { overflow: hidden; }
 .tm-design .result-block .rb-exports { display: flex; align-items: center; gap: var(--space-3); flex-shrink: 0; flex-wrap: wrap; }
 
 /* Widgets row */
-.tm-design .result-block .rb-widgets { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-5); align-items: stretch; }
+.tm-design .result-block .rb-widgets { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-5); align-items: start; }
 .tm-design .result-block .widget {
   background: var(--color-surface-raised);
   border: 1px solid var(--color-border-subtle);
@@ -4121,8 +4121,12 @@ body.no-scroll { overflow: hidden; }
 .tm-design .result-block .tw-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2) var(--space-4); }
 .tm-design .result-block .tw-row { display: grid; grid-template-columns: minmax(0,1fr) max-content; align-items: center; gap: var(--space-2); }
 .tm-design .result-block .tw-bar { position: relative; height: 26px; border-radius: var(--radius-xs); background: rgba(245,245,247,0.04); overflow: hidden; display: flex; align-items: center; }
-.tm-design .result-block .tw-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: var(--radius-xs); background: linear-gradient(90deg, rgba(245,245,247,0.16) 0%, rgba(245,245,247,0.06) 100%); }
-.tm-design .result-block .tw-word { position: relative; z-index: 1; padding-left: var(--space-4); font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); color: var(--color-text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tm-design .result-block .tw-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: var(--radius-xs); background: linear-gradient(90deg, rgba(245,245,247,0.16) 0%, rgba(245,245,247,0.06) 100%); transition: none; }
+/* `.tw-word` is a <span> inside `.tw-bar`, so the shipped landing rule
+   `.tm-design .tw-bar > span` (bright 0.85->0.45 gradient pill) would leak its
+   background / radius / height onto the word. Neutralize those explicitly so
+   the word sits flat on the `.tw-fill` exactly like the design. */
+.tm-design .result-block .tw-word { position: relative; z-index: 1; padding-left: var(--space-4); font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); color: var(--color-text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: none; border-radius: 0; height: auto; transition: none; }
 .tm-design .result-block .tw-count { font-family: var(--font-family-mono); font-size: var(--font-size-xs); color: var(--color-text-tertiary); text-align: right; font-variant-numeric: tabular-nums; min-width: 20px; padding-left: 2px; }
 
 /* Emoji widget */
