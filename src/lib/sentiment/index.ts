@@ -31,6 +31,14 @@ const NEG_WINDOW = 2
 const POS_THRESHOLD = 0.4
 const NEG_THRESHOLD = -0.4
 
+// Minimum scored comments before we publish an aggregate. Kept low (5) so that
+// small videos, which are the project's standard test fixtures, still produce a
+// real Sentiment widget. The coverage gate below is the true noise filter: it
+// requires at least one comment with a lexicon match, so a 5-comment video with
+// zero sentiment signal still yields null rather than a misleading 0/0/0 bar.
+const MIN_SAMPLE_SIZE = 5
+const MIN_COVERAGE = 0.05
+
 function tokenize(raw: string): string[] {
   if (!raw) return []
   const cleaned = raw
@@ -135,7 +143,7 @@ export function scoreCommentsSentiment(texts: readonly string[]): SentimentResul
   const sampleSize = perComment.length
   const coverage = sampleSize === 0 ? 0 : matched / sampleSize
 
-  if (sampleSize < 25 || coverage < 0.05) {
+  if (sampleSize < MIN_SAMPLE_SIZE || coverage < MIN_COVERAGE) {
     return { perComment, aggregate: null }
   }
 

@@ -8,6 +8,7 @@ import {
   useState,
   useTransition,
   type KeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
 } from "react"
 // useMemo retained for stable Intl formatters; do not remove.
 import { Link, useRouter } from "@/i18n/navigation"
@@ -329,6 +330,15 @@ export function HistoryClient({
     return `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`
   }
 
+  // Row-level click is a mouse convenience that opens the analysis detail page.
+  // Clicks that land on a real control (action buttons, the title link, the
+  // re-analyze link) are ignored so their own handlers run. Keyboard users
+  // navigate via the focusable title link, which points at the same detail URL.
+  function openDetailFromRow(e: ReactMouseEvent<HTMLElement>, id: string) {
+    if ((e.target as HTMLElement).closest("a, button")) return
+    router.push(`/history/${id}`)
+  }
+
   async function downloadFromCache(
     row: AnalysisRow,
     format: "csv" | "json" | "xlsx",
@@ -470,6 +480,8 @@ export function HistoryClient({
                     : "history-row"
                 }
                 data-id={row.id}
+                style={{ cursor: "pointer" }}
+                onClick={(e) => openDetailFromRow(e, row.id)}
               >
                 <div className="video-cell">
                   {row.thumbnail_url ? (
@@ -483,14 +495,12 @@ export function HistoryClient({
                     <span className="video-thumb" aria-hidden="true" />
                   )}
                   <div className="video-meta">
-                    <a
+                    <Link
                       className="video-title-link"
-                      href={watchUrl(row.video_id)}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      href={`/history/${row.id}`}
                     >
                       {row.video_title ?? row.video_id}
-                    </a>
+                    </Link>
                     <span className="video-channel">
                       {row.channel_name ?? ""}
                     </span>
@@ -529,13 +539,6 @@ export function HistoryClient({
                   )}
                 </div>
                 <div className="row-actions">
-                  <Link
-                    href={`/history/${row.id}`}
-                    className="icon-only"
-                    aria-label={t("action_view")}
-                  >
-                    <EyeIcon />
-                  </Link>
                   <button
                     type="button"
                     className="icon-only text-btn"
@@ -610,6 +613,8 @@ export function HistoryClient({
                   .filter(Boolean)
                   .join(" ")}
                 data-id={row.id}
+                style={{ cursor: "pointer" }}
+                onClick={(e) => openDetailFromRow(e, row.id)}
               >
                 <div className="hcr-head">
                   {row.thumbnail_url ? (
@@ -623,14 +628,9 @@ export function HistoryClient({
                     <span className="video-thumb" aria-hidden="true" />
                   )}
                   <div className="hcr-title-block">
-                    <a
-                      className="hcr-title"
-                      href={watchUrl(row.video_id)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
+                    <Link className="hcr-title" href={`/history/${row.id}`}>
                       {row.video_title ?? row.video_id}
-                    </a>
+                    </Link>
                     <span className="hcr-channel">
                       {row.channel_name ?? ""}
                     </span>
@@ -649,14 +649,9 @@ export function HistoryClient({
                     <DotsIcon />
                   </button>
                   <div className="overflow-menu" role="menu">
-                    <a
-                      href={watchUrl(row.video_id)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      role="menuitem"
-                    >
+                    <Link href={`/history/${row.id}`} role="menuitem">
                       <EyeIcon /> {t("action_view")}
-                    </a>
+                    </Link>
                     <a href={`/${locale}/dashboard`} role="menuitem">
                       <RefreshIcon /> {t("action_reanalyze")}
                     </a>
