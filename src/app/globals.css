@@ -11,25 +11,28 @@
 */
 :root,
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  color-scheme: dark;
+  /* shadcn compat tokens - remapped to v3 palette so shadcn primitives
+     (Card, Button, Dialog, Skeleton etc.) render on the correct dark surface */
+  --background: #000000;
+  --foreground: #f5f5f7;
+  --card: #0f0f11;
+  --card-foreground: #f5f5f7;
+  --popover: #0f0f11;
+  --popover-foreground: #f5f5f7;
+  --primary: #ffffff;
+  --primary-foreground: #0a0a0c;
+  --secondary: #0f0f11;
+  --secondary-foreground: #f5f5f7;
+  --muted: #0f0f11;
+  --muted-foreground: #b9b9c0;
+  --accent: #0f0f11;
+  --accent-foreground: #f5f5f7;
+  --destructive: rgba(251, 113, 133, 0.8);
+  --destructive-foreground: #f5f5f7;
+  --border: rgba(245, 245, 247, 0.08);
+  --input: rgba(245, 245, 247, 0.16);
+  --ring: rgba(245, 245, 247, 0.55);
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
@@ -40,14 +43,14 @@
   --radius-sm: calc(var(--radius) - 4px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar: #0f0f11;
+  --sidebar-foreground: #f5f5f7;
+  --sidebar-primary: #ffffff;
+  --sidebar-primary-foreground: #0a0a0c;
+  --sidebar-accent: #0f0f11;
+  --sidebar-accent-foreground: #b9b9c0;
+  --sidebar-border: rgba(245, 245, 247, 0.08);
+  --sidebar-ring: rgba(245, 245, 247, 0.55);
 }
 
 @theme inline {
@@ -116,6 +119,16 @@
   --font-family-primary: "SF Pro Display", -apple-system, system-ui, "Inter", "Segoe UI", sans-serif;
   --font-family-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
 
+  /* Type scale (safe namespace: --font-size-* not a Tailwind v4 built-in) */
+  --font-size-xs: 12px;
+  --font-size-sm: 13px;
+  --font-size-md: 14px;
+  --font-size-lg: 15px;
+  --font-size-xl: 16px;
+  --font-size-2xl: 17px;
+  --font-size-3xl: 18px;
+  --font-size-4xl: 21px;
+
   --font-weight-base: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
@@ -151,6 +164,14 @@
   --color-accent-negative: rgba(251, 113, 133, 0.8);
   --color-sentiment-neutral: var(--color-text-secondary);
 
+  /* Landing hero red accent variants (scoped to .tm-design; --color-accent itself
+     is kept OUT of this @theme block to avoid colliding with the shadcn
+     --color-accent: var(--accent) registration in @theme inline above) */
+  --color-accent-strong: #ff2d2d;
+  --color-accent-soft: rgba(255, 59, 59, 0.13);
+  --color-accent-line: rgba(255, 59, 59, 0.55);
+  --color-accent-glow: rgba(255, 59, 59, 0.35);
+
   /* Radius: add --radius-xs (6) + --radius-pill (9999) without touching sm/md/lg/xl */
   --radius-xs: 6px;
   --radius-pill: 9999px;
@@ -168,6 +189,42 @@
   /* Layout (app shell: header + sidebar) */
   --layout-sidebar-w: 240px;
   --layout-header-h: 60px;
+}
+
+/* ===== v3 canonical keyframes ========================================
+   Shared across .tm-design components. Declared globally so they are
+   reachable from any CSS scope without duplication.
+   =================================================================== */
+
+/* General-purpose rotation (spinner, loading states) */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Welcome pulse ring (used by WelcomePulse component) */
+@keyframes pulse-ring {
+  0%   { transform: scale(1);    opacity: 0.45; }
+  60%  {                         opacity: 0;    }
+  100% { transform: scale(1.45); opacity: 0;    }
+}
+
+/* Card shimmer (loading state for shimmer skeletons) */
+@keyframes shimmer {
+  to { background-position: -200% 0, 0 0; }
+}
+
+/* Indeterminate progress bar */
+@keyframes indeterminate {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(250%); }
+}
+
+/* ===== Global reduced-motion baseline ================================
+   Complements the .tm-design-scoped block below. Keeps non-tm-design
+   pages accessible when the user prefers reduced motion.
+   =================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
 }
 
 /*
@@ -229,6 +286,12 @@ html {
   --color-accent-positive: rgba(52, 211, 153, 0.8);
   --color-accent-negative: rgba(251, 113, 133, 0.8);
   --color-sentiment-neutral: var(--color-text-secondary);
+  /* Landing hero red accent */
+  --color-accent: #ff3b3b;
+  --color-accent-strong: #ff2d2d;
+  --color-accent-soft: rgba(255, 59, 59, 0.13);
+  --color-accent-line: rgba(255, 59, 59, 0.55);
+  --color-accent-glow: rgba(255, 59, 59, 0.35);
   /* Spacing */
   --space-1: 4px; --space-2: 6px; --space-3: 8px; --space-4: 10px;
   --space-5: 12px; --space-6: 16px; --space-7: 20px; --space-8: 24px;
