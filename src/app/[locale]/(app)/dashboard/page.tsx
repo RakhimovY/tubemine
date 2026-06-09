@@ -19,6 +19,7 @@ import {
 import { loadTrialState } from "@/components/trial-banner"
 import { TubeMine } from "@/components/tubemine"
 import { WelcomePulse } from "@/components/dashboard/welcome-pulse"
+import { RecentCsvBtn } from "@/components/dashboard/recent-csv-btn"
 
 export async function generateMetadata({
   params,
@@ -274,6 +275,12 @@ export default async function DashboardPage({
                           {sentLabel}
                         </span>
                       ) : null}
+                      <RecentCsvBtn
+                        analysisId={item.id}
+                        videoId={item.video_id}
+                        label={t("recent_save_csv")}
+                        ariaLabel={t("recent_save_csv")}
+                      />
                     </article>
                   </Link>
                 )

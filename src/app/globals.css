@@ -439,6 +439,7 @@ html {
 .tm-design .progress-head { display: flex; justify-content: space-between; align-items: baseline; font-size: var(--font-size-xs); color: var(--color-text-secondary); font-family: var(--font-family-mono); }
 .tm-design .progress-track { width: 100%; height: 6px; background: rgba(245,245,247,0.08); border-radius: var(--radius-lg); overflow: hidden; }
 .tm-design .progress-fill { height: 100%; border-radius: var(--radius-lg); background: var(--color-text-primary); transition: width var(--motion-duration-normal) var(--motion-ease); }
+.tm-design .progress--destructive .progress-fill { background: var(--color-feedback-danger); }
 
 /* ===== Sentiment widget ===== */
 .tm-design .sentiment-bar { display: flex; width: 100%; height: 14px; border-radius: var(--radius-lg); overflow: hidden; background: rgba(245,245,247,0.04); }
@@ -2079,7 +2080,7 @@ body.no-scroll { overflow: hidden; }
 }
 @media (min-width: 720px) {
   .tm-design .dashboard-page .recent-row {
-    grid-template-columns: 92px 1fr auto;
+    grid-template-columns: 92px 1fr auto auto;
     gap: var(--space-6);
   }
   .tm-design .dashboard-page .recent-body { grid-template-columns: 1fr; }
@@ -2125,6 +2126,16 @@ body.no-scroll { overflow: hidden; }
 }
 .tm-design .dashboard-page .recent-sent.neg .dot {
   background: var(--color-accent-negative);
+}
+.tm-design .dashboard-page .recent-row-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+.tm-design .dashboard-page .recent-action {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 
 /* Empty state */
