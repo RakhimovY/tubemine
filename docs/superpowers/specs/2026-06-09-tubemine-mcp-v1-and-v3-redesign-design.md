@@ -153,18 +153,24 @@ export async function extractCommentsForUser(opts: {
   `commentsDisabled` -> `CommentsDisabledError`, 404 -> `VideoNotFoundError`, otherwise
   (0 collected) -> `NoCommentsError`.
 - `extractCommentsForUser` calls `getUserQuota(userId)`; if `remaining<=0` throws
-  `QuotaExceededError(quota)`. `limit = Math.min(max ?? remaining, remaining)`;
-  `truncatedByQuota = (max ?? Infinity) > remaining` (the request was capped by the
-  user's remaining quota, not by video length). Calls `fetchCommentThread({ videoId,
+  `QuotaExceededError(quota)`. `effectiveMax = max ?? remaining`;
+  `limit = Math.min(effectiveMax, remaining)`. Calls `fetchCommentThread({ videoId,
   max: limit, order })`. On success calls `bumpUserUsage(userId, comments.length)` (the
-  ACTUAL returned count, partial-safe) and returns `{ comments, extracted:
-  comments.length, truncatedByQuota, quota }`.
-- The web route's signed-in branch is rewritten to: call `extractCommentsForUser`, then
-  run its existing post-processing (sentiment/top-words/emoji), its own best-effort
-  `videos.list` metadata fetch (unchanged, web-only), and persistence, mapping
-  `RawComment[]` -> `StoredComment[]` (`author` -> `authorName`, `replies` stays a
-  number) for `saveAnalysis` exactly as today, and mapping the thrown error classes to
-  the existing 402/503/400/404/500 responses. The anonymous (IP) branch is unchanged.
+  ACTUAL returned count, partial-safe). Compute the truncation flag AFTER the fetch from
+  what actually happened, NOT from request params:
+  `truncatedByQuota = comments.length >= limit && remaining < effectiveMax` (true only
+  when the result actually filled the quota-bound limit; a small video returning fewer
+  than `limit` comments yields false even if `remaining < effectiveMax`). Returns
+  `{ comments, extracted: comments.length, truncatedByQuota, quota }`.
+- The web route's signed-in branch is rewritten to call `extractCommentsForUser`, then
+  reproduce today's behavior on the returned `RawComment[]`: score sentiment + top-words
+  + emoji, do its own best-effort `videos.list` metadata fetch (web-only), and persist.
+  Because the shared core returns plain `RawComment[]` (no `sentiment` slot), the web
+  branch builds `StoredComment[]` by index (`author` -> `authorName`, `replies` stays a
+  number, `sentiment` = the per-index label from `scoreCommentsSentiment`) for
+  `saveAnalysis`, reproducing today's per-comment sentiment attachment. Thrown error
+  classes map to the existing 402/503/400/404/500 responses. The anonymous (IP) branch
+  is unchanged.
 - MCP and web thus share the same pagination + quota-accounting code path. They do NOT
   necessarily return the same comment SET, because the MCP default sort is `relevance`
   while the web path uses `time` (see 5.3).
@@ -205,10 +211,13 @@ export async function extractCommentsForUser(opts: {
   BEFORE the `next.config` rewrite, wraps next-intl with `localePrefix: "always"`, and
   decides skipping via an in-body `skipIntl` boolean (currently
   `pathname.startsWith("/api") || "/auth" || ...`) plus Supabase session refresh on the
-  broad `config.matcher`. Fix: add bare `/mcp` to the `skipIntl` condition so the proxy
-  does NOT 308-redirect `/mcp` -> `/en/mcp`, AND ensure the Supabase-refresh path is not
-  run for `/mcp` (return early for the transport, as `/api` already does). Match `/mcp`
-  as an EXACT segment so `/mcp-docs` and `/ai-access` stay localized. Verify on preview:
+  broad `config.matcher`. Fix: add bare `/mcp` (EXACT segment) to the `skipIntl`
+  condition so the proxy does NOT 308-redirect `/mcp` -> `/en/mcp`. (Note: in the current
+  proxy, `/api` paths only set `skipIntl`, they do NOT early-return before the Supabase
+  `getUser()` refresh; that refresh on a cookieless Bearer request is harmless, so the
+  `skipIntl` edit alone is sufficient. Optionally add an early `return NextResponse.next()`
+  for `/mcp` to skip the wasted refresh.) The EXACT-segment match keeps `/mcp-docs` and
+  `/ai-access` localized. Verify on preview:
   `curl https://<preview>/mcp` returns JSON-RPC (not an HTML 308); `/mcp-docs` and
   `/ai-access` still localize; a locale-prefixed `POST /en/mcp` is NOT treated as the
   transport (404/redirect cleanly).
@@ -238,7 +247,8 @@ export async function extractCommentsForUser(opts: {
   4. On `QuotaExceededError(err)`: return `isError` text using the exact template:
      "Monthly comment quota reached: used {used}/{cap} on the {tier} plan. Resets
      {resetAt}. Upgrade or wait for the reset." (fields from `err.quota`:
-     `used, cap, tier, resetAt`).
+     `used, cap, tier`; `resetAt` formatted as a human date `YYYY-MM-DD`, not the raw ISO
+     timestamp).
   5. On `YouTubeQuotaError`: return `isError` text "TubeMine has hit its YouTube API
      daily quota. Please try again tomorrow." (the global 503 condition, surfaced as a
      clean MCP error, never a crash).
@@ -309,6 +319,9 @@ export async function verifyTokenForMcp(req: Request, bearerToken?: string): Pro
 ```ts
 export function generateApiKey(): { raw: string; hash: string }
 // raw = "tm_sk_" + randomBytes(32).toString("base64url"); hash = sha256(raw) hex
+// randomBytes + sha256 from Node "node:crypto": randomBytes(32),
+// createHash("sha256").update(raw).digest("hex"). No external dep. The same
+// hashApiKey is used by ApiKeyProvider (5.4).
 export function hashApiKey(raw: string): string
 export function maskApiKey(): string            // display-only "tm_sk_" + bullets
 export type ApiKeyRow = { id: string; name: string | null; created_at: string; last_used_at: string | null; is_revoked: boolean }
@@ -358,9 +371,9 @@ create policy "user_api_keys_delete_own" on public.user_api_keys for delete usin
 ### 5.6 CORS (deferred to a verification gate)
 
 CORS is not built preemptively in v1 (primary clients are CLI/server-side and do not
-issue preflights, and there is no repo precedent). It is verification gate 9.5: if a
-browser-based connector (e.g. ChatGPT Dev Mode web) fails on the preview with a CORS
-error, add permissive CORS headers attached to BOTH success and error/401 responses
+issue preflights, and there is no repo precedent). It is verification gate 5 in section
+9: if a browser-based connector (e.g. ChatGPT Dev Mode web) fails on the preview with a
+CORS error, add permissive CORS headers attached to BOTH success and error/401 responses
 (`Access-Control-Allow-Origin: *`, `Allow-Methods: GET, POST, DELETE, OPTIONS`,
 `Allow-Headers: Authorization, Content-Type, Mcp-Session-Id, Mcp-Protocol-Version`,
 `Expose-Headers: Mcp-Session-Id`) plus an `OPTIONS` export at that point. Record the
@@ -395,7 +408,9 @@ Routes (collision-safe with the `/mcp` server endpoint):
 A `ClientLogo({ client })` mapping resolves each of the 8 clients to its mark
 (Claude Code + Claude Desktop -> Claude; ChatGPT + Codex -> OpenAI). Replace ALL colored
 `.logo-dot`/text placeholders (landing trust pill, connect chips, connected-clients
-table, docs section headers).
+table, docs section headers). For a mark without a readily available official SVG
+(notably `OpenClawLogo`, possibly `NousLogo`), use a clean monogram/initial mark in the
+same monochrome style as a fallback rather than blocking (build-time gate 8, section 9).
 
 ### 6.2 Client connection registry (single source for chips + docs)
 
@@ -497,10 +512,13 @@ Integrate `docs/design-v3/globals.css` into `src/app/globals.css`:
   `--radius-xs/sm/md/lg`. In Tailwind v4 `--spacing-6` IS `p-6`/`gap-6` and `--radius-lg`
   IS `rounded-lg`, so that would silently re-scale every numeric spacing utility and turn
   every stock `rounded-lg` primitive into a pill across already-shipped pages. The current
-  `globals.css` already skips these for that reason. Carry the design spacing/radius as
-  DISTINCT non-Tailwind vars (keep the refs' `--space-*` names, with v3 values, and
-  `--tm-radius-*`); the bespoke v3 page CSS references those, leaving Tailwind's
-  `--spacing-*`/`--radius-*` utility scale untouched.
+  `globals.css` already avoids this (it uses `.tm-design`-scoped `--space-*` for spacing
+  and only registers `--radius-xs`/`--radius-pill` globally, scoping radius overrides like
+  `--radius-lg: 9999px` under `.tm-design`). Follow that exact pattern: carry the design
+  SPACING as `--space-*` (the refs' names, v3 values); carry the design RADIUS as scoped
+  overrides under `.tm-design` (NOT in the global `@theme`), so Tailwind's global
+  `--spacing-*`/`--radius-*` utility scale stays intact. The bespoke v3 page CSS lives
+  inside the `.tm-design` scope and references the scoped vars.
 - Add the landing red-accent vars (`--color-accent` and soft/line/glow variants) used by
   the hero, since the official v3 `@theme` omits them but the landing ref relies on them.
 - Keep the shadcn compat tokens (`--background`, `--foreground`, `--card`, `--border`,
@@ -509,9 +527,9 @@ Integrate `docs/design-v3/globals.css` into `src/app/globals.css`:
   input, table, skeleton, badge, separator) render correctly on the v3 palette. Dark-only
   (`color-scheme: dark`); remove any light theme.
 - The remaining bespoke page CSS in `globals.css` is migrated page-by-page in 7.2 to the
-  v3 values (update `--space-*` values + colors to v3; KEEP the `--space-*`/`--tm-*`
-  names to avoid the Tailwind collision above). After the swap, no page may reference a
-  removed token.
+  v3 values (update `--space-*` values + colors to v3; keep radius overrides scoped under
+  `.tm-design`; do not introduce colliding global token names). After the swap, no page
+  may reference a removed token.
 
 ### 7.2 Per-page port (match `docs/design-v3/refs/*.html` + `screenshots/*`)
 
@@ -532,8 +550,9 @@ mobile screenshots. Mobile-first, dark-only, clean at 372px:
 
 Add the primitives the v3 components require that are not yet in `src/components/ui/`:
 `accordion` (Base UI, single-open, FAQ + docs), `progress` (usage meter, primary +
-destructive + indeterminate), `tabs` (if the connect UI uses tabs), plus a `codeblock`
-component (label + copy button + syntax token classes) for docs. Reuse existing
+destructive + indeterminate), plus a `codeblock` component (label + copy button + syntax
+token classes) for docs. (Do NOT add `tabs` preemptively; the v3 connect UI uses chips,
+not tabs. Add it later only if a ported ref actually requires it.) Reuse existing
 primitives where they fit; follow `components.json` (base-nova on `@base-ui/react`).
 
 ## 8. P4, cleanup + i18n + QA + ship
@@ -577,6 +596,8 @@ primitives where they fit; follow `components.json` (base-nova on `@base-ui/reac
 7. After the globals.css token integration, spot-check already-shipped pages for the
    Tailwind spacing/radius collision (section 7.1): stock `p-*`/`gap-*`/`rounded-lg`
    utilities unchanged.
+8. Brand-logo provenance (section 6.1): each of the 6 marks renders; for any client
+   without an official SVG (e.g. OpenClaw), a monogram fallback is used.
 
 ## 10. Pre-flight runbook checklist (apply during P1/P4)
 
