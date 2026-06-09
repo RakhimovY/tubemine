@@ -4319,3 +4319,107 @@ body.no-scroll { overflow: hidden; }
   .tm-design .result-block .sk-ctrow > .skel { flex: 0 0 auto; min-width: 48px; }
   .tm-design .result-block .sk-ctrow > .skel:nth-child(2) { flex: 1 1 100%; order: 6; }
 }
+
+/* =====================================================================
+   P2.2: /ai-access (AI Assistant access) page. Verbatim semantic port of
+   docs/design-v3/refs/TubeMine MCP.html, scoped under
+   `.tm-design .mcp-page`. The page wrapper carries BOTH `dashboard-page`
+   (so the shared shell CSS, .card / .btn / .badge / .empty-state apply)
+   and `mcp-page` (for the MCP-specific styles below). The prototype's
+   [data-mcp] state toggles are replaced by React conditional rendering,
+   so the status pill, table, and empty state are mounted directly rather
+   than shown/hidden via attribute selectors.
+   ===================================================================== */
+
+/* 1) Header row + status pill */
+.tm-design .mcp-page .mcp-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; margin-bottom: var(--space-6); }
+.tm-design .mcp-page .mcp-head h1 { margin: 0; font-size: clamp(24px, 4vw, 30px); font-weight: var(--font-weight-semibold); letter-spacing: -0.01em; }
+.tm-design .mcp-page .status-pill { display: inline-flex; align-items: center; gap: var(--space-3); height: 28px; padding: 0 var(--space-5); border-radius: var(--radius-lg); font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); white-space: nowrap; }
+.tm-design .mcp-page .status-pill .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.tm-design .mcp-page .status-pill.is-connected { color: var(--color-feedback-success); background: var(--color-feedback-success-soft); border: 1px solid rgba(52,211,153,0.3); }
+.tm-design .mcp-page .status-pill.is-connected .dot { background: var(--color-feedback-success); }
+.tm-design .mcp-page .status-pill.is-disconnected { color: var(--color-text-tertiary); background: rgba(245,245,247,0.04); border: 1px solid var(--color-border-strong); }
+.tm-design .mcp-page .status-pill.is-disconnected .dot { background: var(--color-text-tertiary); }
+
+.tm-design .mcp-page .card-sub { color: var(--color-text-secondary); font-size: var(--font-size-sm); line-height: 1.5; margin: calc(var(--space-2) * -1) 0 var(--space-5); }
+
+/* 2) Quick-connect */
+.tm-design .mcp-page .quick-groups { display: grid; gap: var(--space-6); margin-bottom: var(--space-6); }
+.tm-design .mcp-page .quick-group-label { display: flex; align-items: center; gap: var(--space-3); font-family: var(--font-family-mono); font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-text-tertiary); margin-bottom: var(--space-4); }
+.tm-design .mcp-page .quick-group-label::after { content: ""; flex: 1; height: 1px; background: var(--color-border-subtle); }
+.tm-design .mcp-page .quick-clients { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.tm-design .mcp-page .client-btn {
+  display: inline-flex; align-items: center; gap: var(--space-3); min-height: 40px;
+  padding: var(--space-3) var(--space-4); border-radius: var(--radius-sm);
+  background: rgba(245,245,247,0.03); border: 1px solid var(--color-border-subtle);
+  color: var(--color-text-secondary); font-size: var(--font-size-sm); font-weight: var(--font-weight-medium);
+  transition: background-color var(--motion-duration-fast) var(--motion-ease), color var(--motion-duration-fast) var(--motion-ease), border-color var(--motion-duration-fast) var(--motion-ease);
+}
+.tm-design .mcp-page .client-btn:hover { background: rgba(245,245,247,0.07); color: var(--color-text-primary); border-color: var(--color-border-strong); }
+.tm-design .mcp-page .client-btn .client-logo { width: 17px; height: 17px; flex-shrink: 0; }
+.tm-design .mcp-page .client-btn .cb-badge { margin-left: var(--space-2); font-family: var(--font-family-mono); font-size: 9px; letter-spacing: 0.05em; text-transform: uppercase; line-height: 1; padding: 3px 6px; border-radius: var(--radius-lg); white-space: nowrap; }
+.tm-design .mcp-page .client-btn .cb-badge.oauth { color: var(--color-feedback-success); border: 1px solid rgba(52,211,153,0.35); background: var(--color-feedback-success-soft); }
+.tm-design .mcp-page .client-btn .cb-badge.key { color: var(--color-text-tertiary); border: 1px solid var(--color-border-strong); background: rgba(245,245,247,0.03); }
+.tm-design .mcp-page .quick-foot { display: flex; align-items: center; justify-content: flex-start; gap: var(--space-4); flex-wrap: wrap; padding-top: var(--space-5); border-top: 1px solid var(--color-border-subtle); }
+.tm-design .mcp-page .quick-foot .hint { color: var(--color-text-tertiary); font-size: var(--font-size-sm); }
+
+/* 3) API keys card */
+.tm-design .mcp-page .keys-empty { color: var(--color-text-tertiary); font-size: var(--font-size-sm); margin: 0 0 var(--space-5); }
+.tm-design .mcp-page .keys-list { display: grid; gap: var(--space-4); margin-bottom: var(--space-5); }
+.tm-design .mcp-page .key-row { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; }
+.tm-design .mcp-page .key-field { flex: 1 1 280px; min-width: 0; display: flex; align-items: center; gap: var(--space-3); min-height: 42px; padding: var(--space-2) var(--space-3) var(--space-2) var(--space-5); background: var(--color-surface-sunken); border: 1px solid var(--color-border-strong); border-radius: var(--radius-sm); }
+.tm-design .mcp-page .key-field code { flex: 1; min-width: 0; font-family: var(--font-family-mono); font-size: var(--font-size-md); color: var(--color-text-primary); letter-spacing: 0.02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tm-design .mcp-page .key-field .key-name { font-size: var(--font-size-xs); color: var(--color-text-tertiary); margin-right: var(--space-2); flex-shrink: 0; }
+.tm-design .mcp-page .icon-btn { width: 30px; height: 30px; flex-shrink: 0; border-radius: var(--radius-xs); display: inline-flex; align-items: center; justify-content: center; background: transparent; border: 1px solid transparent; color: var(--color-text-tertiary); cursor: pointer; transition: color var(--motion-duration-fast) var(--motion-ease), background-color var(--motion-duration-fast) var(--motion-ease); }
+.tm-design .mcp-page .icon-btn:hover { color: var(--color-text-primary); background: rgba(245,245,247,0.06); }
+.tm-design .mcp-page .icon-btn.is-copied { color: var(--color-feedback-success); }
+.tm-design .mcp-page .icon-btn svg { width: 15px; height: 15px; }
+.tm-design .mcp-page .key-meta { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-6); }
+.tm-design .mcp-page .key-meta span { font-family: var(--font-family-mono); font-size: var(--font-size-xs); color: var(--color-text-tertiary); }
+.tm-design .mcp-page .key-meta b { color: var(--color-text-secondary); font-weight: var(--font-weight-medium); }
+.tm-design .mcp-page .keys-create-row { display: flex; justify-content: flex-start; padding-top: var(--space-5); border-top: 1px solid var(--color-border-subtle); }
+
+/* New-key reveal (shown once) */
+.tm-design .mcp-page .new-key { display: flex; flex-direction: column; gap: var(--space-3); margin-bottom: var(--space-5); padding: var(--space-5); border-radius: var(--radius-sm); background: var(--color-feedback-success-soft); border: 1px solid rgba(52,211,153,0.3); }
+.tm-design .mcp-page .new-key-title { font-size: var(--font-size-md); font-weight: var(--font-weight-semibold); color: var(--color-text-primary); }
+.tm-design .mcp-page .new-key-warning { margin: 0; font-size: var(--font-size-sm); color: var(--color-text-secondary); line-height: 1.5; }
+.tm-design .mcp-page .new-key .key-field { background: var(--color-surface-base); }
+.tm-design .mcp-page .new-key-actions { display: flex; gap: var(--space-3); flex-wrap: wrap; }
+
+/* 4) Connected clients table */
+.tm-design .mcp-page .mcp-table-wrap { overflow-x: auto; margin: 0 calc(var(--space-7) * -1) calc(var(--space-7) * -1); }
+.tm-design .mcp-page .mcp-table { width: 100%; border-collapse: collapse; min-width: 560px; }
+.tm-design .mcp-page .mcp-table thead th { text-align: left; font-family: var(--font-family-mono); font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-text-tertiary); padding: var(--space-3) var(--space-6); border-top: 1px solid var(--color-border-subtle); border-bottom: 1px solid var(--color-border-subtle); white-space: nowrap; }
+.tm-design .mcp-page .mcp-table thead th.right { text-align: right; }
+.tm-design .mcp-page .mcp-table tbody td { padding: var(--space-5) var(--space-6); border-bottom: 1px solid var(--color-border-subtle); vertical-align: middle; }
+.tm-design .mcp-page .mcp-table tbody tr:last-child td { border-bottom: 0; }
+.tm-design .mcp-page .mcp-table tbody tr:hover td { background: rgba(245,245,247,0.018); }
+.tm-design .mcp-page .mcp-client { display: inline-flex; align-items: center; gap: var(--space-4); font-weight: var(--font-weight-medium); color: var(--color-text-primary); font-size: var(--font-size-md); }
+.tm-design .mcp-page .mcp-client .mark { width: 24px; height: 24px; border-radius: var(--radius-xs); background: rgba(245,245,247,0.05); border: 1px solid var(--color-border-subtle); display: inline-flex; align-items: center; justify-content: center; color: var(--color-text-secondary); flex-shrink: 0; }
+.tm-design .mcp-page .mcp-client .mark svg { width: 14px; height: 14px; }
+.tm-design .mcp-page .method-tag { display: inline-flex; align-items: center; gap: var(--space-2); height: 20px; padding: 0 var(--space-3); border-radius: var(--radius-lg); font-family: var(--font-family-mono); font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase; white-space: nowrap; }
+.tm-design .mcp-page .method-tag.oauth { color: var(--color-feedback-success); border: 1px solid rgba(52,211,153,0.35); background: var(--color-feedback-success-soft); }
+.tm-design .mcp-page .method-tag.key { color: var(--color-text-tertiary); border: 1px solid var(--color-border-strong); background: rgba(245,245,247,0.03); }
+.tm-design .mcp-page .mcp-when { font-family: var(--font-family-mono); font-size: var(--font-size-xs); color: var(--color-text-secondary); white-space: nowrap; }
+.tm-design .mcp-page .mcp-table td.right { text-align: right; }
+.tm-design .mcp-page .revoke-btn { color: var(--color-text-secondary); }
+.tm-design .mcp-page .revoke-btn:hover { color: var(--color-feedback-danger); }
+.tm-design .mcp-page .mcp-empty { display: flex; flex-direction: column; align-items: center; gap: var(--space-4); padding: clamp(32px, 6vw, 52px); text-align: center; }
+.tm-design .mcp-page .mcp-empty .badge-circle { width: 40px; height: 40px; border-radius: 50%; background: rgba(245,245,247,0.04); border: 1px solid var(--color-border-subtle); display: inline-flex; align-items: center; justify-content: center; color: var(--color-text-tertiary); }
+.tm-design .mcp-page .mcp-empty .badge-circle svg { width: 19px; height: 19px; }
+.tm-design .mcp-page .mcp-empty .title { font-size: var(--font-size-lg); font-weight: var(--font-weight-medium); color: var(--color-text-primary); }
+.tm-design .mcp-page .mcp-empty .sub { font-size: var(--font-size-sm); color: var(--color-text-tertiary); max-width: 34ch; }
+
+/* Mobile: stack table rows into labelled blocks */
+@media (max-width: 559px) {
+  .tm-design .mcp-page .mcp-table-wrap { overflow-x: visible; }
+  .tm-design .mcp-page .mcp-table { min-width: 0; }
+  .tm-design .mcp-page .mcp-table thead { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  .tm-design .mcp-page .mcp-table tbody tr { display: block; padding: var(--space-5) var(--space-6); border-bottom: 1px solid var(--color-border-subtle); }
+  .tm-design .mcp-page .mcp-table tbody tr:last-child { border-bottom: 0; }
+  .tm-design .mcp-page .mcp-table tbody td { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); padding: var(--space-3) 0; border-bottom: 0; }
+  .tm-design .mcp-page .mcp-table tbody td::before { content: attr(data-label); font-family: var(--font-family-mono); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-text-tertiary); }
+  .tm-design .mcp-page .mcp-table tbody td:first-child { padding-top: 0; }
+  .tm-design .mcp-page .mcp-table tbody td:first-child::before { display: none; }
+  .tm-design .mcp-page .mcp-table tbody td.right { justify-content: flex-end; padding-bottom: 0; }
+}

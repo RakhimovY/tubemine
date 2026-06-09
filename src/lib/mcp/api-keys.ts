@@ -1,21 +1,21 @@
 import "server-only"
 import { randomBytes, createHash } from "node:crypto"
 import { createServiceClient } from "@/lib/supabase/server"
+import { API_KEY_PREFIX, maskApiKey, type ApiKeyRow } from "./mask"
 
-const PREFIX = "tm_sk_"
+// Re-export the pure, client-safe display helpers from ./mask so existing
+// server-side import sites keep working unchanged. Client components must
+// import these from "@/lib/mcp/mask" directly to avoid pulling this
+// server-only module into the browser bundle.
+export { maskApiKey, type ApiKeyRow }
+
+const PREFIX = API_KEY_PREFIX
 export function generateApiKey(): { raw: string; hash: string } {
   const raw = PREFIX + randomBytes(32).toString("base64url")
   return { raw, hash: hashApiKey(raw) }
 }
 export function hashApiKey(raw: string): string {
   return createHash("sha256").update(raw).digest("hex")
-}
-export function maskApiKey(): string {
-  return PREFIX + "•".repeat(20)
-}
-
-export type ApiKeyRow = {
-  id: string; name: string | null; created_at: string; last_used_at: string | null; is_revoked: boolean
 }
 
 export async function listApiKeys(userId: string): Promise<ApiKeyRow[]> {
