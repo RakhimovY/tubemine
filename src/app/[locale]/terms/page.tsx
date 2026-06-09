@@ -1,5 +1,4 @@
 import { getTranslations, setRequestLocale } from "next-intl/server"
-import { Link as IntlLink } from "@/i18n/navigation"
 import { LegalToc } from "@/components/legal-toc"
 import { SiteFooter } from "@/components/site-footer"
 import { breadcrumbSchema, seoAlternates } from "@/lib/seo-alternates"
