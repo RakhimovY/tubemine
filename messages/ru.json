@@ -282,6 +282,7 @@
       "nav_github": "GitHub",
       "nav_docs": "Документация",
       "nav_sign_out": "Выйти",
+      "nav_ai_access": "MCP / AI-доступ",
       "tier_badge_free": "Free",
       "tier_badge_pro": "Pro",
       "language_label": "Язык"
@@ -316,7 +317,12 @@
     "tier_manage_title": "Вы на тарифе Pro.",
     "tier_manage_sub": "100 000 комментариев в месяц, оплата через Polar. Отменить или обновить способ оплаты можно в любой момент.",
     "tier_manage_secondary_cta": "Сравнить планы",
-    "tier_manage_primary_cta": "Управлять подпиской"
+    "tier_manage_primary_cta": "Управлять подпиской",
+    "mcp_banner_heading": "Анализируйте из вашего AI-ассистента",
+    "mcp_banner_new_pill": "Новое",
+    "mcp_banner_sub": "Подключите TubeMine к Claude, ChatGPT или Gemini и получайте комментарии прямо из чата.",
+    "mcp_banner_manage": "Управление доступом",
+    "mcp_banner_connect": "Подключить AI"
   },
   "history": {
     "title": "История",

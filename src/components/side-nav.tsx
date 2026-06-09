@@ -16,6 +16,7 @@ export type SideNavLabels = {
   navHome: string
   navHistory: string
   navProfile: string
+  navAiAccess: string
   navGithub: string
   navDocs: string
   navSignOut: string
@@ -77,6 +78,15 @@ export function SideNav({
         >
           <UserIcon />
           {labels.navProfile}
+        </Link>
+        <Link
+          href="/ai-access"
+          className={isActive("/ai-access") ? "nav-item is-active" : "nav-item"}
+          aria-current={isActive("/ai-access") ? "page" : undefined}
+          onClick={onNavigate}
+        >
+          <PlugIcon />
+          {labels.navAiAccess}
         </Link>
       </nav>
 
@@ -165,6 +175,25 @@ function UserIcon() {
     >
       <circle cx={12} cy={8} r={4} />
       <path d="M4 21a8 8 0 0 1 16 0" />
+    </svg>
+  )
+}
+function PlugIcon() {
+  return (
+    <svg
+      className="icon"
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.75}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M9 2v6" />
+      <path d="M15 2v6" />
+      <path d="M7 8h10v3a5 5 0 0 1-10 0z" />
+      <path d="M12 16v6" />
     </svg>
   )
 }

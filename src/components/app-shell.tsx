@@ -152,6 +152,7 @@ export function AppShell({
           navHome: labels.navHome,
           navHistory: labels.navHistory,
           navProfile: labels.navProfile,
+          navAiAccess: labels.navAiAccess,
           navGithub: labels.navGithub,
           navDocs: labels.navDocs,
           navSignOut: labels.navSignOut,

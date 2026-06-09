@@ -2114,6 +2114,95 @@ body.no-scroll { overflow: hidden; }
   }
 }
 
+/* ===== MCP access banner ===== */
+.tm-design .dashboard-page .mcp-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-5);
+  padding: var(--space-6) var(--space-7);
+  background: linear-gradient(180deg, #18181b 0%, var(--color-surface-raised) 100%);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  position: relative;
+}
+.tm-design .dashboard-page .mcp-banner .mcp-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-5);
+  min-width: 0;
+}
+.tm-design .dashboard-page .mcp-banner .mcp-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+  background: rgba(245,245,247,0.06);
+  border: 1px solid var(--color-border-subtle);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-primary);
+}
+.tm-design .dashboard-page .mcp-banner .mcp-icon svg {
+  width: 21px;
+  height: 21px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.tm-design .dashboard-page .mcp-banner .mcp-text {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.tm-design .dashboard-page .mcp-banner .mcp-text strong {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.005em;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.tm-design .dashboard-page .mcp-banner .mcp-text span {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.45;
+}
+.tm-design .dashboard-page .mcp-banner .mcp-new {
+  font-family: var(--font-family-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-feedback-success);
+  border: 1px solid rgba(52,211,153,0.35);
+  background: var(--color-feedback-success-soft);
+  border-radius: var(--radius-lg);
+  padding: 1px 7px;
+}
+.tm-design .dashboard-page .mcp-banner .mcp-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-shrink: 0;
+}
+@media (max-width: 640px) {
+  .tm-design .dashboard-page .mcp-banner {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .tm-design .dashboard-page .mcp-banner .mcp-actions {
+    width: 100%;
+  }
+  .tm-design .dashboard-page .mcp-banner .mcp-actions .btn {
+    flex: 1 1 0;
+    min-height: 44px;
+  }
+}
+
 /* Destructive button variant used by cap-hit upgrade CTAs */
 .tm-design .dashboard-page .btn--destructive {
   --btn-bg: var(--color-feedback-danger);

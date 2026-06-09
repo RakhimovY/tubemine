@@ -282,6 +282,7 @@
       "nav_github": "GitHub",
       "nav_docs": "Docs",
       "nav_sign_out": "Sign out",
+      "nav_ai_access": "MCP / AI Access",
       "tier_badge_free": "Free",
       "tier_badge_pro": "Pro",
       "language_label": "Language"
@@ -316,7 +317,12 @@
     "tier_manage_title": "You are on Pro.",
     "tier_manage_sub": "100,000 comments per month, billed monthly via Polar. Cancel or update payment any time.",
     "tier_manage_secondary_cta": "Compare plans",
-    "tier_manage_primary_cta": "Manage subscription"
+    "tier_manage_primary_cta": "Manage subscription",
+    "mcp_banner_heading": "Analyze from your AI assistant",
+    "mcp_banner_new_pill": "New",
+    "mcp_banner_sub": "Connect TubeMine to Claude, ChatGPT, or Gemini and pull comments straight from your chat.",
+    "mcp_banner_manage": "Manage access",
+    "mcp_banner_connect": "Connect your AI"
   },
   "history": {
     "title": "History",

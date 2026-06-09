@@ -119,6 +119,15 @@ export default async function DashboardPage({
           <span className="welcome-meta">{welcomeMeta}</span>
         </header>
 
+        {/* ===== MCP access banner ===== */}
+        <McpBanner
+          heading={t("mcp_banner_heading")}
+          newPill={t("mcp_banner_new_pill")}
+          sub={t("mcp_banner_sub")}
+          manageCta={t("mcp_banner_manage")}
+          connectCta={t("mcp_banner_connect")}
+        />
+
         {/* ===== Trial countdown banner ===== */}
         {trial ? (
           <TrialBanner
@@ -592,6 +601,63 @@ function UsageCardCapped({
         </form>
       </div>
     </section>
+  )
+}
+
+function McpBanner({
+  heading,
+  newPill,
+  sub,
+  manageCta,
+  connectCta,
+}: {
+  heading: string
+  newPill: string
+  sub: string
+  manageCta: string
+  connectCta: string
+}) {
+  return (
+    <div className="mcp-banner" role="note">
+      <div className="mcp-copy">
+        <span className="mcp-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M9 2v6" />
+            <path d="M15 2v6" />
+            <path d="M7 8h10v3a5 5 0 0 1-10 0z" />
+            <path d="M12 16v6" />
+          </svg>
+        </span>
+        <div className="mcp-text">
+          <strong>
+            {heading}{" "}
+            <span className="mcp-new">{newPill}</span>
+          </strong>
+          <span>{sub}</span>
+        </div>
+      </div>
+      <div className="mcp-actions">
+        <Link href="/ai-access" className="btn btn--secondary btn-sm">
+          {manageCta}
+        </Link>
+        <Link href="/ai-access" className="btn btn--primary btn-sm">
+          {connectCta}
+          <svg
+            className="icon icon-sm"
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.75}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M5 12h14" />
+            <path d="m13 6 6 6-6 6" />
+          </svg>
+        </Link>
+      </div>
+    </div>
   )
 }
 
