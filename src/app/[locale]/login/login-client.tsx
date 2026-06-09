@@ -112,6 +112,11 @@ export function LoginClient({ labels }: { labels: LoginLabels }) {
 
       <main className="stage">
         <div className="login-wrap">
+          <div className="login-brand" aria-hidden="true">
+            <span className="mark" />
+            <span className="word">TubeMine</span>
+          </div>
+
           <section className="login-card" aria-labelledby="login-title">
             <h1 className="login-card-title" id="login-title">
               {labels.title}
