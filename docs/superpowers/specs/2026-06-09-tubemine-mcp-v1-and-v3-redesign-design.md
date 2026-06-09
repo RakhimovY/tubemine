@@ -431,7 +431,7 @@ constant `https://tubemine.tech/mcp`. Canonical ids / display names / group / lo
 v1: ALL clients connect via API-key Bearer (`Authorization: Bearer tm_sk_...`); the 3
 `oauth`-group members additionally show an "OAuth one-click coming soon" note but their
 working v1 setup is Bearer. Snippets for `cursor`, `codex`, `hermes`, `openclaw` are
-pattern stubs to verify against official docs at build time (section 9.4).
+pattern stubs to verify against official docs at build time (gate 4, section 9).
 
 ### 6.3 `/ai-access` (signed-in MCP dashboard)
 
@@ -509,7 +509,9 @@ Integrate `docs/design-v3/globals.css` into `src/app/globals.css`:
   `prefers-reduced-motion`.
 - Tailwind v4 namespace collision (CRITICAL): do NOT register the design's spacing/radius
   scale into the global `@theme` under the names `--spacing-1..8` or
-  `--radius-xs/sm/md/lg`. In Tailwind v4 `--spacing-6` IS `p-6`/`gap-6` and `--radius-lg`
+  `--radius-sm/md/lg` (the existing file's global `--radius-xs`/`--radius-pill` are fine
+  to keep; the harmful ones are the utility-backing `--radius-sm/md/lg` and the spacing
+  scale). In Tailwind v4 `--spacing-6` IS `p-6`/`gap-6` and `--radius-lg`
   IS `rounded-lg`, so that would silently re-scale every numeric spacing utility and turn
   every stock `rounded-lg` primitive into a pill across already-shipped pages. The current
   `globals.css` already avoids this (it uses `.tm-design`-scoped `--space-*` for spacing
@@ -568,7 +570,8 @@ primitives where they fit; follow `components.json` (base-nova on `@base-ui/reac
   or the Monaco-MCP fallback if CLI/password are blocked), after showing the exact SQL
   and getting user confirmation. Verify with a `select` that the table + RLS exist.
 - Branch `feat/mcp-v1`; push; obtain the Vercel preview URL. Verify on preview:
-  `curl https://<preview>/mcp` returns JSON-RPC (rewrite + middleware exclusion work);
+  `curl https://<preview>/mcp` returns JSON-RPC (rewrite + `proxy.ts` `skipIntl`
+  exclusion work);
   `tools/list` shows `get_youtube_comments`; an end-to-end `tools/call` with a real
   `tm_sk_...` key (created in `/ai-access`) on a SMALL-comment video returns raw comments
   and bumps the user's usage. Do NOT merge to `main` / deploy to prod without the user.
