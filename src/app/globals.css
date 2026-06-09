@@ -1598,6 +1598,11 @@ body.no-scroll { overflow: hidden; }
   letter-spacing: -0.01em;
   color: var(--color-text-primary);
 }
+/* App-shell topbar brand-mark: 22px per dashboard design reference */
+.tm-design .dashboard-page .topbar-brand .brand-mark {
+  width: 22px;
+  height: 22px;
+}
 .tm-design .dashboard-page .topbar-brand .crumb {
   color: var(--color-text-tertiary);
   font-weight: var(--font-weight-base);
@@ -1658,6 +1663,10 @@ body.no-scroll { overflow: hidden; }
 .tm-design .dashboard-page .menu-btn:hover {
   color: var(--color-text-primary);
   background: rgba(245, 245, 247, 0.06);
+}
+.tm-design .dashboard-page .menu-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-border-focus);
 }
 @media (min-width: 1024px) {
   .tm-design .dashboard-page .menu-btn { display: none; }

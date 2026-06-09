@@ -20,6 +20,7 @@ const APP_SHELL_ROUTES = [
   "/dashboard",
   "/profile",
   "/history",
+  "/ai-access",
   "/login",
   "/oauth-intro",
 ] as const
