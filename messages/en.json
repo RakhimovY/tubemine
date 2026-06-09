@@ -385,6 +385,7 @@
       "b3": "Top 15 words + top 15 emoji",
       "b4": "CSV export",
       "b5": "Last 10 analyses saved",
+      "b6": "AI assistant access via MCP",
       "cta_anon": "Sign in with Google",
       "cta_free": "Open dashboard",
       "cta_pro": "Open dashboard",
@@ -402,6 +403,7 @@
       "b3": "All words and emoji ranked + heatmap",
       "b4": "CSV, JSON, Excel export (API coming soon)",
       "b5": "Last 100 analyses saved",
+      "b6": "AI assistant access via MCP",
       "cta_anon": "Sign in to upgrade",
       "cta_free": "Upgrade to Pro",
       "cta_pro": "Manage subscription",
@@ -446,7 +448,12 @@
       "row_saved": "Saved analyses history",
       "row_saved_anon": "Single session",
       "row_saved_free": "Last 10",
-      "row_saved_pro": "Last 100"
+      "row_saved_pro": "Last 100",
+      "row_mcp": "AI assistant access (MCP)",
+      "row_mcp_anon": "No",
+      "row_mcp_free": "Yes",
+      "row_mcp_pro": "Yes",
+      "mcp_quota_note": "MCP usage counts against the same monthly comment quota - not a separate or doubled quota."
     },
     "trust": {
       "customers": "Trusted by 1 paying customer",

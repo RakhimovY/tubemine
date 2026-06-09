@@ -1291,6 +1291,12 @@ body.no-scroll { overflow: hidden; }
 }
 .tm-design .pricing-page .compare-val.is-pos .dotmark { background: var(--color-feedback-success); }
 .tm-design .pricing-page .compare-val.is-neg .dotmark { background: var(--color-border-strong); }
+.tm-design .pricing-page .compare-footnote {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+  font-family: var(--font-family-mono);
+  margin: var(--space-3) 0 0;
+}
 
 .tm-design .pricing-page .compare-cards { display: none; }
 @media (max-width: 767px) {
