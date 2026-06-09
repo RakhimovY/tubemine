@@ -1172,6 +1172,7 @@
     "undo": "Undo",
     "undo_too_late": "Undo unavailable - delete already submitted",
     "export_failed_legacy": "Comments not stored for this analysis",
-    "export_failed_transient": "Couldn't load cached comments - try again"
+    "export_failed_transient": "Couldn't load cached comments - try again",
+    "saved_analysis": "Saved analysis"
   }
 }
