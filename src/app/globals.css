@@ -4349,7 +4349,12 @@ body.no-scroll { overflow: hidden; }
 }
 .tm-design .legal-page .legal-badge::before {
   content: ""; width: 5px; height: 5px; border-radius: 50%;
-  background: var(--color-text-tertiary);
+  background: var(--color-feedback-success, rgba(52,211,153,0.8));
+  animation: legal-badge-pulse 2s ease-in-out infinite;
+}
+@keyframes legal-badge-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
 }
 .tm-design .legal-page .legal-title {
   font-size: clamp(36px, 6vw, 56px);
@@ -4516,6 +4521,25 @@ body.no-scroll { overflow: hidden; }
 }
 .tm-design .legal-page .legal-article .callout p { font-size: var(--font-size-md); }
 .tm-design .legal-page .legal-article .callout p:last-child { margin-bottom: 0; }
+
+/* ===========================================================
+   Changelog page (/changelog). Reuses .legal-page above; these are
+   changelog-only additions: h3 sub-section headings (Added / Changed /
+   Fixed / Security) scoped under .changelog-page so they never leak
+   into /privacy, /terms, or /docs.
+   =========================================================== */
+.tm-design .changelog-page .legal-article h3 {
+  font-size: var(--font-size-sm);
+  font-family: var(--font-family-mono);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-tertiary);
+  margin: var(--space-7) 0 var(--space-4);
+}
+.tm-design .changelog-page .legal-article section > h3:first-of-type {
+  margin-top: 0;
+}
 
 /* ===========================================================
    MCP setup docs (/mcp-docs). Reuses .legal-page above; these are

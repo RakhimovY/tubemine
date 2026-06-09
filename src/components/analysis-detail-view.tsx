@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { track } from "@vercel/analytics"
 import { useTranslations } from "next-intl"
 import { toast } from "sonner"
-import { useRouter } from "@/i18n/navigation"
+import { useRouter, Link } from "@/i18n/navigation"
 import { ResultBlock } from "@/components/result-block"
 import type { SentimentAggregateProp } from "@/components/sentiment"
 import type { AnalysisDetailRow } from "@/lib/analyses"
@@ -119,12 +119,12 @@ export function AnalysisDetailView({ tier, row }: AnalysisDetailViewProps) {
   return (
     <div className="dashboard-page history-page">
       <div className="rb-detail-head">
-        <a href="/history" className="rb-detail-back" onClick={(e) => { e.preventDefault(); router.push("/history") }}>
+        <Link href="/history" className="rb-detail-back">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="m15 18-6-6 6-6" />
           </svg>
           {t("back_to_history")}
-        </a>
+        </Link>
         <div className="rb-detail-headmeta">
           <div className="rb-detail-eyebrow">{t("saved_analysis")}</div>
           <div className="rb-detail-title">
