@@ -113,106 +113,155 @@ ends in a buildable, lint-clean, test-passing state.
 
 ### 5.0 Shared extract refactor (prevents route/MCP drift)
 
-Create `src/lib/extract-core.ts` with two levels, and refactor the existing
-`src/app/api/extract/route.ts` POST signed-in branch to call them (web behavior must
-remain byte-identical; preserve `order:"time"` for the web path):
+Create `src/lib/extract-core.ts` and refactor the existing
+`src/app/api/extract/route.ts` POST signed-in branch to call it. The web response must
+remain behaviorally identical (same comments, same quota accounting); the shared core
+captures the fetch+paginate+quota code path, not a new return type for the web.
 
 ```ts
 // src/lib/extract-core.ts
 import "server-only"
-export type RawComment = {
-  author: string
-  text: string
-  likes: number
-  replies: number
-  publishedAt: string
+export type RawComment = {           // all fields non-null; coerced from the YT API
+  author: string                     // authorDisplayName ?? "(anonymous)"
+  text: string                       // textDisplay ?? ""
+  likes: number                      // Number(likeCount ?? 0)
+  replies: number                    // Number(totalReplyCount ?? 0)
+  publishedAt: string                // publishedAt ?? ""
 }
 export type FetchOptions = { videoId: string; max: number; order: "time" | "relevance" }
 export class CommentsDisabledError extends Error {}
 export class VideoNotFoundError extends Error {}
-export class YouTubeQuotaError extends Error {}      // maps to the global 503 / quotaExceeded
+export class YouTubeQuotaError extends Error {}      // global 503 / google quotaExceeded
 export class NoCommentsError extends Error {}
-
-// Pure YouTube fetch + paginate + error mapping. No quota, no persistence.
-export async function fetchCommentThread(opts: FetchOptions): Promise<{ comments: RawComment[]; videoMeta?: { title?: string; channelTitle?: string } }>
-
-// Signed-in core: quota check -> fetch -> bumpUserUsage. Returns raw comments + quota.
 export class QuotaExceededError extends Error { constructor(public quota: UserQuota) { super("quota_exceeded") } }
+
+// Pure YouTube fetch + paginate + error map. No quota, no persistence, no metadata.
+export async function fetchCommentThread(opts: FetchOptions): Promise<RawComment[]>
+
+// Signed-in core: quota check -> fetch -> bumpUserUsage(by actual count). Raw + quota.
 export async function extractCommentsForUser(opts: {
   userId: string; videoId: string; max?: number; order?: "time" | "relevance"
-}): Promise<{ comments: RawComment[]; extracted: number; quota: UserQuota }>
+}): Promise<{ comments: RawComment[]; extracted: number; truncatedByQuota: boolean; quota: UserQuota }>
 ```
 
+- `fetchCommentThread` ports the route's exact loop (PAGE_SIZE 100,
+  `textFormat:"plainText"`, cap to `max`) and coercions (the RawComment defaults above,
+  so it never emits null). Error contract (preserves current route behavior): if
+  `commentThreads.list` throws AFTER >=1 comment was already collected, swallow and
+  return the partial set; only throw a typed error when ZERO comments were collected.
+  The typed throws map the google reasons: `quotaExceeded` -> `YouTubeQuotaError`,
+  `commentsDisabled` -> `CommentsDisabledError`, 404 -> `VideoNotFoundError`, otherwise
+  (0 collected) -> `NoCommentsError`.
 - `extractCommentsForUser` calls `getUserQuota(userId)`; if `remaining<=0` throws
-  `QuotaExceededError(quota)`. `limit = Math.min(max ?? remaining, remaining)`. Calls
-  `fetchCommentThread`. On success calls `bumpUserUsage(userId, comments.length)` and
-  returns `{ comments, extracted: comments.length, quota }`.
-- The web route's signed-in branch is rewritten to: call `extractCommentsForUser`,
-  then run its existing post-processing (sentiment/top-words/emoji) and persistence on
-  the returned comments, mapping the 402/503/400/404/500 responses from the thrown
-  error classes. The anonymous (IP) branch is unchanged.
-- This guarantees MCP and web share identical pagination + quota accounting.
+  `QuotaExceededError(quota)`. `limit = Math.min(max ?? remaining, remaining)`;
+  `truncatedByQuota = (max ?? Infinity) > remaining` (the request was capped by the
+  user's remaining quota, not by video length). Calls `fetchCommentThread({ videoId,
+  max: limit, order })`. On success calls `bumpUserUsage(userId, comments.length)` (the
+  ACTUAL returned count, partial-safe) and returns `{ comments, extracted:
+  comments.length, truncatedByQuota, quota }`.
+- The web route's signed-in branch is rewritten to: call `extractCommentsForUser`, then
+  run its existing post-processing (sentiment/top-words/emoji), its own best-effort
+  `videos.list` metadata fetch (unchanged, web-only), and persistence, mapping
+  `RawComment[]` -> `StoredComment[]` (`author` -> `authorName`, `replies` stays a
+  number) for `saveAnalysis` exactly as today, and mapping the thrown error classes to
+  the existing 402/503/400/404/500 responses. The anonymous (IP) branch is unchanged.
+- MCP and web thus share the same pagination + quota-accounting code path. They do NOT
+  necessarily return the same comment SET, because the MCP default sort is `relevance`
+  while the web path uses `time` (see 5.3).
 
 ### 5.1 Packages + zod reconciliation gate (build-time)
 
 - Install `mcp-handler` and `@modelcontextprotocol/sdk` (>= 1.26.0). Do not pin an
-  unverified `mcp-handler` version; install latest and read its `package.json`/peer
-  deps.
-- zod gate: the repo uses zod v4; SDK 1.26 docs show zod v3 raw-shape `inputSchema`.
-  At install time, determine which form the INSTALLED SDK accepts. Keep the tool's
-  input schema isolated in one tiny module (`src/lib/mcp/tool-schema.ts`) exporting the
-  shape, so swapping raw-shape (`{ video_url: z.string(), ... }`) vs `z.object({...})`
-  is a one-file change. If SDK 1.x + zod v4 raw shapes fail at runtime, the fallback is
-  to define the tool schema with the SDK's bundled/expected zod form for that one
-  schema only (do NOT downgrade the app's zod). Record the chosen form in a code comment.
+  unverified `mcp-handler` version; install latest and read its `package.json`/peer deps.
+  (The lockfile already resolves `@modelcontextprotocol/sdk@1.29.x` with a transitive
+  `zod@3.25.x`, so both zod v3 and v4 will coexist in `node_modules`.)
+- zod gate: the app authors schemas with zod v4 (`import { z } from "zod"`), but the SDK
+  validates `inputSchema` with its own zod v3 instance; a v4 schema can fail v3 internal
+  brand/`instanceof` checks. Resolution, in order of preference:
+  1. At install, test whether the installed SDK accepts a v4 raw shape (newer SDKs accept
+     Standard Schema). If yes, author the tool schema with the app's zod v4 raw shape.
+  2. If not, add an explicit aliased dependency `"zod3": "npm:zod@^3"` and author ONLY
+     the tool's input schema (in `src/lib/mcp/tool-schema.ts`) with `import { z } from
+     "zod3"`. Do NOT change the app's zod v4 anywhere else.
+- Keep the tool input schema isolated in `src/lib/mcp/tool-schema.ts` so the form
+  (raw-shape vs `z.object`, v3 vs v4) is a one-file change. Record the chosen path in a
+  code comment.
 
-### 5.2 Route + rewrite + middleware exclusion
+### 5.2 Route + rewrite + proxy/i18n exclusion
 
 - Route file `src/app/api/[transport]/route.ts`:
   - `export const runtime = "nodejs"` (required: sha256 crypto + service-role client +
     quota code are Node-only).
+  - `export const maxDuration = 60`. The per-call comment ceiling (5.3,
+    `MCP_MAX_PER_CALL`) is sized so a single `tools/call` finishes well inside 60s.
   - Build the `McpServer` inside the `createMcpHandler((server) => { ... })` callback
     (no prebuilt-instance path). `config = { basePath: "/api", maxDuration: 60, verboseLogs: false }`.
   - Wrap with `withMcpAuth(handler, verifyTokenForMcp, { required: true })`.
   - Export `GET`, `POST`, `DELETE` (all three; missing any -> silent client failures).
-    Also export an `OPTIONS` handler returning CORS headers (see 5.6).
 - Public endpoint: `next.config.ts` rewrite `{ source: "/mcp", destination: "/api/mcp" }`
   so clients use `https://tubemine.tech/mcp`. `[transport]` resolves to `mcp`.
-- i18n middleware: the next-intl matcher MUST exclude exactly `/mcp` and all `/api/*`
-  so the transport is reachable unprefixed and not locale-rewritten to `/en/mcp`. Use a
-  matcher whose negative lookahead matches `mcp` only as a full segment (so `/mcp-docs`
-  is still localized). Verify on preview with `curl https://<preview>/mcp` returning a
-  JSON-RPC response (not an HTML redirect).
+- i18n/auth exclusion (CRITICAL, repo-specific): this app does NOT use a `middleware.ts`
+  negative-lookahead matcher. It uses `src/proxy.ts` (Next.js 16 `proxy`), which runs
+  BEFORE the `next.config` rewrite, wraps next-intl with `localePrefix: "always"`, and
+  decides skipping via an in-body `skipIntl` boolean (currently
+  `pathname.startsWith("/api") || "/auth" || ...`) plus Supabase session refresh on the
+  broad `config.matcher`. Fix: add bare `/mcp` to the `skipIntl` condition so the proxy
+  does NOT 308-redirect `/mcp` -> `/en/mcp`, AND ensure the Supabase-refresh path is not
+  run for `/mcp` (return early for the transport, as `/api` already does). Match `/mcp`
+  as an EXACT segment so `/mcp-docs` and `/ai-access` stay localized. Verify on preview:
+  `curl https://<preview>/mcp` returns JSON-RPC (not an HTML 308); `/mcp-docs` and
+  `/ai-access` still localize; a locale-prefixed `POST /en/mcp` is NOT treated as the
+  transport (404/redirect cleanly).
+- CORS is NOT built in v1 (the primary clients are CLI tools that do not preflight). It
+  is a verification gate (section 9): if a browser-based connector fails CORS on the
+  preview, add permissive CORS headers (on success AND error/401 responses) + an
+  `OPTIONS` export then, not preemptively.
 
 ### 5.3 The tool, `get_youtube_comments`
 
+- Define `MCP_MAX_PER_CALL = 2000` (a single-call ceiling, distinct from the monthly
+  cap; sized to finish inside the 60s function budget at ~100 comments/page and to avoid
+  one call draining the shared YouTube daily quota).
 - `inputSchema` (zod, form per 5.1):
   - `video_url: string` (a YouTube URL or bare 11-char ID), `.describe(...)`.
   - `sort: enum("relevance","time")`, optional, default `"relevance"`.
-  - `max: number int`, optional, default 100, clamped to `[1, PRO_MONTHLY_CAP]`.
+  - `max: number`, optional, default 100. Coerce to integer and clamp to
+    `[1, MCP_MAX_PER_CALL]` (so an LLM emitting `0`, a negative, or a float yields a sane
+    value, not a 0-comment success). Do not reject; clamp.
 - Handler:
   1. Read `userId` from `extra.authInfo.extra.userId`. If absent, return
      `{ isError: true, content: [text: "Unauthorized"] }` (defensive; auth already
      enforced by `withMcpAuth`).
   2. `const videoId = parseYouTubeVideoId(video_url)`. If null, return `isError` text
      "Could not parse a YouTube video id from: <input>".
-  3. `await extractCommentsForUser({ userId, videoId, max, order: sort })`.
-  4. On `QuotaExceededError`: return `isError` text describing the monthly cap and
-     reset date (from `err.quota`).
+  3. `const r = await extractCommentsForUser({ userId, videoId, max, order: sort })`.
+  4. On `QuotaExceededError(err)`: return `isError` text using the exact template:
+     "Monthly comment quota reached: used {used}/{cap} on the {tier} plan. Resets
+     {resetAt}. Upgrade or wait for the reset." (fields from `err.quota`:
+     `used, cap, tier, resetAt`).
   5. On `YouTubeQuotaError`: return `isError` text "TubeMine has hit its YouTube API
      daily quota. Please try again tomorrow." (the global 503 condition, surfaced as a
      clean MCP error, never a crash).
   6. On `CommentsDisabledError`/`VideoNotFoundError`/`NoCommentsError`: matching
-     `isError` text.
+     `isError` text ("Comments are disabled for this video." / "Video not found." /
+     "No comments found for this video.").
   7. Success: return `{ content: [{ type:"text", text: JSON.stringify(payload) }] }`
-     where `payload = { video: { id, title?, channel? }, count, comments: RawComment[] }`.
-     RawComment fields: `author, text, likes, replies, publishedAt`. No sentiment field
-     (raw only).
+     where `payload = { video_id, count: r.extracted, truncated_by_quota:
+     r.truncatedByQuota, sort, comments: r.comments }`. RawComment fields:
+     `author, text, likes, replies, publishedAt`. No sentiment, no title/channel (raw
+     comments only). `truncated_by_quota` lets the assistant tell the user the result was
+     capped by their remaining monthly quota (not by video length).
 - `parseYouTubeVideoId(input: string): string | null` in `src/lib/youtube-url.ts`:
-  accepts `watch?v=`, `youtu.be/`, `/shorts/`, `/embed/`, and a bare 11-char id;
-  validates `/^[\w-]{11}$/`. If a reusable client-side parser already exists in the
-  repo, extract the shared logic here and have the client import it (single source of
-  truth); otherwise create it fresh.
+  accepts `watch?v=`, `youtu.be/`, `/shorts/`, `/embed/`, `/v/`, AND a bare 11-char id;
+  validates `/^[\w-]{11}$/`. The repo already has `extractVideoId` in `src/lib/types.ts`
+  whose regex requires a URL prefix (no bare id) and is relied on by the client zod
+  refine + tests. Do NOT change `extractVideoId`. Implement `parseYouTubeVideoId` to
+  first try the bare-id check, then the URL patterns (it may import/reuse the same
+  pattern source as `extractVideoId` without altering `extractVideoId`'s contract).
+- Pagination note (build-time verify, section 9): confirm `fetchCommentThread` paginates
+  correctly under `order:"relevance"` (YouTube caps relevance-ordered results and may
+  stop returning `nextPageToken` earlier than `time`); the loop's `if (!pageToken) break`
+  already handles early termination, but verify the returned count is reasonable.
 
 ### 5.4 Auth, strategy pattern
 
@@ -247,6 +296,11 @@ export async function verifyTokenForMcp(req: Request, bearerToken?: string): Pro
   `{ token: bearerToken ?? "", clientId: "tubemine-api-key", scopes: [], extra: { userId } }`.
 - Adding OAuth later = implement `OAuthProvider`, compose in `getAuthProvider`, add a
   non-`tm_sk_` branch; route/tool handler change zero lines.
+- Revocation latency: `withMcpAuth` runs `verifyToken` on EVERY JSON-RPC request, not
+  once per session, so revoking or rotating a key takes effect on the client's next
+  `tools/call`. The `is_revoked` check in `ApiKeyProvider` is the enforcement point.
+  Verify on preview: revoke a key, confirm the next call 401s (do not assume session
+  caching keeps it alive).
 
 ### 5.5 API keys library + data model
 
@@ -291,15 +345,26 @@ create policy "user_api_keys_delete_own" on public.user_api_keys for delete usin
   server action / route handler, then call the lib with an explicit `userId` filter.
   The MCP route lookup uses the service client (no session). RLS protects against any
   accidental anon-key path.
+- HARD INVARIANT (IDOR guard): every scoped/destructive op (`revokeApiKey`,
+  `rotateApiKey`, `listApiKeys`) runs via the service client (RLS bypassed) and MUST
+  filter by BOTH `id` and `user_id` (`.eq("id", id).eq("user_id", userId)`). RLS will
+  NOT protect the service path, so the `user_id` filter is the only guard against
+  revoking/rotating another user's key.
+- `createApiKey`/`rotateApiKey`: on the (astronomically unlikely) `key_hash`
+  unique-constraint conflict, regenerate and retry once; if it still conflicts, surface a
+  clean error. Never leak a raw DB error and never lose the freshly generated raw key
+  silently.
 
-### 5.6 CORS
+### 5.6 CORS (deferred to a verification gate)
 
-The MCP endpoint is a public API called by varied clients (CLI = no CORS; some web
-connectors may preflight). Export an `OPTIONS` handler and attach permissive CORS
-headers (`Access-Control-Allow-Origin: *`, `Allow-Methods: GET, POST, DELETE, OPTIONS`,
+CORS is not built preemptively in v1 (primary clients are CLI/server-side and do not
+issue preflights, and there is no repo precedent). It is verification gate 9.5: if a
+browser-based connector (e.g. ChatGPT Dev Mode web) fails on the preview with a CORS
+error, add permissive CORS headers attached to BOTH success and error/401 responses
+(`Access-Control-Allow-Origin: *`, `Allow-Methods: GET, POST, DELETE, OPTIONS`,
 `Allow-Headers: Authorization, Content-Type, Mcp-Session-Id, Mcp-Protocol-Version`,
-`Expose-Headers: Mcp-Session-Id`) on responses. No repo precedent exists, so this is an
-explicit decision; verify a cross-origin preflight on preview.
+`Expose-Headers: Mcp-Session-Id`) plus an `OPTIONS` export at that point. Record the
+outcome in the build-plan note.
 
 ### 5.7 Tests (vitest)
 
@@ -334,16 +399,24 @@ table, docs section headers).
 
 ### 6.2 Client connection registry (single source for chips + docs)
 
-`src/lib/mcp/clients.ts` exports an ordered list of the 8 clients:
-`{ id, name, logo, group: "oauth" | "apikey", endpoint: "https://tubemine.tech/mcp",
-setup: { kind: "cli" | "config-file" | "ui", code?, filePath?, steps? } }`.
-v1: ALL clients connect via API-key Bearer; the 3 "oauth" group members show an
-"OAuth one-click coming soon" note but the working v1 setup is Bearer. Per-client
-snippets use `https://tubemine.tech/mcp` with `Authorization: Bearer tm_sk_...`.
-Snippets for Cursor / Codex / Hermes / OpenClaw are pattern stubs to be verified against
-official docs at build time (see section 9). Groups:
-- OAuth-capable (v2): Claude Code, ChatGPT (Dev Mode), Cursor.
-- API-key (Bearer): Codex CLI, Gemini CLI, Claude Desktop, Hermes (Nous), OpenClaw.
+`src/lib/mcp/clients.ts` exports an ordered list of the 8 clients with CANONICAL ids
+(used as the `ClientLogo` key, the docs anchor `#<id>`, and the chip key). Each entry:
+`{ id, name, logo, group: "oauth" | "apikey", connect: { command?, configPath?,
+configSnippet?, uiSteps? } }` (a plain per-client data bag, not a typed rendering-mode
+union; the docs page renders whichever fields are present). Endpoint is the shared
+constant `https://tubemine.tech/mcp`. Canonical ids / display names / group / logo:
+- `claude-code` "Claude Code" (oauth, Claude)
+- `chatgpt` "ChatGPT" (oauth, OpenAI)
+- `cursor` "Cursor" (oauth, Cursor)
+- `codex` "Codex" (apikey, OpenAI)
+- `gemini-cli` "Gemini CLI" (apikey, Gemini)
+- `claude-desktop` "Claude Desktop" (apikey, Claude)
+- `hermes` "Hermes" (apikey, Nous)
+- `openclaw` "OpenClaw" (apikey, OpenClaw)
+v1: ALL clients connect via API-key Bearer (`Authorization: Bearer tm_sk_...`); the 3
+`oauth`-group members additionally show an "OAuth one-click coming soon" note but their
+working v1 setup is Bearer. Snippets for `cursor`, `codex`, `hermes`, `openclaw` are
+pattern stubs to verify against official docs at build time (section 9.4).
 
 ### 6.3 `/ai-access` (signed-in MCP dashboard)
 
@@ -415,10 +488,19 @@ connect + landing MCP strings + pricing MCP line). Extend `landing`, `pricing`,
 ### 7.1 Token foundation (do first within P3, blocks the rest)
 
 Integrate `docs/design-v3/globals.css` into `src/app/globals.css`:
-- Replace the design-token layer with the v3 `@theme` block (surfaces, text, borders,
-  feedback, sentiment accents, type scale, spacing `--spacing-N`, radii, shadow, motion,
-  `--layout-sidebar-w`/`--layout-header-h`), plus the base resets and the 4 keyframes
-  (`spin`, `pulse-ring`, `shimmer`, `indeterminate`), and `prefers-reduced-motion`.
+- Bring in the v3 design tokens (surfaces, text, borders, feedback, sentiment accents,
+  type scale, shadow, motion, `--layout-sidebar-w`/`--layout-header-h`), the base resets,
+  the 4 keyframes (`spin`, `pulse-ring`, `shimmer`, `indeterminate`), and
+  `prefers-reduced-motion`.
+- Tailwind v4 namespace collision (CRITICAL): do NOT register the design's spacing/radius
+  scale into the global `@theme` under the names `--spacing-1..8` or
+  `--radius-xs/sm/md/lg`. In Tailwind v4 `--spacing-6` IS `p-6`/`gap-6` and `--radius-lg`
+  IS `rounded-lg`, so that would silently re-scale every numeric spacing utility and turn
+  every stock `rounded-lg` primitive into a pill across already-shipped pages. The current
+  `globals.css` already skips these for that reason. Carry the design spacing/radius as
+  DISTINCT non-Tailwind vars (keep the refs' `--space-*` names, with v3 values, and
+  `--tm-radius-*`); the bespoke v3 page CSS references those, leaving Tailwind's
+  `--spacing-*`/`--radius-*` utility scale untouched.
 - Add the landing red-accent vars (`--color-accent` and soft/line/glow variants) used by
   the hero, since the official v3 `@theme` omits them but the landing ref relies on them.
 - Keep the shadcn compat tokens (`--background`, `--foreground`, `--card`, `--border`,
@@ -427,8 +509,9 @@ Integrate `docs/design-v3/globals.css` into `src/app/globals.css`:
   input, table, skeleton, badge, separator) render correctly on the v3 palette. Dark-only
   (`color-scheme: dark`); remove any light theme.
 - The remaining bespoke page CSS in `globals.css` is migrated page-by-page in 7.2 to the
-  v3 tokens (variable renames `--space-N` -> `--spacing-N`, color values -> v3). After
-  the swap, no page may reference a removed token.
+  v3 values (update `--space-*` values + colors to v3; KEEP the `--space-*`/`--tm-*`
+  names to avoid the Tailwind collision above). After the swap, no page may reference a
+  removed token.
 
 ### 7.2 Per-page port (match `docs/design-v3/refs/*.html` + `screenshots/*`)
 
@@ -477,13 +560,23 @@ primitives where they fit; follow `components.json` (base-nova on `@base-ui/reac
 
 ## 9. Build-time verification gates (must verify before relying on)
 
-1. zod form for the SDK actually installed (raw shape v3 vs `z.object` v4), section 5.1.
-2. `mcp-handler` installed version supports `withMcpAuth`; confirm exact export names by
-   reading the installed package, not memory.
-3. `/mcp` rewrite + i18n middleware exclusion reachable on the preview (curl).
-4. Per-client connect snippets for Cursor / Codex / Hermes / OpenClaw against current
-   official docs (the matrix has placeholders). Use Context7 / official docs at build.
-5. CORS preflight behavior on preview (section 5.6).
+1. zod form for the SDK actually installed (raw shape vs `z.object`, v3 instance vs v4),
+   section 5.1; isolate in `tool-schema.ts`.
+2. `mcp-handler` installed version supports `withMcpAuth`; confirm exact export names and
+   the `verifyToken`/`AuthInfo` shape by reading the installed package, not memory.
+3. `/mcp` reachable on the preview: `curl https://<preview>/mcp` returns JSON-RPC (not an
+   HTML 308); the `proxy.ts` `skipIntl` edit for bare `/mcp` works; `/mcp-docs` and
+   `/ai-access` still localize; a locale-prefixed `POST /en/mcp` does NOT act as the
+   transport.
+4. Per-client connect snippets for `cursor`, `codex`, `hermes`, `openclaw` against
+   current official docs (the matrix has placeholders). Use Context7 / official docs.
+5. CORS: only if a browser connector fails on preview, add permissive CORS (success +
+   error responses) + `OPTIONS` (section 5.6).
+6. `order:"relevance"` pagination returns a reasonable count via `fetchCommentThread`
+   (section 5.3).
+7. After the globals.css token integration, spot-check already-shipped pages for the
+   Tailwind spacing/radius collision (section 7.1): stock `p-*`/`gap-*`/`rounded-lg`
+   utilities unchanged.
 
 ## 10. Pre-flight runbook checklist (apply during P1/P4)
 
