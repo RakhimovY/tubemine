@@ -10,11 +10,15 @@ import {
   recordUsage,
 } from "@/lib/budget"
 import { analyzeTopEmojis, type EmojiCount } from "@/lib/emoji-frequency"
+import { PRO_MONTHLY_CAP, getUserQuota } from "@/lib/quota"
 import {
-  PRO_MONTHLY_CAP,
-  bumpUserUsage,
-  getUserQuota,
-} from "@/lib/quota"
+  CommentsDisabledError,
+  extractCommentsForUser,
+  NoCommentsError,
+  QuotaExceededError,
+  VideoNotFoundError,
+  YouTubeQuotaError,
+} from "@/lib/extract-core"
 import { scoreCommentsSentiment, type SentimentAggregate } from "@/lib/sentiment"
 import { analyzeTopWords, type WordCount } from "@/lib/top-words"
 import type { Comment } from "@/lib/types"
@@ -101,65 +105,198 @@ export async function POST(req: NextRequest) {
   const { userId } = await authUserId()
   const { videoId, maxComments } = parsed.data
 
-  // Determine remaining budget from whichever source applies.
-  let limit: number
-  let mode: "user" | "ip"
-  let userQuota: Awaited<ReturnType<typeof getUserQuota>> | null = null
-  let ip: string | null = null
-  let ipStatus: Awaited<ReturnType<typeof getBudgetStatus>> | null = null
-
+  // ── Signed-in path ──────────────────────────────────────────────────────
+  // Quota check + fetch + paginate + usage bump now live in the shared
+  // extract-core module so the (future) MCP tool walks the same path. The web
+  // route keeps order:"time" to preserve its existing behavior, then runs the
+  // unchanged downstream: sentiment, top-words, emoji, metadata fetch, save.
   if (userId) {
-    mode = "user"
-    userQuota = await getUserQuota(userId)
-    if (userQuota.remaining <= 0) {
-      return NextResponse.json(
-        {
-          error:
-            userQuota.tier === "pro"
-              ? "Monthly Pro cap reached. Resets on the 1st."
-              : "Free tier cap reached. Upgrade for 100,000 comments/month.",
-          code: "quota_exceeded",
-          tier: userQuota.tier,
-          used: userQuota.used,
-          cap: userQuota.cap,
-          budget: userQuota.cap,
-          remaining: 0,
-          resetAt: userQuota.resetAt,
-        },
-        { status: 402 },
-      )
+    const yt = ytClient()
+
+    // Fetch video metadata in parallel with comments (1 quota unit, ~0 added
+    // latency). Used downstream for saveAnalysis so History + Recent Analyses
+    // render thumbnails and titles instead of just the video id placeholder.
+    // Best-effort: a failure here must not block the extract.
+    const metaPromise = yt.videos
+      .list({ part: ["snippet"], id: [videoId] })
+      .catch(() => null)
+
+    let userQuota: Awaited<ReturnType<typeof getUserQuota>>
+    let comments: Comment[]
+    let usedAfter: number
+    try {
+      const result = await extractCommentsForUser({
+        userId,
+        videoId,
+        max: maxComments,
+        order: "time",
+      })
+      userQuota = result.quota
+      comments = result.comments as Comment[]
+      usedAfter = result.usedAfter
+    } catch (err) {
+      if (err instanceof QuotaExceededError) {
+        const q = err.quota
+        return NextResponse.json(
+          {
+            error:
+              q.tier === "pro"
+                ? "Monthly Pro cap reached. Resets on the 1st."
+                : "Free tier cap reached. Upgrade for 100,000 comments/month.",
+            code: "quota_exceeded",
+            tier: q.tier,
+            used: q.used,
+            cap: q.cap,
+            budget: q.cap,
+            remaining: 0,
+            resetAt: q.resetAt,
+          },
+          { status: 402 },
+        )
+      }
+      if (err instanceof CommentsDisabledError) {
+        return NextResponse.json(
+          { error: "Comments are disabled for this video by the uploader" },
+          { status: 400 },
+        )
+      }
+      if (err instanceof YouTubeQuotaError) {
+        return NextResponse.json(
+          {
+            error:
+              "TubeMine has hit its YouTube API daily quota. Please try again tomorrow.",
+          },
+          { status: 503 },
+        )
+      }
+      if (err instanceof VideoNotFoundError) {
+        return NextResponse.json({ error: "Video not found" }, { status: 404 })
+      }
+      if (err instanceof NoCommentsError) {
+        return NextResponse.json(
+          { error: err.message || "Extraction failed" },
+          { status: 500 },
+        )
+      }
+      throw err
     }
-    limit = Math.min(maxComments ?? userQuota.remaining, userQuota.remaining)
-  } else {
-    mode = "ip"
-    ip = getClientIp(req)
-    ipStatus = await getBudgetStatus(ip)
-    if (ipStatus.remaining <= 0) {
-      return NextResponse.json(
-        {
-          error: "Monthly budget exhausted",
-          used: ipStatus.used,
-          budget: ipStatus.budget,
-          remaining: 0,
-          resetAt: ipStatus.resetAt,
-        },
-        { status: 429 },
-      )
+
+    // Score sentiment in-process. Never let it block the extract response.
+    let sentimentAggregate: SentimentAggregate | null = null
+    try {
+      const result = scoreCommentsSentiment(comments.map((c) => c.text))
+      sentimentAggregate = result.aggregate
+      for (let i = 0; i < comments.length; i++) {
+        comments[i].sentiment = result.perComment[i]?.label ?? "unknown"
+      }
+    } catch (err) {
+      console.error("[sentiment] scoring failed:", err)
     }
-    limit = Math.min(maxComments ?? MONTHLY_BUDGET, ipStatus.remaining)
+
+    // Single full ranking pass. Slice per tier for response, slice STORAGE_*
+    // for persistence.
+    const texts = comments.map((c) => c.text)
+    const wordsAnalysis = analyzeTopWords(texts, Number.POSITIVE_INFINITY)
+    const emojiAnalysis = analyzeTopEmojis(texts, Number.POSITIVE_INFINITY)
+
+    const tier: ExtractTier = userQuota.tier
+    const topWordsForTier = takeTopWords(wordsAnalysis.items, tier)
+    const topEmojisForTier = takeTopEmojis(emojiAnalysis.items, tier)
+    const distribution = sentimentDistribution(sentimentAggregate)
+
+    // Usage was bumped atomically inside extractCommentsForUser, which returns
+    // the live post-bump total (usedAfter). Mirror the original fallback: prefer
+    // the RPC total, fall back to the pre-read snapshot + this request's count
+    // when the bump returned 0 (RPC failure / no-op).
+    const newUsed = usedAfter || userQuota.used + comments.length
+
+    // Best-effort persistence: never blocks the response.
+    try {
+      const topWordsStored = wordsAnalysis.items
+        .slice(0, STORAGE_TOP_WORDS)
+        .map((w) => ({ token: w.word, count: w.count }))
+      const emojiStored = emojiAnalysis.items
+        .slice(0, STORAGE_TOP_EMOJIS)
+        .map((e) => ({ emoji: e.emoji, count: e.count, percent: e.share * 100 }))
+
+      const metaSnippet = (await metaPromise)?.data.items?.[0]?.snippet ?? null
+      const storedComments: StoredComment[] = comments.map((c) => ({
+        authorName: c.author ?? null,
+        text: c.text,
+        likes: c.likes,
+        replies: c.replies,
+        publishedAt: c.publishedAt,
+        sentiment: c.sentiment ?? null,
+      }))
+      await saveAnalysis({
+        userId,
+        videoId,
+        videoTitle: metaSnippet?.title ?? null,
+        channelName: metaSnippet?.channelTitle ?? null,
+        thumbnailUrl:
+          metaSnippet?.thumbnails?.high?.url ??
+          metaSnippet?.thumbnails?.medium?.url ??
+          metaSnippet?.thumbnails?.default?.url ??
+          `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+        commentCount: comments.length,
+        sentiment: sentimentAggregate,
+        topWords: topWordsStored,
+        emojiFrequency: emojiStored,
+        tier: userQuota.tier,
+        comments: storedComments,
+      })
+    } catch (e) {
+      console.warn("[analyses] save threw (extract continues)", {
+        error: String(e),
+        userId,
+        videoId,
+      })
+    }
+
+    return NextResponse.json({
+      comments,
+      extracted: comments.length,
+      tier,
+      used: newUsed,
+      remaining: Math.max(0, userQuota.cap - newUsed),
+      cap: userQuota.cap,
+      // Legacy field name kept for the existing client UI.
+      budget: userQuota.cap,
+      resetAt: userQuota.resetAt,
+      sentiment: sentimentAggregate,
+      sentiment_distribution: distribution,
+      top_words: topWordsForTier,
+      top_emoji: topEmojisForTier,
+      unique_words_total: wordsAnalysis.totalUnique,
+      unique_emoji_total: emojiAnalysis.totalUnique,
+    })
   }
+
+  // ── Anonymous (IP) path ─────────────────────────────────────────────────
+  // Left intentionally inline + unchanged from the original implementation.
+  const ip = getClientIp(req)
+  const ipStatus = await getBudgetStatus(ip)
+  if (ipStatus.remaining <= 0) {
+    return NextResponse.json(
+      {
+        error: "Monthly budget exhausted",
+        used: ipStatus.used,
+        budget: ipStatus.budget,
+        remaining: 0,
+        resetAt: ipStatus.resetAt,
+      },
+      { status: 429 },
+    )
+  }
+  const limit = Math.min(maxComments ?? MONTHLY_BUDGET, ipStatus.remaining)
 
   const yt = ytClient()
   const comments: Comment[] = []
   let pageToken: string | undefined
 
-  // Fetch video metadata in parallel with comments (1 quota unit, ~0 added latency).
-  // Used downstream for saveAnalysis so History + Recent Analyses render thumbnails
-  // and titles instead of just the video id placeholder. Best-effort: a failure
-  // here must not block the extract.
-  const metaPromise = yt.videos
-    .list({ part: ["snippet"], id: [videoId] })
-    .catch(() => null)
+  // Fetch video metadata in parallel with comments. Best-effort: started here
+  // to keep the IP path's prior side-effects identical (quota unit spent).
+  yt.videos.list({ part: ["snippet"], id: [videoId] }).catch(() => null)
 
   try {
     while (comments.length < limit) {
@@ -227,10 +364,10 @@ export async function POST(req: NextRequest) {
   }
 
   // Score sentiment in-process. Never let it block the extract response.
-  let sentimentAggregate: SentimentAggregate | null = null
+  // Per-comment sentiment is still surfaced in the anonymous `comments`
+  // payload; the aggregate is intentionally omitted from the response below.
   try {
     const result = scoreCommentsSentiment(comments.map((c) => c.text))
-    sentimentAggregate = result.aggregate
     for (let i = 0; i < comments.length; i++) {
       comments[i].sentiment = result.perComment[i]?.label ?? "unknown"
     }
@@ -238,106 +375,25 @@ export async function POST(req: NextRequest) {
     console.error("[sentiment] scoring failed:", err)
   }
 
-  // Single full ranking pass. Slice per tier for response, slice STORAGE_* for persistence.
+  // Single full ranking pass. Slice per tier for response.
   const texts = comments.map((c) => c.text)
   const wordsAnalysis = analyzeTopWords(texts, Number.POSITIVE_INFINITY)
   const emojiAnalysis = analyzeTopEmojis(texts, Number.POSITIVE_INFINITY)
 
-  const tier: ExtractTier =
-    mode === "user" && userQuota ? userQuota.tier : "anonymous"
-
+  const tier: ExtractTier = "anonymous"
   const topWordsForTier = takeTopWords(wordsAnalysis.items, tier)
   const topEmojisForTier = takeTopEmojis(emojiAnalysis.items, tier)
-  const distribution = sentimentDistribution(sentimentAggregate)
 
-  // Record actual usage (atomic). Surface fresh totals to the client.
-  if (mode === "user" && userId && userQuota) {
-    const newUsed = await bumpUserUsage(userId, comments.length)
-
-    // Best-effort persistence: never blocks the response.
-    try {
-      const topWordsStored = wordsAnalysis.items
-        .slice(0, STORAGE_TOP_WORDS)
-        .map((w) => ({ token: w.word, count: w.count }))
-      const emojiStored = emojiAnalysis.items
-        .slice(0, STORAGE_TOP_EMOJIS)
-        .map((e) => ({ emoji: e.emoji, count: e.count, percent: e.share * 100 }))
-
-      const metaSnippet = (await metaPromise)?.data.items?.[0]?.snippet ?? null
-      const storedComments: StoredComment[] = comments.map((c) => ({
-        authorName: c.author ?? null,
-        text: c.text,
-        likes: c.likes,
-        replies: c.replies,
-        publishedAt: c.publishedAt,
-        sentiment: c.sentiment ?? null,
-      }))
-      await saveAnalysis({
-        userId,
-        videoId,
-        videoTitle: metaSnippet?.title ?? null,
-        channelName: metaSnippet?.channelTitle ?? null,
-        thumbnailUrl:
-          metaSnippet?.thumbnails?.high?.url ??
-          metaSnippet?.thumbnails?.medium?.url ??
-          metaSnippet?.thumbnails?.default?.url ??
-          `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
-        commentCount: comments.length,
-        sentiment: sentimentAggregate,
-        topWords: topWordsStored,
-        emojiFrequency: emojiStored,
-        tier: userQuota.tier,
-        comments: storedComments,
-      })
-    } catch (e) {
-      console.warn("[analyses] save threw (extract continues)", {
-        error: String(e),
-        userId,
-        videoId,
-      })
-    }
-
-    return NextResponse.json({
-      comments,
-      extracted: comments.length,
-      tier,
-      used: newUsed || userQuota.used + comments.length,
-      remaining: Math.max(0, userQuota.cap - (newUsed || userQuota.used + comments.length)),
-      cap: userQuota.cap,
-      // Legacy field name kept for the existing client UI.
-      budget: userQuota.cap,
-      resetAt: userQuota.resetAt,
-      sentiment: sentimentAggregate,
-      sentiment_distribution: distribution,
-      top_words: topWordsForTier,
-      top_emoji: topEmojisForTier,
-      unique_words_total: wordsAnalysis.totalUnique,
-      unique_emoji_total: emojiAnalysis.totalUnique,
-    })
-  }
-
-  if (ip && ipStatus) {
-    await recordUsage(ip, comments.length)
-    return NextResponse.json({
-      comments,
-      extracted: comments.length,
-      tier,
-      used: ipStatus.used + comments.length,
-      remaining: Math.max(0, ipStatus.remaining - comments.length),
-      budget: ipStatus.budget,
-      resetAt: ipStatus.resetAt,
-      // Anonymous: sentiment + sentiment_distribution intentionally omitted (curiosity-gap floor).
-      top_words: topWordsForTier,
-      top_emoji: topEmojisForTier,
-      unique_words_total: wordsAnalysis.totalUnique,
-      unique_emoji_total: emojiAnalysis.totalUnique,
-    })
-  }
-
+  await recordUsage(ip, comments.length)
   return NextResponse.json({
     comments,
     extracted: comments.length,
     tier,
+    used: ipStatus.used + comments.length,
+    remaining: Math.max(0, ipStatus.remaining - comments.length),
+    budget: ipStatus.budget,
+    resetAt: ipStatus.resetAt,
+    // Anonymous: sentiment + sentiment_distribution intentionally omitted (curiosity-gap floor).
     top_words: topWordsForTier,
     top_emoji: topEmojisForTier,
     unique_words_total: wordsAnalysis.totalUnique,
