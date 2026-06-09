@@ -572,7 +572,7 @@ describe("fetchCommentThread error map", () => {
 
 - [ ] **Step 3: Run, verify fail.** Run: `npm test -- extract-core`. Expected: FAIL.
 
-- [ ] **Step 4: Implement `extract-core.ts`** per spec 5.0 (the `RawComment` coercions, the partial-fetch contract, the typed error classes, `fetchCommentThread` returning `RawComment[]`, `extractCommentsForUser` with `effectiveMax`/`limit`/`truncatedByQuota = comments.length >= limit && remaining < effectiveMax`, `bumpUserUsage(userId, comments.length)`). Mirror the route's loop (PAGE_SIZE 100, `textFormat:"plainText"`, `order`, cap to `max`). Throw typed errors only when 0 collected; swallow-and-return-partial otherwise.
+- [ ] **Step 4: Implement `extract-core.ts`** per spec 5.0. Export ALL FIVE error classes (`CommentsDisabledError`, `VideoNotFoundError`, `YouTubeQuotaError`, `NoCommentsError`, `QuotaExceededError`) since P1.7 imports all five. Implement the `RawComment` coercions, the partial-fetch contract, `fetchCommentThread` returning `RawComment[]`, and `extractCommentsForUser` with `effectiveMax`/`limit`/`truncatedByQuota = comments.length >= limit && remaining < effectiveMax`, `bumpUserUsage(userId, comments.length)`. Mirror the route's loop (PAGE_SIZE 100, `textFormat:"plainText"`, `order`, cap to `max`). Throw typed errors only when 0 collected; swallow-and-return-partial otherwise.
 
 - [ ] **Step 5: Run, verify pass.** Run: `npm test -- extract-core`. Expected: PASS.
 
@@ -779,18 +779,19 @@ git commit -m "feat(mcp): dashboard MCP banner + side-nav AI Access item"
 
 ### Task P3.1: Landing page (MCP-hero + all sections)
 
-**Files:** Modify `src/app/page.tsx` / `src/app/[locale]/page.tsx` and its section components (`landing-*.tsx`, `result-block.tsx` reuse).
+**Files:** Modify `src/app/[locale]/page.tsx` (the only landing entry; there is NO `src/app/page.tsx`) and its section components (`landing-*.tsx`, `result-block.tsx` reuse).
 **Reference:** `docs/design-v3/refs/TubeMine Landing.html`, `screenshots/landing-desktop.jpg`, `landing-mobile.jpg`, `landing-demo-promo-desktop.jpg`.
 
-- [ ] **Step 1:** Port the MCP-hero: trust pill with real `ClientLogo`s (Claude, Codex, Cursor, ChatGPT, Gemini, Hermes, OpenClaw), H1 about pulling comments inside your AI, primary CTA "Connect your AI" -> `/mcp-docs`, secondary "Or use the web app". Animated AI-chat demo references only `get_youtube_comments()`.
+- [ ] **Step 1:** Port the MCP-hero: trust pill with real `ClientLogo`s (Claude, Codex, Cursor, ChatGPT, Gemini, Hermes, OpenClaw), H1 about pulling comments inside your AI, primary CTA "Connect your AI" -> `/mcp-docs`, secondary "Or use the web app" -> the web-app/demo section (the `#demo` anchor / dashboard, per spec 6.5). Animated AI-chat demo references only `get_youtube_comments()`.
 - [ ] **Step 2:** Port how-it-works (fix terminal mock to "1 tool registered", API-key auth framing; OAuth "coming"), web-app strip, trust accelerant/dashboard preview, feature blocks (reuse shared result block), pricing teaser, FAQ (accordion), final CTA, footer.
 - [ ] **Step 3:** i18n (`landing` + `mcp` strings), build, visual-match check, commit.
 
 Run: `npm run i18n:check && npm run build 2>&1 | tail -5`. Expected: PASS + success.
 ```bash
-git add src/app/page.tsx src/app/[locale] src/components messages/en.json messages/ru.json
+git add src/app/[locale]/page.tsx src/components/landing-*.tsx src/components/tubemine.tsx src/components/site-header*.tsx src/components/site-footer.tsx src/app/globals.css messages/en.json messages/ru.json
 git commit -m "feat(landing): v3 MCP-hero + full section port"
 ```
+(Stage only the landing-related files actually touched; do NOT `git add src/components` wholesale, which would pull in unrelated in-progress work from sibling P3 tasks.)
 
 ### Task P3.2: Dashboard home reskin
 
@@ -845,9 +846,9 @@ git commit -am "feat(dashboard): v3 home reskin"
 
 ### Task P4.1: Remove oauth-intro
 
-**Files:** Delete `src/app/[locale]/oauth-intro/`; remove the `oauth_intro` namespace from `messages/en.json` + `messages/ru.json`; remove any `oauth-consent` component; remove all nav/link/CTA references (grep `site-header-gate.tsx`, `globals.css`, etc.).
+**Files:** Delete `src/app/[locale]/oauth-intro/`; remove the `oauth_intro` namespace from `messages/en.json` + `messages/ru.json`; remove any `oauth-consent` component; remove the `.oauth-intro-page` CSS block from `src/app/globals.css`; remove all nav/link/CTA references (grep `site-header-gate.tsx`, etc.).
 
-- [ ] **Step 1:** `git rm -r src/app/[locale]/oauth-intro`, remove `oauth_intro` keys, grep for residual references:
+- [ ] **Step 1:** `git rm -r src/app/[locale]/oauth-intro`, remove the `oauth_intro` message keys (both locales), and delete the `.oauth-intro-page` CSS block in `src/app/globals.css` (search the file for `oauth-intro`). Then grep for residual references:
 Run: `grep -rn "oauth-intro\|oauth_intro\|oauthIntro\|oauth-consent" src messages | grep -v "design-v3"`
 Expected: 0 hits after cleanup.
 - [ ] **Step 2:** `npm run i18n:check && npm run build 2>&1 | tail -5`. Expected: PASS + success.
@@ -863,12 +864,17 @@ Expected: 0 hits after cleanup.
 
 (No commit; this is a DB action. Record the outcome in P4.5 vault notes.)
 
-### Task P4.3: Writer/reader integration test for keys
+### Task P4.3: Live writer/reader round-trip for keys (via Supabase MCP, after migration)
 
-**Files:** Create `src/lib/mcp/__tests__/api-keys.integration.test.ts` (gated to run only when service-role env is present; otherwise skipped).
+Runs after P4.2 (the table exists). Proves the migration columns and the lib's
+insert/read shape agree against the REAL schema (runbook lesson: writer/reader drift is
+invisible to hand-built fixtures). This is a one-off live check via Supabase MCP, not a
+vitest (a unit test cannot satisfy the `auth.users` FK; the P1.3 unit tests already
+cover the pure logic).
 
-- [ ] **Step 1:** Write a test that, when `SUPABASE_SERVICE_ROLE_KEY` is set, creates a key for a throwaway user id is not possible (FK to auth.users); instead assert the schema shape with a lightweight `select` on `user_api_keys` (columns exist) to catch writer/reader drift. Skip when env absent (`describe.skipIf`). Keep unit coverage as the primary gate.
-- [ ] **Step 2:** Run `npm test`; commit `test(mcp): api-keys schema/integration guard`.
+- [ ] **Step 1:** Get a real `user_id` from `auth.users` (the project owner). Via Supabase MCP `execute_sql`: `select id from auth.users limit 1`.
+- [ ] **Step 2:** Round-trip via Supabase MCP `execute_sql`: insert a throwaway row for that user id (`insert into public.user_api_keys (user_id, key_hash, name) values ('<id>', 'roundtrip_test_hash', 'roundtrip') returning *`), select it back and confirm all columns (`id, user_id, key_hash, name, created_at, last_used_at, is_revoked`) return as expected, then delete it (`delete from public.user_api_keys where key_hash = 'roundtrip_test_hash'`). Confirm 0 rows remain for that hash.
+- [ ] **Step 3:** No commit (DB-only). Note the result in the P4.5 vault update.
 
 ### Task P4.4: Full QA gate (tests, lint, build, i18n)
 
@@ -876,7 +882,7 @@ Expected: 0 hits after cleanup.
 - [ ] **Step 2:** `npm run lint` , clean.
 - [ ] **Step 3:** `npm run i18n:check` , EN+RU parity.
 - [ ] **Step 4:** `npm run build` , succeeds.
-- [ ] **Step 5:** No em/en-dash: `grep -rnP "[\x{2013}\x{2014}]" src messages | grep -v design-v3` , 0 hits. Fix any.
+- [ ] **Step 5:** No em/en-dash in THIS branch's changes (pre-existing legacy dashes in untouched files are out of scope): `git diff main...HEAD --name-only | grep -E '\.(ts|tsx|css|json|md)$' | xargs grep -nP "[\x{2013}\x{2014}]" 2>/dev/null` , 0 hits in changed files. Fix any introduced by this work.
 - [ ] **Step 6:** Commit any fixes `chore(qa): lint/i18n/dash fixes`.
 
 ### Task P4.5: Branch push + Vercel preview verification + vault updates
