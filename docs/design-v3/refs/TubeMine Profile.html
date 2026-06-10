@@ -1,0 +1,1118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Profile · TubeMine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+/* ============================================================
+   TubeMine v3, Profile
+   Tokens + shell pattern shared with the dashboard.
+   ============================================================ */
+:root {
+  --font-family-primary: "SF Pro Display", -apple-system, system-ui, "Inter", "Segoe UI", sans-serif;
+  --font-family-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --font-size-xs: 12px; --font-size-sm: 13px; --font-size-md: 14px;
+  --font-size-lg: 15px; --font-size-xl: 16px; --font-size-2xl: 17px;
+  --font-size-3xl: 18px; --font-size-4xl: 21px;
+  --font-weight-base: 400; --font-weight-medium: 500; --font-weight-semibold: 600;
+  --line-height-base: 24px;
+
+  --color-surface-base: #000000;
+  --color-surface-raised: #0f0f11;
+  --color-surface-sunken: #0a0a0c;
+  --color-surface-muted: #ffffff;
+  --color-text-primary: #f5f5f7;
+  --color-text-secondary: #b9b9c0;
+  --color-text-tertiary: #7a7a82;
+  --color-text-inverse: #0a0a0c;
+  --color-text-disabled: #4a4a52;
+  --color-border-subtle: rgba(245, 245, 247, 0.08);
+  --color-border-strong: rgba(245, 245, 247, 0.16);
+  --color-border-focus: rgba(245, 245, 247, 0.55);
+  --color-feedback-success: rgba(52, 211, 153, 0.8);
+  --color-feedback-success-soft: rgba(52, 211, 153, 0.12);
+  --color-feedback-danger: rgba(251, 113, 133, 0.8);
+  --color-feedback-danger-soft: rgba(251, 113, 133, 0.12);
+  --color-accent-positive: rgba(52, 211, 153, 0.8);
+
+  --space-1: 4px; --space-2: 6px; --space-3: 8px; --space-4: 10px;
+  --space-5: 12px; --space-6: 16px; --space-7: 20px; --space-8: 24px;
+  --radius-xs: 6px; --radius-sm: 8px; --radius-md: 14px; --radius-lg: 9999px;
+  --shadow-1: rgba(0,0,0,0.18) 0px 24px 80px 0px;
+  --motion-duration-instant: 140ms; --motion-duration-fast: 150ms;
+  --motion-duration-normal: 200ms;
+  --motion-ease: cubic-bezier(0.2, 0, 0, 1);
+
+  --sidebar-w: 240px;
+  --header-h: 60px;
+}
+
+*,*::before,*::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--color-surface-base);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-primary);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-base);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  min-height: 100vh;
+}
+::selection { background: rgba(245,245,247,0.18); }
+a { color: inherit; text-decoration: none; }
+button { font: inherit; color: inherit; cursor: pointer; }
+
+.icon { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.icon-sm { width: 14px; height: 14px; }
+.icon-lg { width: 20px; height: 20px; }
+
+/* ===== Buttons ===== */
+.btn {
+  --btn-bg: transparent; --btn-fg: var(--color-text-primary);
+  --btn-border: var(--color-border-strong);
+  --btn-bg-hover: rgba(245,245,247,0.06); --btn-bg-active: rgba(245,245,247,0.12);
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-3);
+  height: 36px; padding: 0 var(--space-6); border-radius: var(--radius-lg);
+  border: 1px solid var(--btn-border); background: var(--btn-bg); color: var(--btn-fg);
+  font-size: var(--font-size-md); font-weight: var(--font-weight-medium); letter-spacing: -0.005em;
+  user-select: none; white-space: nowrap; position: relative; min-height: 44px;
+  transition: background-color var(--motion-duration-fast) var(--motion-ease), border-color var(--motion-duration-fast) var(--motion-ease), color var(--motion-duration-fast) var(--motion-ease), box-shadow var(--motion-duration-fast) var(--motion-ease), transform var(--motion-duration-instant) var(--motion-ease);
+}
+@media (min-width: 720px) { .btn { min-height: 36px; } }
+.btn:hover { background: var(--btn-bg-hover); }
+.btn:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(245,245,247,0.18); border-color: var(--color-border-focus); }
+.btn:active { background: var(--btn-bg-active); transform: translateY(0.5px); }
+.btn--primary { --btn-bg: var(--color-surface-muted); --btn-fg: var(--color-text-inverse); --btn-border: var(--color-surface-muted); --btn-bg-hover: #ececef; --btn-bg-active: #dcdce0; }
+.btn--secondary { --btn-bg: rgba(245,245,247,0.06); --btn-fg: var(--color-text-primary); --btn-border: var(--color-border-strong); --btn-bg-hover: rgba(245,245,247,0.1); }
+.btn--ghost { --btn-bg: transparent; --btn-fg: var(--color-text-secondary); --btn-border: transparent; --btn-bg-hover: rgba(245,245,247,0.06); }
+.btn--ghost:hover { color: var(--color-text-primary); }
+.btn--destructive { --btn-bg: transparent; --btn-fg: var(--color-feedback-danger); --btn-border: rgba(251,113,133,0.35); --btn-bg-hover: var(--color-feedback-danger-soft); --btn-bg-active: rgba(251,113,133,0.18); }
+.btn--destructive:focus-visible { box-shadow: 0 0 0 3px rgba(251,113,133,0.25); border-color: var(--color-feedback-danger); }
+.btn-sm { height: 30px; min-height: 36px; padding: 0 var(--space-5); font-size: var(--font-size-sm); }
+.btn-xs { height: 26px; min-height: 32px; padding: 0 var(--space-4); font-size: var(--font-size-xs); gap: 6px; }
+
+.badge { display: inline-flex; align-items: center; gap: var(--space-2); height: 22px; padding: 0 var(--space-4); border-radius: var(--radius-lg); font-size: var(--font-size-xs); font-weight: var(--font-weight-medium); letter-spacing: 0.01em; white-space: nowrap; }
+.badge--default { background: rgba(245,245,247,0.08); color: var(--color-text-primary); }
+.badge--secondary { background: transparent; color: var(--color-text-secondary); border: 1px solid var(--color-border-strong); }
+.badge-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.7; }
+
+.progress { width: 100%; display: grid; gap: var(--space-3); }
+.progress-track { width: 100%; height: 6px; background: rgba(245,245,247,0.08); border-radius: var(--radius-lg); overflow: hidden; }
+.progress-fill { height: 100%; border-radius: var(--radius-lg); background: var(--color-text-primary); transition: width var(--motion-duration-normal) var(--motion-ease); }
+
+/* ===== Shell (shared with dashboard) ===== */
+.shell { display: grid; grid-template-rows: var(--header-h) 1fr; min-height: 100vh; }
+@media (min-width: 900px) { .shell { grid-template-columns: var(--sidebar-w) 1fr; } }
+
+.brand-mark {
+  width: 22px; height: 22px; border-radius: var(--radius-xs);
+  background: linear-gradient(135deg, #18181b 0%, #2a2a2e 100%);
+  position: relative; flex-shrink: 0;
+  box-shadow: inset 0 0 0 1px var(--color-border-subtle);
+}
+.brand-mark::after {
+  content: ""; position: absolute; inset: 0; margin: auto;
+  width: 0; height: 0; transform: translateX(1px);
+  border-left: 6px solid rgba(245,245,247,0.95);
+  border-top: 4px solid transparent; border-bottom: 4px solid transparent;
+}
+
+/* Topbar */
+.topbar {
+  grid-column: 1 / -1;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-5);
+  padding: 0 var(--space-6);
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-base);
+  height: var(--header-h);
+  position: sticky; top: 0; z-index: 40;
+}
+@media (min-width: 900px) { .topbar { padding: 0 var(--space-7); } }
+.topbar-left { display: inline-flex; align-items: center; gap: var(--space-4); min-width: 0; }
+.topbar-brand { display: inline-flex; align-items: center; gap: var(--space-3); font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); letter-spacing: -0.01em; }
+.topbar-brand .crumb { color: var(--color-text-tertiary); font-weight: var(--font-weight-base); font-size: var(--font-size-sm); margin-left: var(--space-3); }
+@media (max-width: 539px) { .topbar-brand .crumb { display: none; } }
+.topbar-right {
+  display: inline-flex; align-items: center;
+  gap: var(--space-5);
+}
+.topbar-right .topbar-divider {
+  width: 1px; height: 22px;
+  background: var(--color-border-subtle);
+  margin: 0 var(--space-1);
+}
+@media (max-width: 539px) { .topbar-right .topbar-divider { display: none; } }
+.topbar-user { display: inline-flex; align-items: center; gap: var(--space-3); }
+.avatar-sm { width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg, #4a4a52 0%, #2a2a30 100%); border: 1px solid var(--color-border-subtle); display: inline-flex; align-items: center; justify-content: center; color: var(--color-text-primary); font-size: 11px; font-weight: var(--font-weight-semibold); flex-shrink: 0; }
+
+.menu-btn { width: 36px; height: 36px; min-height: 44px; border: 0; background: transparent; color: var(--color-text-secondary); border-radius: var(--radius-xs); padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+.menu-btn:hover { color: var(--color-text-primary); background: rgba(245,245,247,0.06); }
+@media (min-width: 900px) { .menu-btn { display: none; } }
+
+/* Sidebar */
+.sidebar {
+  position: fixed; top: var(--header-h); left: 0; bottom: 0;
+  width: 280px;
+  background: var(--color-surface-base);
+  border-right: 1px solid var(--color-border-subtle);
+  padding: var(--space-7) var(--space-5);
+  display: flex; flex-direction: column; gap: var(--space-5);
+  z-index: 35;
+  transform: translateX(-100%);
+  transition: transform var(--motion-duration-normal) var(--motion-ease);
+  overflow-y: auto;
+}
+.sidebar.is-open { transform: translateX(0); box-shadow: var(--shadow-1); }
+@media (min-width: 900px) {
+  .sidebar { position: sticky; top: var(--header-h); width: auto; transform: none; box-shadow: none; height: calc(100vh - var(--header-h)); padding: var(--space-7) var(--space-5); }
+}
+.sidebar-scrim { position: fixed; inset: 0; z-index: 34; background: rgba(0,0,0,0.5); opacity: 0; pointer-events: none; transition: opacity var(--motion-duration-normal) var(--motion-ease); }
+.sidebar-scrim.is-visible { opacity: 1; pointer-events: auto; }
+@media (min-width: 900px) { .sidebar-scrim { display: none; } }
+
+.sidebar-section { display: grid; gap: 2px; }
+.sidebar-label { font-family: var(--font-family-mono); font-size: 11px; color: var(--color-text-tertiary); text-transform: uppercase; letter-spacing: 0.12em; padding: 0 var(--space-4) var(--space-2); }
+.nav-item {
+  display: flex; align-items: center; gap: var(--space-4);
+  padding: var(--space-3) var(--space-4); min-height: 40px;
+  border-radius: var(--radius-xs);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-md);
+  transition: background-color var(--motion-duration-fast) var(--motion-ease), color var(--motion-duration-fast) var(--motion-ease);
+}
+.nav-item:hover { color: var(--color-text-primary); background: rgba(245,245,247,0.04); }
+.nav-item:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-border-focus); }
+.nav-item.is-active { color: var(--color-text-primary); background: rgba(245,245,247,0.08); font-weight: var(--font-weight-medium); }
+.nav-item .count { margin-left: auto; font-family: var(--font-family-mono); font-size: 11px; color: var(--color-text-tertiary); }
+.sidebar-divider { height: 1px; background: var(--color-border-subtle); margin: var(--space-3) var(--space-4); }
+.sidebar-foot { margin-top: auto; }
+
+/* ===== Main + page title ===== */
+.main { padding: var(--space-7) var(--space-5) calc(var(--space-8) * 3); min-width: 0; }
+@media (min-width: 720px) { .main { padding: var(--space-8) var(--space-7) calc(var(--space-8) * 3); } }
+@media (min-width: 1100px) { .main { padding: var(--space-8) var(--space-8) calc(var(--space-8) * 3); } }
+.main-inner { display: grid; gap: 0; max-width: 880px; width: 100%; margin: 0 auto; }
+
+.page-title {
+  font-size: clamp(28px, 4vw, 32px);
+  letter-spacing: -0.02em;
+  font-weight: var(--font-weight-semibold);
+  margin: 0 0 var(--space-8);
+}
+
+/* ===== Settings sections (two-column rows on desktop) ===== */
+.settings-section {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-5);
+  padding: var(--space-8) 0;
+  border-top: 1px solid var(--color-border-subtle);
+}
+.settings-section:first-of-type { border-top: 0; padding-top: 0; }
+@media (min-width: 760px) {
+  .settings-section { grid-template-columns: 220px 1fr; gap: var(--space-8); align-items: start; padding: clamp(28px, 4vw, 40px) 0; }
+}
+.settings-head h2 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.005em;
+}
+.settings-head p {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  line-height: 1.55;
+}
+.settings-body {
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.settings-body.is-flush { background: transparent; border: 0; padding: 0; border-radius: 0; }
+
+/* Field row inside settings */
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-3);
+  padding: var(--space-6) var(--space-7);
+  border-bottom: 1px solid var(--color-border-subtle);
+  align-items: center;
+}
+.field-row:last-child { border-bottom: 0; }
+@media (min-width: 560px) {
+  .field-row { grid-template-columns: 140px 1fr; gap: var(--space-6); padding: var(--space-6) var(--space-7); }
+}
+.field-row .key { color: var(--color-text-secondary); font-size: var(--font-size-sm); font-weight: var(--font-weight-medium); }
+.field-row .value { color: var(--color-text-primary); font-size: var(--font-size-md); display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; min-width: 0; }
+.field-row .value .mono { font-family: var(--font-family-mono); font-size: var(--font-size-sm); word-break: break-all; }
+.field-row .value .muted { color: var(--color-text-tertiary); }
+
+/* Avatar large */
+.avatar-row { display: flex; align-items: center; gap: var(--space-6); }
+.avatar-lg {
+  width: 72px; height: 72px; border-radius: 50%;
+  background: linear-gradient(135deg, #4a4a52 0%, #2a2a30 100%);
+  border: 1px solid var(--color-border-subtle);
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.02em;
+  flex-shrink: 0;
+}
+.avatar-meta { display: grid; gap: 2px; }
+.avatar-meta .name { font-size: var(--font-size-2xl); font-weight: var(--font-weight-semibold); letter-spacing: -0.01em; }
+.avatar-meta .from { color: var(--color-text-tertiary); font-size: var(--font-size-xs); font-family: var(--font-family-mono); }
+
+.copy-btn {
+  background: transparent;
+  border: 1px solid var(--color-border-subtle);
+  color: var(--color-text-tertiary);
+  border-radius: var(--radius-xs);
+  padding: 4px 8px;
+  font-size: 11px;
+  font-family: var(--font-family-mono);
+  display: inline-flex; align-items: center; gap: 4px;
+  cursor: pointer;
+  transition: color var(--motion-duration-fast) var(--motion-ease), background var(--motion-duration-fast) var(--motion-ease), border-color var(--motion-duration-fast) var(--motion-ease);
+}
+.copy-btn:hover { color: var(--color-text-primary); background: rgba(245,245,247,0.06); border-color: var(--color-border-strong); }
+.copy-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-border-focus); }
+.copy-btn.is-copied { color: var(--color-feedback-success); border-color: rgba(52,211,153,0.35); }
+
+/* Plan section */
+.plan-card { padding: var(--space-7); display: grid; gap: var(--space-6); }
+.plan-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
+.plan-head .name { font-size: var(--font-size-2xl); font-weight: var(--font-weight-semibold); letter-spacing: -0.005em; display: inline-flex; align-items: center; gap: var(--space-4); }
+.plan-cap { color: var(--color-text-secondary); font-size: var(--font-size-md); margin: 0; }
+.plan-cap .num { color: var(--color-text-primary); font-weight: var(--font-weight-medium); font-family: var(--font-family-mono); }
+.plan-progress { display: grid; gap: var(--space-3); }
+.plan-progress-head { display: flex; justify-content: space-between; font-family: var(--font-family-mono); font-size: var(--font-size-xs); color: var(--color-text-secondary); }
+.plan-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); padding-top: var(--space-5); border-top: 1px solid var(--color-border-subtle); font-size: var(--font-size-sm); }
+.plan-foot .renew { color: var(--color-text-tertiary); font-family: var(--font-family-mono); font-size: var(--font-size-xs); }
+.plan-foot a { color: var(--color-text-secondary); }
+.plan-foot a:hover { color: var(--color-text-primary); }
+
+/* Billing */
+.billing-body { display: grid; gap: var(--space-5); padding: var(--space-7); }
+.billing-help { color: var(--color-text-tertiary); font-size: var(--font-size-sm); margin: 0; }
+
+/* Danger zone */
+.danger-section { border-top-color: rgba(251,113,133,0.18); }
+.danger-section .settings-body { background: rgba(251,113,133,0.03); border-color: rgba(251,113,133,0.2); }
+.danger-row {
+  display: grid; grid-template-columns: 1fr;
+  gap: var(--space-5);
+  padding: var(--space-7);
+  border-bottom: 1px solid rgba(251,113,133,0.15);
+  align-items: center;
+}
+.danger-row:last-child { border-bottom: 0; }
+@media (min-width: 600px) { .danger-row { grid-template-columns: 1fr auto; align-items: center; gap: var(--space-6); } }
+.danger-row .copy strong { display: block; font-size: var(--font-size-md); color: var(--color-text-primary); margin-bottom: 4px; font-weight: var(--font-weight-medium); }
+.danger-row .copy span { color: var(--color-text-secondary); font-size: var(--font-size-sm); line-height: 1.55; }
+
+/* ===== Preview-only state panel ===== */
+.preview-panel {
+  position: fixed; bottom: var(--space-6); right: var(--space-6); z-index: 60;
+  width: 280px;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-1);
+  font-family: var(--font-family-mono);
+  font-size: 11px; overflow: hidden;
+}
+@media (max-width: 540px) { .preview-panel { width: calc(100vw - 24px); right: 12px; bottom: 12px; } }
+.preview-panel.is-collapsed .preview-body { display: none; }
+.preview-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  background: rgba(245,245,247,0.04);
+  border-bottom: 1px solid var(--color-border-subtle);
+  cursor: pointer; user-select: none;
+}
+.preview-head strong { font-size: 11px; color: var(--color-text-primary); letter-spacing: 0.05em; text-transform: uppercase; font-weight: var(--font-weight-semibold); }
+.preview-head .arrow { color: var(--color-text-tertiary); }
+.preview-panel.is-collapsed .preview-head { border-bottom-color: transparent; }
+.preview-panel.is-collapsed .arrow { transform: rotate(180deg); }
+.preview-body { padding: var(--space-5); display: grid; gap: var(--space-4); }
+.preview-row { display: grid; grid-template-columns: 80px 1fr; gap: var(--space-3); align-items: center; }
+.preview-row .label { color: var(--color-text-tertiary); }
+.toggle-group {
+  display: inline-flex;
+  background: rgba(245,245,247,0.04);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-xs);
+  padding: 2px; gap: 2px;
+}
+.toggle-group button {
+  background: transparent; border: 0; color: var(--color-text-secondary);
+  font: inherit; font-size: 11px;
+  padding: 4px 8px; border-radius: 4px; cursor: pointer; min-height: 24px;
+  transition: background-color var(--motion-duration-fast) var(--motion-ease), color var(--motion-duration-fast) var(--motion-ease);
+}
+.toggle-group button:hover { color: var(--color-text-primary); }
+.toggle-group button.is-active { background: rgba(245,245,247,0.12); color: var(--color-text-primary); }
+.toggle-group button:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-border-focus); }
+
+/* State-driven visibility */
+[data-tier="free"] .if-pro,
+[data-tier="pro"]  .if-free,
+[data-canceled="true"]  .if-not-canceled,
+[data-canceled="false"] .if-canceled { display: none !important; }
+
+/* Toast (one-shot, top of main) */
+.toast-host {
+  position: sticky; top: calc(var(--header-h) + 12px); z-index: 30;
+  display: flex; justify-content: center;
+  padding: 0 var(--space-5);
+  pointer-events: none;
+}
+.toast {
+  pointer-events: auto;
+  display: grid; grid-template-columns: 20px 1fr auto;
+  gap: var(--space-5); align-items: start;
+  padding: var(--space-6); background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-subtle); border-radius: var(--radius-md);
+  box-shadow: var(--shadow-1);
+  max-width: 420px; width: 100%; position: relative; overflow: hidden;
+  --toast-accent: var(--color-feedback-warning);
+  --toast-accent-soft: rgba(251, 191, 36, 0.12);
+  transform: translateY(-8px); opacity: 0;
+  transition: opacity 220ms var(--motion-ease), transform 220ms var(--motion-ease);
+}
+.toast.is-visible { transform: none; opacity: 1; }
+.toast::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--toast-accent); }
+.toast-icon { width: 20px; height: 20px; border-radius: var(--radius-lg); background: var(--toast-accent-soft); color: var(--toast-accent); display: flex; align-items: center; justify-content: center; margin-top: 2px; flex-shrink: 0; }
+.toast-icon svg { width: 12px; height: 12px; }
+.toast-body { display: grid; gap: 4px; min-width: 0; }
+.toast-title { font-size: var(--font-size-md); font-weight: var(--font-weight-semibold); letter-spacing: -0.005em; }
+.toast-message { font-size: var(--font-size-sm); color: var(--color-text-secondary); line-height: 1.55; }
+.toast-dismiss { background: transparent; border: 0; color: var(--color-text-tertiary); cursor: pointer; padding: 4px; margin: -4px -4px 0 0; border-radius: var(--radius-xs); }
+.toast-dismiss:hover { color: var(--color-text-primary); background: rgba(245,245,247,0.06); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
+
+/* ===== LocaleSwitcher (header) ===== */
+.locale-switcher { position: relative; display: inline-flex; }
+.locale-trigger {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  height: 30px; min-height: 36px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border-subtle);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit; font-size: var(--font-size-xs);
+  font-family: var(--font-family-mono);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color var(--motion-duration-fast) var(--motion-ease), background-color var(--motion-duration-fast) var(--motion-ease), border-color var(--motion-duration-fast) var(--motion-ease);
+}
+@media (min-width: 720px) { .locale-trigger { min-height: 30px; } }
+.locale-trigger:hover { color: var(--color-text-primary); background: rgba(245,245,247,0.06); border-color: var(--color-border-strong); }
+.locale-trigger:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-border-focus); }
+.locale-trigger .arrow { transition: transform var(--motion-duration-fast) var(--motion-ease); color: var(--color-text-tertiary); }
+.locale-switcher.is-open .locale-trigger { color: var(--color-text-primary); background: rgba(245,245,247,0.08); border-color: var(--color-border-strong); }
+.locale-switcher.is-open .locale-trigger .arrow { transform: rotate(180deg); color: var(--color-text-primary); }
+
+.locale-menu {
+  position: absolute; top: calc(100% + 6px); right: 0;
+  list-style: none; padding: 4px; margin: 0;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-1);
+  min-width: 180px;
+  display: none;
+  z-index: 60;
+}
+.locale-switcher.is-open .locale-menu { display: block; }
+.locale-menu li { margin: 0; padding: 0; list-style: none; }
+.locale-menu button {
+  display: flex; align-items: center; gap: var(--space-4);
+  width: 100%;
+  background: transparent; border: 0;
+  padding: var(--space-3) var(--space-5);
+  color: var(--color-text-secondary);
+  font: inherit; font-size: var(--font-size-sm);
+  text-align: left; cursor: pointer;
+  border-radius: var(--radius-xs);
+  min-height: 36px;
+  transition: color var(--motion-duration-fast) var(--motion-ease), background-color var(--motion-duration-fast) var(--motion-ease);
+}
+.locale-menu button:hover { color: var(--color-text-primary); background: rgba(245,245,247,0.06); }
+.locale-menu button:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--color-border-focus); }
+.locale-menu button .code { font-family: var(--font-family-mono); font-size: var(--font-size-xs); color: var(--color-text-tertiary); width: 26px; letter-spacing: 0.06em; }
+.locale-menu button[aria-selected="true"] { color: var(--color-text-primary); }
+.locale-menu button[aria-selected="true"] .code { color: var(--color-text-primary); }
+.locale-menu button .check { margin-left: auto; opacity: 0; color: var(--color-text-secondary); flex-shrink: 0; }
+.locale-menu button[aria-selected="true"] .check { opacity: 1; }
+@media (max-width: 539px) {
+  .locale-menu { right: auto; left: 0; min-width: 160px; }
+}
+
+
+/* ===========================================================
+   Mobile audit fixes (75% of traffic is mobile)
+   - Body 16px on mobile (matches font.size.base token)
+   - Inputs 16px on mobile to prevent iOS auto-zoom
+   - Sidebar drawer breakpoint bumped from 900 to 1024px
+   - Topbar LocaleSwitcher hidden on mobile (surface inside sidebar)
+   =========================================================== */
+@media (max-width: 1023px) {
+  body { font-size: 16px; line-height: 1.55; }
+  .input { font-size: 16px !important; }
+  textarea, select { font-size: 16px; }
+
+  /* Show hamburger again; the existing @media min-width: 900 hides it.
+     We need to override at 900-1023 to keep it visible. */
+  .menu-btn { display: inline-flex !important; }
+
+  /* Sidebar collapses back to drawer at this breakpoint */
+  .shell { grid-template-columns: 1fr !important; }
+  .sidebar {
+    position: fixed !important;
+    top: var(--header-h);
+    left: 0; bottom: 0;
+    width: 280px;
+    transform: translateX(-100%);
+    transition: transform var(--motion-duration-normal) var(--motion-ease);
+    height: auto !important;
+  }
+  .sidebar.is-open { transform: translateX(0); box-shadow: var(--shadow-1); }
+  .sidebar-scrim { display: block !important; }
+
+  /* Topbar LocaleSwitcher hidden; sidebar has its own */
+  .topbar-right > .locale-switcher { display: none !important; }
+
+  /* Quick analyze widgets back to 1 column on tablet so they breathe */
+  .qa-widgets { grid-template-columns: 1fr !important; }
+}
+
+@media (max-width: 539px) {
+  /* Drop tier badge in topbar to give brand + locale + avatar room */
+  .topbar-right > .badge { display: none !important; }
+}
+
+/* Sidebar locale section (only visible inside the mobile drawer) */
+.sidebar-locale {
+  padding: 0 var(--space-4);
+}
+.sidebar-locale .locale-switcher { width: 100%; display: flex; }
+.sidebar-locale .locale-trigger {
+  width: 100%; height: 44px; min-height: 44px;
+  justify-content: space-between;
+  font-size: var(--font-size-sm);
+  padding: 0 var(--space-5);
+}
+.sidebar-locale .locale-menu { width: 100%; right: 0; left: 0; }
+@media (min-width: 1024px) {
+  .sidebar-locale-section { display: none; }
+}
+
+/* ===========================================================
+   Profile-specific mobile fixes
+   - Settings: single column < 1024px (head ABOVE body)
+   - Field-rows: stack key above value at all widths < 1024px
+   - Email + Account ID: word-break to prevent overflow
+   =========================================================== */
+@media (max-width: 1023px) {
+  .settings-section {
+    grid-template-columns: 1fr !important;
+    gap: var(--space-6) !important;
+    padding: var(--space-8) 0 !important;
+  }
+  .field-row {
+    grid-template-columns: 1fr !important;
+    gap: var(--space-3) !important;
+    padding: var(--space-6) !important;
+  }
+  .field-row + .field-row { margin-top: 0; }
+  .field-row .value .mono {
+    word-break: break-all;
+    overflow-wrap: anywhere;
+    font-size: 12px !important;
+    line-height: 1.5;
+  }
+  .field-row .value {
+    flex-wrap: wrap;
+    gap: var(--space-3);
+  }
+  /* Avatar row never overflows */
+  .avatar-row { flex-wrap: wrap; gap: var(--space-5); }
+  .avatar-meta { min-width: 0; }
+  .avatar-meta .name { word-break: break-word; }
+
+  /* Danger zone: stack row content */
+  .danger-row {
+    grid-template-columns: 1fr !important;
+    padding: var(--space-6) !important;
+    gap: var(--space-4) !important;
+  }
+  .danger-row .btn { width: 100%; min-height: 48px; }
+  .danger-row .badge { align-self: flex-start; }
+}
+
+
+/* ===== YouTube connection section ===== */
+.yt-conn {
+  padding: var(--space-7);
+  display: grid; gap: var(--space-5);
+}
+.yt-conn-status {
+  display: grid; grid-template-columns: 12px 1fr auto; gap: var(--space-5);
+  align-items: center;
+}
+@media (max-width: 539px) {
+  .yt-conn-status { grid-template-columns: 12px 1fr; }
+  .yt-conn-status .btn { grid-column: 1 / -1; width: 100%; min-height: 48px; }
+}
+.yt-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
+.yt-dot.is-connected { background: var(--color-feedback-success); box-shadow: 0 0 0 4px rgba(52,211,153,0.18); }
+.yt-dot.is-shared { background: var(--color-feedback-warning); box-shadow: 0 0 0 4px rgba(251,191,36,0.18); }
+.yt-dot.is-coming { background: var(--color-feedback-warning); box-shadow: 0 0 0 4px rgba(251,191,36,0.18); }
+.yt-coming-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: var(--radius-lg);
+  background: rgba(251,191,36,0.1);
+  border: 1px solid rgba(251,191,36,0.28);
+  color: var(--color-feedback-warning);
+  font-family: var(--font-family-mono); font-size: 11px;
+  text-transform: uppercase; letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+.yt-conn-label { display: grid; gap: 4px; min-width: 0; }
+.yt-conn-label .name { font-size: var(--font-size-md); font-weight: var(--font-weight-medium); color: var(--color-text-primary); word-break: break-word; }
+.yt-conn-label .sub { font-size: var(--font-size-sm); color: var(--color-text-secondary); line-height: 1.5; }
+.yt-helper {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+  line-height: 1.55;
+  padding: var(--space-4) var(--space-5);
+  background: rgba(245,245,247,0.02);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-xs);
+}
+[data-yt="connected"] .if-yt-shared { display: none !important; }
+[data-yt="shared"]    .if-yt-connected { display: none !important; }
+
+</style>
+</head>
+<body data-tier="free" data-canceled="false">
+
+<!-- Icons -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 11 12 3l9 8v9a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+    <symbol id="i-plug" viewBox="0 0 24 24"><path d="M9 2v6"/><path d="M15 2v6"/><path d="M7 8h10v3a5 5 0 0 1-10 0z"/><path d="M12 16v6"/></symbol>
+    <symbol id="i-github" viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.46-1.16-1.12-1.47-1.12-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.9 1.52 2.34 1.08 2.91.83.09-.65.35-1.08.63-1.33-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.02a9.6 9.6 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.38.2 2.4.1 2.65.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></symbol>
+    <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></symbol>
+    <symbol id="i-empty" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/><path d="M8 10h8"/><path d="M8 13h5"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m4 12 5 5L20 6"/></symbol>
+    <symbol id="i-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></symbol>
+    <symbol id="i-chev-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 3h7v7"/><path d="M21 3 10 14"/><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></symbol>
+  </defs>
+</svg>
+
+<div class="shell">
+
+  <!-- ===================== TOPBAR ===================== -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="menu-btn" id="menuBtn" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false">
+        <svg class="icon icon-lg" aria-hidden="true"><use href="#i-menu"/></svg>
+      </button>
+      <a href="TubeMine Landing.html" class="topbar-brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span>TubeMine</span>
+      </a>
+    </div>
+    <div class="topbar-right">
+      <div class="locale-switcher" data-locale-switcher>
+        <button type="button" class="locale-trigger" aria-haspopup="listbox" aria-expanded="false" aria-label="Language">
+          <span class="locale-current">EN</span>
+          <svg class="icon icon-sm arrow" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <ul class="locale-menu" role="listbox" aria-label="Language">
+          <li><button type="button" role="option" data-locale="en" aria-selected="true"><span class="code">EN</span><span class="label">English</span><svg class="icon icon-sm check" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 12 5 5L20 6"/></svg></button></li>
+          <li><button type="button" role="option" data-locale="ru" aria-selected="false"><span class="code">RU</span><span class="label">Русский</span><svg class="icon icon-sm check" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 12 5 5L20 6"/></svg></button></li>
+        </ul>
+      </div>
+      <span class="topbar-divider" aria-hidden="true"></span>
+      <span class="badge badge--secondary if-free" style="height: 22px;">Free</span>
+      <span class="badge badge--default if-pro" style="height: 22px;"><span class="badge-dot"></span>Pro</span>
+      <div class="topbar-user">
+        <span class="avatar-sm">YR</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===================== SIDEBAR ===================== -->
+  <div class="sidebar-scrim" id="sidebarScrim" aria-hidden="true"></div>
+  <aside class="sidebar" id="sidebar" aria-label="Primary navigation">
+    <nav class="sidebar-section" aria-label="Main">
+      <div class="sidebar-label">Workspace</div>
+      <a href="TubeMine Dashboard.html" class="nav-item">
+        <svg class="icon" aria-hidden="true"><use href="#i-home"/></svg>
+        Home
+      </a>
+      <a href="TubeMine History.html" class="nav-item">
+        <svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg>
+        History
+        <span class="count">42</span>
+      </a>
+      <a href="TubeMine Profile.html" class="nav-item is-active" aria-current="page">
+        <svg class="icon" aria-hidden="true"><use href="#i-user"/></svg>
+        Profile
+      </a>
+      <a href="TubeMine MCP.html" class="nav-item">
+        <svg class="icon" aria-hidden="true"><use href="#i-plug"/></svg>
+        MCP / AI Access
+      </a>
+    </nav>
+
+    <div class="sidebar-divider" role="separator"></div>
+
+    <nav class="sidebar-section" aria-label="Resources">
+      <div class="sidebar-label">More</div>
+      <a href="https://github.com/RakhimovY/tubemine" target="_blank" rel="noopener" class="nav-item">
+        <svg class="icon" aria-hidden="true"><use href="#i-github"/></svg>
+        GitHub
+      </a>
+      <a href="TubeMine Docs.html" class="nav-item">
+        <svg class="icon" aria-hidden="true"><use href="#i-empty"/></svg>
+        Docs
+      </a>
+    </nav>
+
+    <div class="sidebar-foot">
+      <a href="TubeMine Login.html" class="nav-item">
+        <svg class="icon" aria-hidden="true"><use href="#i-logout"/></svg>
+        Sign out
+      </a>
+    </div>
+  </aside>
+
+  <!-- ===================== MAIN ===================== -->
+  <main class="main">
+    <div class="main-inner">
+
+      <!-- Toast host (transient feedback like "Subscription will end on...") -->
+      <div class="toast-host" id="toastHost" aria-live="polite"></div>
+
+      <h1 class="page-title">Profile</h1>
+
+      <!-- ============ ACCOUNT ============ -->
+      <section class="settings-section" aria-labelledby="sec-account">
+        <header class="settings-head">
+          <h2 id="sec-account">Account</h2>
+          <p>Your sign-in details, sourced from Google.</p>
+        </header>
+        <div class="settings-body">
+
+          <!-- Avatar + name -->
+          <div class="field-row">
+            <div class="key">Profile</div>
+            <div class="value">
+              <div class="avatar-row">
+                <span class="avatar-lg" aria-hidden="true">YR</span>
+                <div class="avatar-meta">
+                  <span class="name">Yusup Rakhimov</span>
+                  <span class="from">via Google OAuth</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Email -->
+          <div class="field-row">
+            <div class="key">Email</div>
+            <div class="value">
+              <span class="mono">rakhimov.y.hh@gmail.com</span>
+              <span class="badge badge--secondary" style="height: 20px; padding: 0 8px; font-size: 11px;">read-only</span>
+            </div>
+          </div>
+
+          <!-- Joined -->
+          <div class="field-row">
+            <div class="key">Joined</div>
+            <div class="value">
+              <span>May 17, 2026</span>
+              <span class="muted" style="font-family: var(--font-family-mono); font-size: 12px;">1 day ago</span>
+            </div>
+          </div>
+
+          <!-- Account ID -->
+          <div class="field-row">
+            <div class="key">Account ID</div>
+            <div class="value">
+              <span class="mono" id="acctId">user_933a72264c7eec62</span>
+              <button class="copy-btn" id="copyAcct" type="button" aria-label="Copy account ID">
+                <svg class="icon icon-sm" aria-hidden="true"><use href="#i-copy"/></svg>
+                <span class="copy-label">copy</span>
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ============ PLAN ============ -->
+      <section class="settings-section" aria-labelledby="sec-plan">
+        <header class="settings-head">
+          <h2 id="sec-plan">Plan</h2>
+          <p>Your monthly cap and how much of it you have used so far.</p>
+        </header>
+        <div class="settings-body">
+
+          <!-- Free state -->
+          <div class="plan-card if-free">
+            <div class="plan-head">
+              <span class="name">
+                <span class="badge badge--secondary" style="height: 22px;">Free</span>
+              </span>
+              <a href="TubeMine Pricing.html" class="btn btn--secondary btn-sm">
+                Upgrade to Pro
+                <svg class="icon icon-sm" aria-hidden="true"><use href="#i-arrow-right"/></svg>
+              </a>
+            </div>
+            <p class="plan-cap"><span class="num">5,000</span> comments per month</p>
+            <div class="plan-progress">
+              <div class="plan-progress-head">
+                <span>3,062 / 5,000 used</span>
+                <span>61% used</span>
+              </div>
+              <div class="progress" role="progressbar" aria-valuenow="61" aria-valuemin="0" aria-valuemax="100">
+                <div class="progress-track"><div class="progress-fill" style="width: 61%"></div></div>
+              </div>
+            </div>
+            <div class="plan-foot">
+              <a href="TubeMine Dashboard.html">Open dashboard</a>
+              <span class="renew">resets Jun 18, 2026</span>
+            </div>
+          </div>
+
+          <!-- Pro state -->
+          <div class="plan-card if-pro">
+            <div class="plan-head">
+              <span class="name">
+                <span class="badge badge--default" style="height: 22px;"><span class="badge-dot"></span>Pro</span>
+              </span>
+              <a href="TubeMine Pricing.html" class="btn btn--ghost btn-sm">See plans</a>
+            </div>
+            <p class="plan-cap"><span class="num">100,000</span> comments per month</p>
+            <div class="plan-progress">
+              <div class="plan-progress-head">
+                <span>12,847 / 100,000 used</span>
+                <span>13% used</span>
+              </div>
+              <div class="progress" role="progressbar" aria-valuenow="13" aria-valuemin="0" aria-valuemax="100">
+                <div class="progress-track"><div class="progress-fill" style="width: 13%"></div></div>
+              </div>
+            </div>
+            <div class="plan-foot">
+              <a href="TubeMine Dashboard.html">Open dashboard</a>
+              <span class="renew if-not-canceled">renews Jun 18, 2026</span>
+              <span class="renew if-canceled" style="color: var(--color-feedback-warning);">subscription ends Jun 18, 2026</span>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+
+      <!-- ============ YOUTUBE CONNECTION ============ -->
+      <section class="settings-section" aria-labelledby="sec-yt">
+        <header class="settings-head">
+          <h2 id="sec-yt">YouTube connection</h2>
+          <p>How TubeMine calls the YouTube API on your behalf.</p>
+        </header>
+        <div class="settings-body">
+          <div class="yt-conn">
+            <!-- Coming soon state, BYOK awaiting Google verification -->
+            <div class="yt-conn-status">
+              <span class="yt-dot is-coming" aria-hidden="true"></span>
+              <div class="yt-conn-label">
+                <span class="name">YouTube connection, coming soon</span>
+                <span class="sub">Beta access opens after Google verification (estimated Q3 2026). Until then, all analyses use the TubeMine shared quota.</span>
+              </div>
+              <button type="button" class="btn btn--secondary btn-sm" disabled aria-disabled="true" style="cursor: not-allowed; opacity: 0.55;">Coming soon</button>
+            </div>
+            <p class="yt-helper">Once available: personal quota = 10,000 calls per day per account, free from Google. Today: every account is on TubeMine's shared daily quota.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ BILLING (Pro only) ============ -->
+      <section class="settings-section if-pro" aria-labelledby="sec-billing">
+        <header class="settings-head">
+          <h2 id="sec-billing">Billing</h2>
+          <p>Handled by Polar. Manage payment, invoices, and cancellation in the customer portal.</p>
+        </header>
+        <div class="settings-body">
+          <div class="billing-body">
+            <div>
+              <a href="TubeMine Profile.html?canceled=true" class="btn btn--secondary">
+                Manage subscription
+                <svg class="icon icon-sm" aria-hidden="true"><use href="#i-external"/></svg>
+              </a>
+            </div>
+            <p class="billing-help">Update payment, see invoices, or cancel anytime.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ DANGER ZONE ============ -->
+      <section class="settings-section danger-section" aria-labelledby="sec-danger">
+        <header class="settings-head">
+          <h2 id="sec-danger" style="color: var(--color-feedback-danger);">Danger zone</h2>
+          <p>Irreversible actions. Read carefully.</p>
+        </header>
+        <div class="settings-body">
+
+          <div class="danger-row">
+            <div class="copy">
+              <strong>Sign out of TubeMine</strong>
+              <span>Ends this session. You can sign back in any time with Google.</span>
+            </div>
+            <a href="TubeMine Login.html" class="btn btn--destructive">
+              <svg class="icon icon-sm" aria-hidden="true"><use href="#i-logout"/></svg>
+              Sign out
+            </a>
+          </div>
+
+          <div class="danger-row">
+            <div class="copy">
+              <strong>Delete your account</strong>
+              <span>To delete your account, email <a href="mailto:hello@tubemine.app" style="color: var(--color-text-primary); text-decoration: underline;">hello@tubemine.app</a>. We will purge your data within 7 days.</span>
+            </div>
+            <span class="badge badge--secondary" style="height: 22px;">email only</span>
+          </div>
+
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+</div>
+
+<!-- ===================== Preview state panel ===================== -->
+<aside class="preview-panel" id="previewPanel" aria-label="Design preview controls">
+  <header class="preview-head" id="previewHead" role="button" tabindex="0" aria-expanded="true">
+    <strong>Design preview</strong>
+    <svg class="icon icon-sm arrow" aria-hidden="true"><use href="#i-chev-down"/></svg>
+  </header>
+  <div class="preview-body">
+    <div class="preview-row">
+      <span class="label">Tier</span>
+      <div class="toggle-group" role="radiogroup" aria-label="Tier">
+        <button data-state="tier" data-value="free" class="is-active" role="radio" aria-checked="true">Free</button>
+        <button data-state="tier" data-value="pro" role="radio" aria-checked="false">Pro</button>
+      </div>
+    </div>
+    <div class="preview-row">
+      <span class="label">Subscription</span>
+      <div class="toggle-group" role="radiogroup" aria-label="Subscription state">
+        <button data-state="canceled" data-value="false" class="is-active" role="radio" aria-checked="true">Active</button>
+        <button data-state="canceled" data-value="true" role="radio" aria-checked="false">Canceled</button>
+      </div>
+    </div>
+    <div class="preview-row">
+      <span class="label">YouTube</span>
+      <div class="toggle-group is-disabled" role="group" aria-label="YouTube connection state">
+        <button data-state="yt" data-value="coming" class="is-active" role="radio" aria-checked="true" disabled aria-disabled="true" style="cursor: not-allowed;">Coming soon</button>
+      </div>
+    </div>
+    <p style="color: var(--color-text-tertiary); margin: 0; line-height: 1.5;">Swaps the Plan card content, shows or hides Billing, and reflects cancellation state in the Pro tier label.</p>
+    <a class="preview-flows-link" href="TubeMine Flows.html">
+      <span>All 7 prototype flows</span>
+      <svg class="icon icon-sm" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+    </a>
+  </div>
+</aside>
+
+<!-- ===================== JS ===================== -->
+<script>
+(function () {
+  // Sidebar drawer
+  var menuBtn = document.getElementById('menuBtn');
+  var sidebar = document.getElementById('sidebar');
+  var scrim = document.getElementById('sidebarScrim');
+  function openSidebar() { sidebar.classList.add('is-open'); scrim.classList.add('is-visible'); menuBtn.setAttribute('aria-expanded', 'true'); }
+  function closeSidebar() { sidebar.classList.remove('is-open'); scrim.classList.remove('is-visible'); menuBtn.setAttribute('aria-expanded', 'false'); }
+  menuBtn.addEventListener('click', function () { if (sidebar.classList.contains('is-open')) closeSidebar(); else openSidebar(); });
+  scrim.addEventListener('click', closeSidebar);
+  sidebar.querySelectorAll('.nav-item').forEach(function (a) { a.addEventListener('click', function () { if (window.innerWidth < 900) closeSidebar(); }); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && sidebar.classList.contains('is-open')) closeSidebar(); });
+
+  // Copy account ID
+  var copyBtn = document.getElementById('copyAcct');
+  var acctText = document.getElementById('acctId');
+  copyBtn.addEventListener('click', function () {
+    var text = acctText.textContent.trim();
+    var done = function () {
+      copyBtn.classList.add('is-copied');
+      var label = copyBtn.querySelector('.copy-label');
+      var prev = label.textContent;
+      label.textContent = 'copied';
+      setTimeout(function () {
+        copyBtn.classList.remove('is-copied');
+        label.textContent = prev;
+      }, 1500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(function () {
+        // Fallback for non-secure contexts
+        try {
+          var ta = document.createElement('textarea');
+          ta.value = text; document.body.appendChild(ta); ta.select();
+          document.execCommand('copy'); document.body.removeChild(ta);
+          done();
+        } catch (e) {}
+      });
+    } else {
+      try {
+        var ta = document.createElement('textarea');
+        ta.value = text; document.body.appendChild(ta); ta.select();
+        document.execCommand('copy'); document.body.removeChild(ta);
+        done();
+      } catch (e) {}
+    }
+  });
+
+  // State toggles
+  var body = document.body;
+  document.querySelectorAll('.toggle-group button[data-state]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var key = b.getAttribute('data-state');
+      var value = b.getAttribute('data-value');
+      body.setAttribute('data-' + key, value);
+      var group = b.parentElement;
+      group.querySelectorAll('button').forEach(function (sib) {
+        var active = sib === b;
+        sib.classList.toggle('is-active', active);
+        sib.setAttribute('aria-checked', active ? 'true' : 'false');
+      });
+    });
+  });
+
+  // Preview panel collapse
+  var panel = document.getElementById('previewPanel');
+  var head = document.getElementById('previewHead');
+  function togglePanel() { var c = panel.classList.toggle('is-collapsed'); head.setAttribute('aria-expanded', c ? 'false' : 'true'); }
+  head.addEventListener('click', togglePanel);
+  head.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); togglePanel(); } });
+
+  // ===== Toast (simple one-shot)
+  var toastHost = document.getElementById('toastHost');
+  function pushToast(opts) {
+    var t = document.createElement('div');
+    t.className = 'toast';
+    t.setAttribute('role', 'status');
+    t.innerHTML =
+      '<span class="toast-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg></span>' +
+      '<div class="toast-body"><div class="toast-title">' + opts.title + '</div><div class="toast-message">' + opts.message + '</div></div>' +
+      '<button class="toast-dismiss" aria-label="Dismiss"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>';
+    toastHost.appendChild(t);
+    requestAnimationFrame(function () { t.classList.add('is-visible'); });
+    var ttl = setTimeout(function () { dismiss(); }, 6000);
+    function dismiss() {
+      clearTimeout(ttl);
+      t.classList.remove('is-visible');
+      setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 240);
+    }
+    t.querySelector('.toast-dismiss').addEventListener('click', dismiss);
+  }
+
+  // ===== URL param state drivers
+  var p = new URLSearchParams(window.location.search);
+  function syncTogglesTo(key, value) {
+    var b = document.querySelector('button[data-state="' + key + '"][data-value="' + value + '"]');
+    if (b) b.click();
+  }
+  if (p.get('tier') === 'pro') syncTogglesTo('tier', 'pro');
+  if (p.get('tier') === 'free') syncTogglesTo('tier', 'free');
+  if (p.get('canceled') === 'true') {
+    // Cancellation implies Pro
+    syncTogglesTo('tier', 'pro');
+    syncTogglesTo('canceled', 'true');
+    pushToast({
+      title: 'Subscription canceled',
+      message: 'You will keep Pro access until Jun 18, 2026. After that, you move to Free automatically.'
+    });
+  }
+})();
+</script>
+
+<script>
+(function () {
+  document.querySelectorAll('[data-locale-switcher]').forEach(function (sw) {
+    var trigger = sw.querySelector('.locale-trigger');
+    var menu = sw.querySelector('.locale-menu');
+    var options = sw.querySelectorAll('.locale-menu [role="option"]');
+    var current = sw.querySelector('.locale-current');
+
+    function setOpen(open) {
+      sw.classList.toggle('is-open', open);
+      trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+
+    trigger.addEventListener('click', function (e) {
+      e.stopPropagation();
+      setOpen(!sw.classList.contains('is-open'));
+    });
+
+    options.forEach(function (opt) {
+      opt.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var locale = opt.getAttribute('data-locale');
+        options.forEach(function (o) {
+          o.setAttribute('aria-selected', o === opt ? 'true' : 'false');
+        });
+        if (current) current.textContent = locale.toUpperCase();
+        try { document.documentElement.setAttribute('lang', locale); } catch (e2) {}
+        setOpen(false);
+      });
+    });
+
+    document.addEventListener('click', function (e) {
+      if (sw.classList.contains('is-open') && !sw.contains(e.target)) setOpen(false);
+    });
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      document.querySelectorAll('[data-locale-switcher].is-open').forEach(function (sw) {
+        sw.classList.remove('is-open');
+        var t = sw.querySelector('.locale-trigger');
+        if (t) t.setAttribute('aria-expanded', 'false');
+      });
+    }
+  });
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,1394 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>History · TubeMine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+/* ============================================================
+   TubeMine v3 — History
+   App shell shared with Dashboard + Profile.
+   ============================================================ */
+:root {
+  --font-family-primary: "SF Pro Display", -apple-system, system-ui, "Inter", "Segoe UI", sans-serif;
+  --font-family-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --font-size-xs: 12px; --font-size-sm: 13px; --font-size-md: 14px;
+  --font-size-lg: 15px; --font-size-xl: 16px; --font-size-2xl: 17px;
+  --font-size-3xl: 18px; --font-size-4xl: 21px;
+  --font-weight-base: 400; --font-weight-medium: 500; --font-weight-semibold: 600;
+  --line-height-base: 24px;
+  --color-surface-base: #000000;
+  --color-surface-raised: #0f0f11;
+  --color-surface-sunken: #0a0a0c;
+  --color-surface-muted: #ffffff;
+  --color-text-primary: #f5f5f7;
+  --color-text-secondary: #b9b9c0;
+  --color-text-tertiary: #7a7a82;
+  --color-text-inverse: #0a0a0c;
+  --color-text-disabled: #4a4a52;
+  --color-border-subtle: rgba(245, 245, 247, 0.08);
+  --color-border-strong: rgba(245, 245, 247, 0.16);
+  --color-border-focus: rgba(245, 245, 247, 0.55);
+  --color-feedback-success: rgba(52, 211, 153, 0.8);
+  --color-feedback-success-soft: rgba(52, 211, 153, 0.12);
+  --color-feedback-danger: rgba(251, 113, 133, 0.8);
+  --color-feedback-danger-soft: rgba(251, 113, 133, 0.12);
+  --color-feedback-warning: rgba(251, 191, 36, 0.85);
+  --color-feedback-warning-soft: rgba(251, 191, 36, 0.12);
+  --color-accent-positive: rgba(52, 211, 153, 0.8);
+  --color-accent-negative: rgba(251, 113, 133, 0.8);
+  --color-sentiment-neutral: var(--color-text-secondary);
+  --space-1: 4px; --space-2: 6px; --space-3: 8px; --space-4: 10px;
+  --space-5: 12px; --space-6: 16px; --space-7: 20px; --space-8: 24px;
+  --radius-xs: 6px; --radius-sm: 8px; --radius-md: 14px; --radius-lg: 9999px;
+  --shadow-1: rgba(0,0,0,0.18) 0px 24px 80px 0px;
+  --motion-duration-instant: 140ms; --motion-duration-fast: 150ms;
+  --motion-duration-normal: 200ms;
+  --motion-ease: cubic-bezier(0.2, 0, 0, 1);
+  --sidebar-w: 240px;
+  --header-h: 60px;
+}
+
+*,*::before,*::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--color-surface-base);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-primary);
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-base);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
+}
+::selection { background: rgba(245,245,247,0.18); }
+a { color: inherit; text-decoration: none; }
+button { font: inherit; color: inherit; cursor: pointer; }
+
+@media (max-width: 1023px) {
+  body { font-size: 16px; line-height: 1.55; }
+  .input { font-size: 16px !important; }
+  select, textarea { font-size: 16px; }
+}
+
+.icon { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.icon-sm { width: 14px; height: 14px; }
+.icon-lg { width: 20px; height: 20px; }
+
+/* ===== Buttons ===== */
+.btn {
+  --btn-bg: transparent; --btn-fg: var(--color-text-primary);
+  --btn-border: var(--color-border-strong);
+  --btn-bg-hover: rgba(245,245,247,0.06); --btn-bg-active: rgba(245,245,247,0.12);
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-3);
+  height: 36px; padding: 0 var(--space-6); border-radius: var(--radius-lg);
+  border: 1px solid var(--btn-border); background: var(--btn-bg); color: var(--btn-fg);
+  font-size: var(--font-size-md); font-weight: var(--font-weight-medium); letter-spacing: -0.005em;
+  user-select: none; white-space: nowrap; position: relative; min-height: 44px;
+  transition: background-color var(--motion-duration-fast) var(--motion-ease), border-color var(--motion-duration-fast) var(--motion-ease), color var(--motion-duration-fast) var(--motion-ease), box-shadow var(--motion-duration-fast) var(--motion-ease), transform var(--motion-duration-instant) var(--motion-ease);
+}
+@media (min-width: 720px) { .btn { min-height: 36px; } }
+.btn:hover { background: var(--btn-bg-hover); }
+.btn:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(245,245,247,0.18); border-color: var(--color-border-focus); }
+.btn:active { background: var(--btn-bg-active); transform: translateY(0.5px); }
+.btn--primary { --btn-bg: var(--color-surface-muted); --btn-fg: var(--color-text-inverse); --btn-border: var(--color-surface-muted); --btn-bg-hover: #ececef; }
+.btn--secondary { --btn-bg: rgba(245,245,247,0.06); --btn-fg: var(--color-text-primary); --btn-border: var(--color-border-strong); --btn-bg-hover: rgba(245,245,247,0.1); }
+.btn--ghost { --btn-bg: transparent; --btn-fg: var(--color-text-secondary); --btn-border: transparent; --btn-bg-hover: rgba(245,245,247,0.06); }
+.btn--ghost:hover { color: var(--color-text-primary); }
+.btn--destructive { --btn-bg: transparent; --btn-fg: var(--color-feedback-danger); --btn-border: rgba(251,113,133,0.35); --btn-bg-hover: var(--color-feedback-danger-soft); }
+.btn-sm { height: 30px; min-height: 36px; padding: 0 var(--space-5); font-size: var(--font-size-sm); }
+.btn-xs { height: 26px; min-height: 32px; padding: 0 var(--space-4); font-size: var(--font-size-xs); gap: 6px; }
+.btn--icon { width: 36px; height: 36px; padding: 0; }
+
+.badge { display: inline-flex; align-items: center; gap: var(--space-2); height: 22px; padding: 0 var(--space-4); border-radius: var(--radius-lg); font-size: var(--font-size-xs); font-weight: var(--font-weight-medium); letter-spacing: 0.01em; white-space: nowrap; }
+.badge--default { background: rgba(245,245,247,0.08); color: var(--color-text-primary); }
+.badge--secondary { background: transparent; color: var(--color-text-secondary); border: 1px solid var(--color-border-strong); }
+.badge-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.7; }
+
+.input-wrap { position: relative; display: flex; align-items: center; width: 100%; }
+.input {
+  width: 100%; height: 40px; padding: 0 var(--space-6);
+  background: var(--color-surface-raised); color: var(--color-text-primary);
+  border: 1px solid var(--color-border-strong); border-radius: var(--radius-sm);
+  font: inherit; font-size: var(--font-size-md); outline: none;
+  transition: border-color var(--motion-duration-fast) var(--motion-ease), box-shadow var(--motion-duration-fast) var(--motion-ease);
+}
+.input::placeholder { color: var(--color-text-tertiary); }
+.input:hover { border-color: rgba(245,245,247,0.24); }
+.input:focus-visible { border-color: var(--color-border-focus); box-shadow: 0 0 0 3px rgba(245,245,247,0.14); }
+.input-wrap.has-prefix .input { padding-left: 38px; }
+.input-wrap .prefix-icon { position: absolute; left: var(--space-5); color: var(--color-text-tertiary); pointer-events: none; display: flex; }
+
+/* ===== Shell (shared) ===== */
+.shell { display: grid; grid-template-rows: var(--header-h) 1fr; min-height: 100vh; }
+@media (min-width: 1024px) { .shell { grid-template-columns: var(--sidebar-w) 1fr; } }
+
+.brand-mark {
+  width: 22px; height: 22px; border-radius: var(--radius-xs);
+  background: linear-gradient(135deg, #18181b 0%, #2a2a2e 100%);
+  position: relative; flex-shrink: 0;
+  box-shadow: inset 0 0 0 1px var(--color-border-subtle);
+}
+.brand-mark::after {
+  content: ""; position: absolute; inset: 0; margin: auto;
+  width: 0; height: 0; transform: translateX(1px);
+  border-left: 6px solid rgba(245,245,247,0.95);
+  border-top: 4px solid transparent; border-bottom: 4px solid transparent;
+}
+
+.topbar {
+  grid-column: 1 / -1;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-5);
+  padding: 0 var(--space-6);
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-base);
+  height: var(--header-h);
+  position: sticky; top: 0; z-index: 40;
+}
+@media (min-width: 1024px) { .topbar { padding: 0 var(--space-7); } }
+.topbar-left { display: inline-flex; align-items: center; gap: var(--space-4); min-width: 0; }
+.topbar-brand { display: inline-flex; align-items: center; gap: var(--space-3); font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); letter-spacing: -0.01em; }
+.topbar-right {
+  display: inline-flex; align-items: center;
+  gap: var(--space-5);
+}
+.topbar-right .topbar-divider {
+  width: 1px; height: 22px;
+  background: var(--color-border-subtle);
+}
+@media (max-width: 539px) { .topbar-right .topbar-divider { display: none; } }
+.topbar-user { display: inline-flex; align-items: center; gap: var(--space-3); }
+.avatar-sm { width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg, #4a4a52 0%, #2a2a30 100%); border: 1px solid var(--color-border-subtle); display: inline-flex; align-items: center; justify-content: center; color: var(--color-text-primary); font-size: 11px; font-weight: var(--font-weight-semibold); flex-shrink: 0; }
+
+.menu-btn {
+  width: 36px; height: 36px; min-height: 44px;
+  border: 0; background: transparent; color: var(--color-text-secondary);
+  border-radius: var(--radius-xs); padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer;
+}
+.menu-btn:hover { color: var(--color-text-primary); background: rgba(245,245,247,0.06); }
+@media (min-width: 1024px) { .menu-btn { display: none; } }
+
+@media (max-width: 1023px) {
+  .topbar-right > .locale-switcher { display: none !important; }
+}
+@media (max-width: 539px) {
+  .topbar-right > .badge { display: none !important; }
+}
+
+/* Sidebar */
+.sidebar {
+  position: fixed; top: var(--header-h); left: 0; bottom: 0;
+  width: 280px;
+  background: var(--color-surface-base);
+  border-right: 1px solid var(--color-border-subtle);
+  padding: var(--space-7) var(--space-5);
+  display: flex; flex-direction: column; gap: var(--space-5);
+  z-index: 35;
+  transform: translateX(-100%);
+  transition: transform var(--motion-duration-normal) var(--motion-ease);
+  overflow-y: auto;
+}
+.sidebar.is-open { transform: translateX(0); box-shadow: var(--shadow-1); }
+@media (min-width: 1024px) {
+  .sidebar { position: sticky; top: var(--header-h); width: auto; transform: none; box-shadow: none; height: calc(100vh - var(--header-h)); padding: var(--space-7) var(--space-5); }
+}
+.sidebar-scrim { position: fixed; inset: 0; z-index: 34; background: rgba(0,0,0,0.5); opacity: 0; pointer-events: none; transition: opacity var(--motion-duration-normal) var(--motion-ease); }
+.sidebar-scrim.is-visible { opacity: 1; pointer-events: auto; }
+@media (min-width: 1024px) { .sidebar-scrim { display: none; } }
+
+.sidebar-section { display: grid; gap: 2px; }
+.sidebar-label { font-family: var(--font-family-mono); font-size: 11px; color: var(--color-text-tertiary); text-transform: uppercase; letter-spacing: 0.12em; padding: 0 var(--space-4) var(--space-2); }
+.nav-item {
+  display: flex; align-items: center; gap: var(--space-4);
+  padding: var(--space-3) var(--space-4); min-height: 40px;
+  border-radius: var(--radius-xs);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-md);
+  transition: background-color var(--motion-duration-fast) var(--motion-ease), color var(--motion-duration-fast) var(--motion-ease);
+}
+.nav-item:hover { color: var(--color-text-primary); background: rgba(245,245,247,0.04); }
+.nav-item:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-border-focus); }
+.nav-item.is-active { color: var(--color-text-primary); background: rgba(245,245,247,0.08); font-weight: var(--font-weight-medium); }
+.nav-item .count { margin-left: auto; font-family: var(--font-family-mono); font-size: 11px; color: var(--color-text-tertiary); }
+.sidebar-divider { height: 1px; background: var(--color-border-subtle); margin: var(--space-3) var(--space-4); }
+.sidebar-foot { margin-top: auto; }
+
+/* ===== Main ===== */
+.main { padding: var(--space-7) var(--space-5) calc(var(--space-8) * 3); min-width: 0; }
+@media (min-width: 720px) { .main { padding: var(--space-8) var(--space-7) calc(var(--space-8) * 3); } }
+@media (min-width: 1100px) { .main { padding: var(--space-8) var(--space-8) calc(var(--space-8) * 3); } }
+.main-inner { max-width: 1080px; width: 100%; margin: 0 auto; display: grid; gap: var(--space-7); }
+
+/* ===== Page header ===== */
+.page-head { display: grid; gap: var(--space-3); }
+.page-title { font-size: clamp(28px, 4vw, 32px); letter-spacing: -0.02em; font-weight: var(--font-weight-semibold); margin: 0; }
+.page-subline { color: var(--color-text-secondary); font-size: var(--font-size-sm); font-family: var(--font-family-mono); margin: 0; }
+
+/* ===== Filter bar ===== */
+.filter-bar {
+  display: grid; grid-template-columns: 1fr; gap: var(--space-4);
+  padding: var(--space-5);
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+}
+@media (min-width: 720px) { .filter-bar { grid-template-columns: 1fr auto auto; align-items: center; gap: var(--space-4); } }
+.filter-bar .input-wrap { max-width: none; }
+.filter-bar select {
+  height: 40px; padding: 0 var(--space-5);
+  background: var(--color-surface-raised); color: var(--color-text-primary);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm); font: inherit; font-size: var(--font-size-sm);
+  outline: none;
+  appearance: none; -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%237a7a82' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round' viewBox='0 0 24 24'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
+  cursor: pointer;
+  min-width: 140px;
+}
+.filter-bar select:hover { border-color: rgba(245,245,247,0.24); }
+.filter-bar select:focus-visible { border-color: var(--color-border-focus); box-shadow: 0 0 0 3px rgba(245,245,247,0.14); }
+.filter-bar .clear-btn {
+  display: none;
+  height: 40px; padding: 0 var(--space-5);
+  background: transparent; color: var(--color-text-secondary);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm); font: inherit; font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: color var(--motion-duration-fast) var(--motion-ease), background-color var(--motion-duration-fast) var(--motion-ease);
+}
+.filter-bar.has-filters .clear-btn { display: inline-flex; align-items: center; gap: var(--space-2); }
+.filter-bar .clear-btn:hover { color: var(--color-text-primary); background: rgba(245,245,247,0.04); }
+
+/* ===== Table (desktop) ===== */
+.history-card {
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.history-table { display: none; }
+@media (min-width: 900px) { .history-table { display: block; } }
+.history-row {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.6fr) 110px 120px 200px 100px;
+  gap: var(--space-5);
+  align-items: center;
+  padding: var(--space-5) var(--space-6);
+  border-bottom: 1px solid var(--color-border-subtle);
+  transition: background-color var(--motion-duration-fast) var(--motion-ease), opacity var(--motion-duration-normal) var(--motion-ease), transform var(--motion-duration-normal) var(--motion-ease);
+}
+.history-row.is-head { color: var(--color-text-tertiary); font-size: 11px; font-family: var(--font-family-mono); text-transform: uppercase; letter-spacing: 0.06em; padding: var(--space-4) var(--space-6); background: rgba(245,245,247,0.02); }
+.history-row:hover:not(.is-head) { background: rgba(245,245,247,0.03); }
+.history-row.is-removing { opacity: 0; transform: translateX(-10px); }
+.video-cell { display: grid; grid-template-columns: 64px 1fr; gap: var(--space-4); align-items: center; min-width: 0; }
+.video-thumb {
+  width: 64px; aspect-ratio: 16/9;
+  border-radius: var(--radius-xs);
+  background: linear-gradient(135deg, #2a2a30 0%, #15151a 70%, #0a0a0c 100%);
+  position: relative;
+  border: 1px solid var(--color-border-subtle);
+  flex-shrink: 0;
+}
+.video-thumb::after { content: ""; position: absolute; left: 50%; top: 50%; width: 0; height: 0; transform: translate(-30%,-50%); border-left: 7px solid rgba(255,255,255,0.85); border-top: 5px solid transparent; border-bottom: 5px solid transparent; }
+.video-meta { min-width: 0; display: grid; gap: 4px; }
+.video-title-link {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-medium);
+  font-size: var(--font-size-md);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  display: block;
+  transition: color var(--motion-duration-fast) var(--motion-ease);
+}
+.video-title-link:hover { color: var(--color-feedback-success); }
+.video-channel { color: var(--color-text-tertiary); font-size: var(--font-size-xs); font-family: var(--font-family-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cell-date { color: var(--color-text-secondary); font-size: var(--font-size-sm); font-family: var(--font-family-mono); }
+.cell-comments { color: var(--color-text-primary); font-size: var(--font-size-sm); font-family: var(--font-family-mono); font-weight: var(--font-weight-medium); }
+
+/* Sentiment stack */
+.sent-stack { display: grid; gap: 4px; }
+.sent-bar { display: flex; width: 100%; height: 6px; border-radius: var(--radius-lg); overflow: hidden; background: rgba(245,245,247,0.04); }
+.sent-bar > span { display: block; height: 100%; }
+.sent-pos { background: var(--color-accent-positive); }
+.sent-neu { background: var(--color-sentiment-neutral); opacity: 0.55; }
+.sent-neg { background: var(--color-accent-negative); }
+.sent-pct { display: flex; justify-content: space-between; font-size: 10px; font-family: var(--font-family-mono); color: var(--color-text-tertiary); }
+.sent-pct .pos { color: var(--color-accent-positive); }
+.sent-pct .neg { color: var(--color-accent-negative); }
+
+.row-actions { display: flex; gap: var(--space-2); justify-content: flex-end; }
+.row-actions .btn { height: 28px; min-height: 32px; padding: 0 10px; font-size: var(--font-size-xs); gap: 4px; }
+.row-actions .icon-only {
+  width: 32px; height: 32px; min-height: 36px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--color-border-subtle);
+  color: var(--color-text-tertiary);
+  border-radius: var(--radius-xs);
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: color var(--motion-duration-fast) var(--motion-ease), background-color var(--motion-duration-fast) var(--motion-ease), border-color var(--motion-duration-fast) var(--motion-ease);
+}
+.row-actions .icon-only:hover { color: var(--color-text-primary); background: rgba(245,245,247,0.06); border-color: var(--color-border-strong); }
+.row-actions .icon-only.danger:hover { color: var(--color-feedback-danger); border-color: rgba(251,113,133,0.35); background: var(--color-feedback-danger-soft); }
+.row-actions .icon-only:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-border-focus); }
+
+/* ===== Mobile cards ===== */
+.history-cards { display: grid; gap: var(--space-4); padding: var(--space-5); }
+@media (min-width: 900px) { .history-cards { display: none; } }
+.history-card-row {
+  background: rgba(245,245,247,0.015);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  padding: var(--space-5);
+  display: grid; gap: var(--space-4);
+  transition: opacity var(--motion-duration-normal) var(--motion-ease), transform var(--motion-duration-normal) var(--motion-ease);
+  position: relative;
+}
+.history-card-row.is-removing { opacity: 0; transform: translateX(-10px); }
+.hcr-head { display: grid; grid-template-columns: 84px 1fr 32px; gap: var(--space-4); align-items: start; }
+.hcr-head .video-thumb { width: 84px; }
+.hcr-title-block { display: grid; gap: 4px; min-width: 0; }
+.hcr-title { font-size: var(--font-size-md); font-weight: var(--font-weight-medium); color: var(--color-text-primary); display: block; line-height: 1.35; }
+.hcr-channel { color: var(--color-text-tertiary); font-size: var(--font-size-xs); font-family: var(--font-family-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hcr-meta { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; font-family: var(--font-family-mono); font-size: var(--font-size-xs); color: var(--color-text-tertiary); padding-top: var(--space-3); border-top: 1px solid var(--color-border-subtle); }
+.hcr-meta .dot-sep { width: 3px; height: 3px; border-radius: 50%; background: var(--color-text-disabled); display: inline-block; }
+.hcr-sent-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: rgba(245,245,247,0.04); border-radius: var(--radius-lg); font-size: 11px; color: var(--color-text-secondary); }
+.hcr-sent-chip .dot { width: 6px; height: 6px; border-radius: 50%; }
+.hcr-sent-chip.pos .dot { background: var(--color-accent-positive); }
+.hcr-sent-chip.neu .dot { background: var(--color-sentiment-neutral); }
+.hcr-sent-chip.neg .dot { background: var(--color-accent-negative); }
+
+/* Overflow menu */
+.overflow-btn {
+  width: 32px; height: 32px; min-height: 36px;
+  border: 0; background: transparent; color: var(--color-text-tertiary);
+  border-radius: var(--radius-xs);
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: color var(--motion-duration-fast) var(--motion-ease), background-color var(--motion-duration-fast) var(--motion-ease);
+}
+.overflow-btn:hover { color: var(--color-text-primary); background: rgba(245,245,247,0.06); }
+.overflow-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-border-focus); }
+.overflow-btn svg { width: 16px; height: 16px; }
+.overflow-menu {
+  position: absolute; top: calc(100% - 8px); right: var(--space-5);
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-1);
+  padding: 4px;
+  display: none;
+  min-width: 160px;
+  z-index: 10;
+}
+.history-card-row.is-menu-open .overflow-menu { display: block; }
+.overflow-menu button, .overflow-menu a {
+  display: flex; align-items: center; gap: var(--space-3);
+  width: 100%;
+  background: transparent; border: 0;
+  padding: var(--space-3) var(--space-4);
+  color: var(--color-text-secondary);
+  font: inherit; font-size: var(--font-size-sm);
+  text-align: left; cursor: pointer;
+  border-radius: var(--radius-xs);
+  min-height: 36px;
+  transition: color var(--motion-duration-fast) var(--motion-ease), background-color var(--motion-duration-fast) var(--motion-ease);
+}
+.overflow-menu button:hover, .overflow-menu a:hover { color: var(--color-text-primary); background: rgba(245,245,247,0.06); }
+.overflow-menu .danger { color: var(--color-feedback-danger); }
+.overflow-menu .danger:hover { color: var(--color-feedback-danger); background: var(--color-feedback-danger-soft); }
+
+/* ===== Pagination ===== */
+.pagination {
+  display: flex; flex-wrap: wrap; gap: var(--space-5);
+  align-items: center; justify-content: space-between;
+  padding: var(--space-6) var(--space-6);
+  border-top: 1px solid var(--color-border-subtle);
+  font-size: var(--font-size-sm);
+}
+.pagination-info { color: var(--color-text-tertiary); font-family: var(--font-family-mono); font-size: var(--font-size-xs); }
+.pagination-pages { display: inline-flex; gap: 2px; }
+.pagination-pages a {
+  min-width: 36px; height: 36px; padding: 0 10px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-xs);
+  color: var(--color-text-secondary);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  transition: color var(--motion-duration-fast) var(--motion-ease), background-color var(--motion-duration-fast) var(--motion-ease);
+}
+.pagination-pages a:hover { color: var(--color-text-primary); background: rgba(245,245,247,0.06); }
+.pagination-pages a.is-current { background: rgba(245,245,247,0.12); color: var(--color-text-primary); font-weight: var(--font-weight-medium); }
+.pagination-pages a.is-disabled { pointer-events: none; color: var(--color-text-disabled); }
+
+/* ===== Empty state ===== */
+.empty-state-card {
+  padding: clamp(48px, 8vw, 80px) var(--space-7);
+  text-align: center;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+}
+.empty-illus {
+  width: 80px; height: 80px;
+  margin: 0 auto var(--space-7);
+  border-radius: 50%;
+  background: rgba(245,245,247,0.03);
+  border: 1px solid var(--color-border-subtle);
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--color-text-tertiary);
+}
+.empty-illus svg { width: 32px; height: 32px; }
+.empty-state-card h2 { margin: 0 0 var(--space-4); font-size: var(--font-size-2xl); font-weight: var(--font-weight-semibold); letter-spacing: -0.005em; color: var(--color-text-primary); }
+.empty-state-card p { margin: 0 auto var(--space-7); color: var(--color-text-secondary); max-width: 44ch; line-height: 1.55; }
+
+/* ===== Loading state (skeleton) ===== */
+.skeleton-row {
+  display: grid; grid-template-columns: 64px 1fr 100px;
+  gap: var(--space-5);
+  padding: var(--space-5) var(--space-6);
+  border-bottom: 1px solid var(--color-border-subtle);
+  align-items: center;
+}
+.skeleton-row:last-child { border-bottom: 0; }
+.skel-thumb, .skel-line {
+  background: linear-gradient(90deg, rgba(245,245,247,0.04) 0%, rgba(245,245,247,0.08) 50%, rgba(245,245,247,0.04) 100%) center / 200% 100%;
+  border-radius: var(--radius-xs);
+  animation: shimmer 1500ms linear infinite;
+}
+@keyframes shimmer { to { background-position: -200% 0; } }
+.skel-thumb { width: 64px; aspect-ratio: 16/9; }
+.skel-lines { display: grid; gap: 8px; }
+.skel-line { height: 12px; }
+.skel-line.short { width: 60%; }
+.skel-line.tiny { width: 30%; height: 10px; }
+
+/* ===== Confirmation toast (special variant) ===== */
+.tm-toast-host {
+  position: fixed;
+  top: 16px; left: 0; right: 0;
+  z-index: 100;
+  display: flex; flex-direction: column; align-items: center;
+  gap: var(--space-3);
+  padding: 0 var(--space-5);
+  pointer-events: none;
+}
+@media (min-width: 720px) { .tm-toast-host { top: 20px; padding: 0 var(--space-6); } }
+.tm-toast {
+  --toast-accent: var(--color-text-secondary);
+  --toast-accent-soft: rgba(245,245,247,0.08);
+  pointer-events: auto;
+  display: grid; grid-template-columns: 20px 1fr auto;
+  gap: var(--space-5); align-items: start;
+  padding: var(--space-6);
+  width: 100%; max-width: 480px;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-1);
+  position: relative; overflow: hidden;
+  transform: translateY(-16px); opacity: 0;
+  transition: opacity 220ms var(--motion-ease), transform 220ms var(--motion-ease);
+}
+.tm-toast.is-visible { transform: none; opacity: 1; }
+.tm-toast.is-leaving { transform: translateY(-12px); opacity: 0; }
+.tm-toast::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--toast-accent); }
+.tm-toast-icon {
+  width: 20px; height: 20px; border-radius: var(--radius-lg);
+  background: var(--toast-accent-soft); color: var(--toast-accent);
+  display: flex; align-items: center; justify-content: center;
+  margin-top: 2px; flex-shrink: 0;
+}
+.tm-toast-icon svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.tm-toast-body { display: grid; gap: 6px; min-width: 0; }
+.tm-toast-title { font-size: var(--font-size-md); font-weight: var(--font-weight-semibold); color: var(--color-text-primary); }
+.tm-toast-message { font-size: var(--font-size-sm); color: var(--color-text-secondary); line-height: 1.55; }
+.tm-toast-actions { display: flex; gap: var(--space-3); margin-top: var(--space-3); }
+.tm-toast-actions .btn { height: 28px; min-height: 32px; padding: 0 var(--space-5); font-size: var(--font-size-xs); }
+.tm-toast-dismiss {
+  background: transparent; border: 0; color: var(--color-text-tertiary);
+  cursor: pointer; padding: 6px; margin: -4px -4px 0 0;
+  border-radius: var(--radius-xs);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.tm-toast-dismiss:hover { color: var(--color-text-primary); background: rgba(245,245,247,0.06); }
+.tm-toast-dismiss svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+.tm-toast--success { --toast-accent: var(--color-feedback-success); --toast-accent-soft: var(--color-feedback-success-soft); }
+.tm-toast--warning { --toast-accent: var(--color-feedback-warning); --toast-accent-soft: var(--color-feedback-warning-soft); }
+.tm-toast--error { --toast-accent: var(--color-feedback-danger); --toast-accent-soft: var(--color-feedback-danger-soft); }
+
+/* ===== LocaleSwitcher (carried over) ===== */
+.locale-switcher { position: relative; display: inline-flex; }
+.locale-trigger {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  height: 30px; min-height: 36px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border-subtle);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit; font-size: var(--font-size-xs);
+  font-family: var(--font-family-mono);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: 0.06em;
+  cursor: pointer; white-space: nowrap;
+  transition: color var(--motion-duration-fast) var(--motion-ease), background-color var(--motion-duration-fast) var(--motion-ease), border-color var(--motion-duration-fast) var(--motion-ease);
+}
+@media (min-width: 720px) { .locale-trigger { min-height: 30px; } }
+.locale-trigger:hover { color: var(--color-text-primary); background: rgba(245,245,247,0.06); border-color: var(--color-border-strong); }
+.locale-trigger:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-border-focus); }
+.locale-trigger .arrow { transition: transform var(--motion-duration-fast) var(--motion-ease); color: var(--color-text-tertiary); }
+.locale-switcher.is-open .locale-trigger { color: var(--color-text-primary); background: rgba(245,245,247,0.08); border-color: var(--color-border-strong); }
+.locale-switcher.is-open .locale-trigger .arrow { transform: rotate(180deg); color: var(--color-text-primary); }
+.locale-menu {
+  position: absolute; top: calc(100% + 6px); right: 0;
+  list-style: none; padding: 4px; margin: 0;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-1);
+  min-width: 180px;
+  display: none;
+  z-index: 60;
+}
+.locale-switcher.is-open .locale-menu { display: block; }
+.locale-menu li { margin: 0; padding: 0; list-style: none; }
+.locale-menu button {
+  display: flex; align-items: center; gap: var(--space-4);
+  width: 100%;
+  background: transparent; border: 0;
+  padding: var(--space-3) var(--space-5);
+  color: var(--color-text-secondary);
+  font: inherit; font-size: var(--font-size-sm);
+  text-align: left; cursor: pointer;
+  border-radius: var(--radius-xs);
+  min-height: 36px;
+  transition: color var(--motion-duration-fast) var(--motion-ease), background-color var(--motion-duration-fast) var(--motion-ease);
+}
+.locale-menu button:hover { color: var(--color-text-primary); background: rgba(245,245,247,0.06); }
+.locale-menu button .code { font-family: var(--font-family-mono); font-size: var(--font-size-xs); color: var(--color-text-tertiary); width: 26px; letter-spacing: 0.06em; }
+.locale-menu button[aria-selected="true"] { color: var(--color-text-primary); }
+.locale-menu button[aria-selected="true"] .code { color: var(--color-text-primary); }
+.locale-menu button .check { margin-left: auto; opacity: 0; color: var(--color-text-secondary); flex-shrink: 0; width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.locale-menu button[aria-selected="true"] .check { opacity: 1; }
+
+/* ===== Preview panel ===== */
+.preview-panel {
+  position: fixed; bottom: var(--space-6); right: var(--space-6); z-index: 60;
+  width: 280px;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-1);
+  font-family: var(--font-family-mono);
+  font-size: 11px; overflow: hidden;
+}
+@media (max-width: 540px) { .preview-panel { width: calc(100vw - 24px); right: 12px; bottom: 12px; } }
+.preview-panel.is-collapsed .preview-body { display: none; }
+.preview-head { display: flex; align-items: center; justify-content: space-between; padding: var(--space-4) var(--space-5); background: rgba(245,245,247,0.04); border-bottom: 1px solid var(--color-border-subtle); cursor: pointer; user-select: none; }
+.preview-head strong { font-size: 11px; color: var(--color-text-primary); letter-spacing: 0.05em; text-transform: uppercase; font-weight: var(--font-weight-semibold); }
+.preview-head .arrow { color: var(--color-text-tertiary); }
+.preview-panel.is-collapsed .preview-head { border-bottom-color: transparent; }
+.preview-panel.is-collapsed .arrow { transform: rotate(180deg); }
+.preview-body { padding: var(--space-5); display: grid; gap: var(--space-4); }
+.preview-row { display: grid; grid-template-columns: 80px 1fr; gap: var(--space-3); align-items: center; }
+.preview-row .label { color: var(--color-text-tertiary); }
+.toggle-group { display: inline-flex; background: rgba(245,245,247,0.04); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-xs); padding: 2px; gap: 2px; }
+.toggle-group button { background: transparent; border: 0; color: var(--color-text-secondary); font: inherit; font-size: 11px; padding: 4px 8px; border-radius: 4px; cursor: pointer; min-height: 24px; transition: background-color var(--motion-duration-fast) var(--motion-ease), color var(--motion-duration-fast) var(--motion-ease); white-space: nowrap; }
+.toggle-group button:hover { color: var(--color-text-primary); }
+.toggle-group button.is-active { background: rgba(245,245,247,0.12); color: var(--color-text-primary); }
+.preview-flows-link {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 8px; border-radius: 4px;
+  color: var(--color-text-secondary); font-size: 11px;
+  border: 1px solid var(--color-border-subtle);
+  margin-top: 2px;
+}
+.preview-flows-link:hover { color: var(--color-text-primary); background: rgba(245,245,247,0.04); }
+
+/* State-driven visibility */
+[data-state-history="populated"] .if-empty,
+[data-state-history="populated"] .if-loading,
+[data-state-history="empty"] .if-populated,
+[data-state-history="empty"] .if-loading,
+[data-state-history="loading"] .if-populated,
+[data-state-history="loading"] .if-empty { display: none !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+</style>
+<link rel="stylesheet" href="result-block.css" />
+<style>
+/* ===== Saved-analysis detail (in-page view; keeps the topbar + sidebar) ===== */
+#histDetail[hidden] { display: none; }
+.rb-detail { display: none; }
+body.is-viewing-detail .main-inner > :not(#histDetail) { display: none; }
+body.is-viewing-detail #histDetail { display: block; }
+.rb-detail-head {
+  display: flex; align-items: center; gap: var(--space-5);
+  margin-bottom: var(--space-7);
+}
+.rb-detail-back {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-3);
+  height: 34px; padding: 0 var(--space-5); flex-shrink: 0;
+  border-radius: var(--radius-lg); border: 1px solid var(--color-border-strong);
+  background: rgba(245,245,247,0.04); color: var(--color-text-secondary);
+  font-size: var(--font-size-sm); font-weight: var(--font-weight-medium);
+  transition: background var(--motion-duration-fast) var(--motion-ease), color var(--motion-duration-fast) var(--motion-ease);
+}
+.rb-detail-back:hover { background: rgba(245,245,247,0.09); color: var(--color-text-primary); }
+.rb-detail-back svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+.rb-detail-headmeta { min-width: 0; flex: 1; }
+.rb-detail-eyebrow { font-family: var(--font-family-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-tertiary); }
+.rb-detail-title { font-size: var(--font-size-md); font-weight: var(--font-weight-semibold); color: var(--color-text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+.rb-detail-date { font-family: var(--font-family-mono); font-size: var(--font-size-xs); color: var(--color-text-tertiary); white-space: nowrap; flex-shrink: 0; }
+@media (max-width: 560px) { .rb-detail-date { display: none; } }
+.rb-detail .result-block { --rb-width: 100%; max-width: 100%; }
+.video-title-link, .hcr-title { cursor: pointer; }
+</style>
+</head>
+<body data-state-history="populated">
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 11 12 3l9 8v9a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></symbol>
+    <symbol id="i-plug" viewBox="0 0 24 24"><path d="M9 2v6"/><path d="M15 2v6"/><path d="M7 8h10v3a5 5 0 0 1-10 0z"/><path d="M12 16v6"/></symbol>
+    <symbol id="i-github" viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.46-1.16-1.12-1.47-1.12-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.9 1.52 2.34 1.08 2.91.83.09-.65.35-1.08.63-1.33-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.02a9.6 9.6 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.38.2 2.4.1 2.65.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></symbol>
+    <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></symbol>
+    <symbol id="i-empty" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 15-6.7l3-2.3v7h-7"/><path d="M21 12a9 9 0 0 1-15 6.7l-3 2.3v-7h7"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6 18 20a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></symbol>
+    <symbol id="i-dots" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="18" cy="12" r="1.5"/></symbol>
+    <symbol id="i-film" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 8h4M2 12h4M2 16h4M18 8h4M18 12h4M18 16h4M10 4v16M14 4v16"/></symbol>
+    <symbol id="i-chev-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-chev-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+    <symbol id="i-chev-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+  </defs>
+</svg>
+
+<div class="shell">
+
+  <!-- ===================== TOPBAR ===================== -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="menu-btn" id="menuBtn" aria-label="Open menu" aria-controls="sidebar" aria-expanded="false">
+        <svg class="icon icon-lg" aria-hidden="true"><use href="#i-menu"/></svg>
+      </button>
+      <a href="TubeMine Landing.html" class="topbar-brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span>TubeMine</span>
+      </a>
+    </div>
+    <div class="topbar-right">
+      <div class="locale-switcher" data-locale-switcher>
+        <button type="button" class="locale-trigger" aria-haspopup="listbox" aria-expanded="false" aria-label="Language">
+          <span class="locale-current">EN</span>
+          <svg class="icon icon-sm arrow" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <ul class="locale-menu" role="listbox" aria-label="Language">
+          <li><button type="button" role="option" data-locale="en" aria-selected="true"><span class="code">EN</span><span class="label">English</span><svg class="check" aria-hidden="true" viewBox="0 0 24 24"><path d="m4 12 5 5L20 6"/></svg></button></li>
+          <li><button type="button" role="option" data-locale="ru" aria-selected="false"><span class="code">RU</span><span class="label">Русский</span><svg class="check" aria-hidden="true" viewBox="0 0 24 24"><path d="m4 12 5 5L20 6"/></svg></button></li>
+        </ul>
+      </div>
+      <span class="topbar-divider" aria-hidden="true"></span>
+      <span class="badge badge--secondary" style="height: 22px;">Free</span>
+      <div class="topbar-user">
+        <span class="avatar-sm">YR</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===================== SIDEBAR ===================== -->
+  <div class="sidebar-scrim" id="sidebarScrim" aria-hidden="true"></div>
+  <aside class="sidebar" id="sidebar" aria-label="Primary navigation">
+    <nav class="sidebar-section" aria-label="Main">
+      <div class="sidebar-label">Workspace</div>
+      <a href="TubeMine Dashboard.html" class="nav-item">
+        <svg class="icon" aria-hidden="true"><use href="#i-home"/></svg>
+        Home
+      </a>
+      <a href="TubeMine History.html" class="nav-item is-active" aria-current="page">
+        <svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg>
+        History
+        <span class="count">42</span>
+      </a>
+      <a href="TubeMine Profile.html" class="nav-item">
+        <svg class="icon" aria-hidden="true"><use href="#i-user"/></svg>
+        Profile
+      </a>
+      <a href="TubeMine MCP.html" class="nav-item">
+        <svg class="icon" aria-hidden="true"><use href="#i-plug"/></svg>
+        MCP / AI Access
+      </a>
+    </nav>
+    <div class="sidebar-divider" role="separator"></div>
+    <nav class="sidebar-section" aria-label="Resources">
+      <div class="sidebar-label">More</div>
+      <a href="https://github.com/RakhimovY/tubemine" target="_blank" rel="noopener" class="nav-item">
+        <svg class="icon" aria-hidden="true"><use href="#i-github"/></svg>
+        GitHub
+      </a>
+      <a href="TubeMine Docs.html" class="nav-item">
+        <svg class="icon" aria-hidden="true"><use href="#i-empty"/></svg>
+        Docs
+      </a>
+    </nav>
+    <div class="sidebar-foot">
+      <a href="TubeMine Login.html" class="nav-item">
+        <svg class="icon" aria-hidden="true"><use href="#i-logout"/></svg>
+        Sign out
+      </a>
+    </div>
+  </aside>
+
+  <!-- ===================== MAIN ===================== -->
+  <main class="main">
+    <div class="main-inner">
+
+      <!-- Page header -->
+      <header class="page-head">
+        <h1 class="page-title">History</h1>
+        <p class="page-subline if-populated">42 analyses saved, oldest May 14, 2026</p>
+        <p class="page-subline if-empty" style="color: var(--color-text-tertiary)">Your saved analyses will appear here</p>
+        <p class="page-subline if-loading">Loading your history…</p>
+      </header>
+
+      <!-- Filter bar -->
+      <div class="filter-bar if-populated" id="filterBar" role="search">
+        <div class="input-wrap has-prefix">
+          <span class="prefix-icon"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-search"/></svg></span>
+          <label for="search" style="position:absolute; left:-9999px;">Search by video title</label>
+          <input class="input" type="search" id="search" placeholder="Search by video title" autocomplete="off" />
+        </div>
+        <select id="dateRange" aria-label="Date range">
+          <option value="all">All time</option>
+          <option value="7">Last 7 days</option>
+          <option value="30">Last 30 days</option>
+        </select>
+        <button type="button" class="clear-btn" id="clearFilters">
+          <svg class="icon icon-sm" aria-hidden="true"><use href="#i-x"/></svg>
+          Clear
+        </button>
+      </div>
+
+      <!-- ============ POPULATED STATE ============ -->
+      <section class="history-card if-populated" aria-label="Saved analyses">
+
+        <!-- Desktop table -->
+        <div class="history-table">
+          <div class="history-row is-head" role="row" aria-hidden="true">
+            <span>Video</span>
+            <span>Date</span>
+            <span>Comments</span>
+            <span>Sentiment</span>
+            <span style="text-align: right;">Actions</span>
+          </div>
+
+          <article class="history-row" data-id="1">
+            <div class="video-cell">
+              <span class="video-thumb" aria-hidden="true"></span>
+              <div class="video-meta">
+                <a class="video-title-link" href="#">How I edit YouTube videos in 2026, my full workflow</a>
+                <span class="video-channel">Creator School</span>
+              </div>
+            </div>
+            <span class="cell-date">May 17, 2026</span>
+            <span class="cell-comments">19,422</span>
+            <div class="sent-stack">
+              <div class="sent-bar"><span class="sent-pos" style="width: 68%"></span><span class="sent-neu" style="width: 24%"></span><span class="sent-neg" style="width: 8%"></span></div>
+              <div class="sent-pct"><span class="pos">68%</span><span>24%</span><span class="neg">8%</span></div>
+            </div>
+            <div class="row-actions">
+              <a href="#" class="icon-only" aria-label="View"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-eye"/></svg></a>
+              <button type="button" class="icon-only" aria-label="Re-analyze"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-refresh"/></svg></button>
+              <button type="button" class="icon-only danger" aria-label="Delete" data-action="delete"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-trash"/></svg></button>
+            </div>
+          </article>
+
+          <article class="history-row" data-id="2">
+            <div class="video-cell">
+              <span class="video-thumb" aria-hidden="true"></span>
+              <div class="video-meta">
+                <a class="video-title-link" href="#">iPhone 17 Pro, 2 weeks later</a>
+                <span class="video-channel">TechCorner</span>
+              </div>
+            </div>
+            <span class="cell-date">May 16, 2026</span>
+            <span class="cell-comments">8,418</span>
+            <div class="sent-stack">
+              <div class="sent-bar"><span class="sent-pos" style="width: 54%"></span><span class="sent-neu" style="width: 31%"></span><span class="sent-neg" style="width: 15%"></span></div>
+              <div class="sent-pct"><span class="pos">54%</span><span>31%</span><span class="neg">15%</span></div>
+            </div>
+            <div class="row-actions">
+              <a href="#" class="icon-only" aria-label="View"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-eye"/></svg></a>
+              <button type="button" class="icon-only" aria-label="Re-analyze"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-refresh"/></svg></button>
+              <button type="button" class="icon-only danger" aria-label="Delete" data-action="delete"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-trash"/></svg></button>
+            </div>
+          </article>
+
+          <article class="history-row" data-id="3">
+            <div class="video-cell">
+              <span class="video-thumb" aria-hidden="true"></span>
+              <div class="video-meta">
+                <a class="video-title-link" href="#">Why my channel grew 10x in 6 months</a>
+                <span class="video-channel">Indie Maker Diary</span>
+              </div>
+            </div>
+            <span class="cell-date">May 14, 2026</span>
+            <span class="cell-comments">4,290</span>
+            <div class="sent-stack">
+              <div class="sent-bar"><span class="sent-pos" style="width: 81%"></span><span class="sent-neu" style="width: 13%"></span><span class="sent-neg" style="width: 6%"></span></div>
+              <div class="sent-pct"><span class="pos">81%</span><span>13%</span><span class="neg">6%</span></div>
+            </div>
+            <div class="row-actions">
+              <a href="#" class="icon-only" aria-label="View"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-eye"/></svg></a>
+              <button type="button" class="icon-only" aria-label="Re-analyze"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-refresh"/></svg></button>
+              <button type="button" class="icon-only danger" aria-label="Delete" data-action="delete"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-trash"/></svg></button>
+            </div>
+          </article>
+
+          <article class="history-row" data-id="4">
+            <div class="video-cell">
+              <span class="video-thumb" aria-hidden="true"></span>
+              <div class="video-meta">
+                <a class="video-title-link" href="#">Live Q&amp;A: building in public</a>
+                <span class="video-channel">The Solo Founder</span>
+              </div>
+            </div>
+            <span class="cell-date">May 11, 2026</span>
+            <span class="cell-comments">2,140</span>
+            <div class="sent-stack">
+              <div class="sent-bar"><span class="sent-pos" style="width: 42%"></span><span class="sent-neu" style="width: 49%"></span><span class="sent-neg" style="width: 9%"></span></div>
+              <div class="sent-pct"><span class="pos">42%</span><span>49%</span><span class="neg">9%</span></div>
+            </div>
+            <div class="row-actions">
+              <a href="#" class="icon-only" aria-label="View"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-eye"/></svg></a>
+              <button type="button" class="icon-only" aria-label="Re-analyze"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-refresh"/></svg></button>
+              <button type="button" class="icon-only danger" aria-label="Delete" data-action="delete"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-trash"/></svg></button>
+            </div>
+          </article>
+
+          <article class="history-row" data-id="5">
+            <div class="video-cell">
+              <span class="video-thumb" aria-hidden="true"></span>
+              <div class="video-meta">
+                <a class="video-title-link" href="#">A controversial take on AI in design</a>
+                <span class="video-channel">Visual Studies</span>
+              </div>
+            </div>
+            <span class="cell-date">May 7, 2026</span>
+            <span class="cell-comments">12,883</span>
+            <div class="sent-stack">
+              <div class="sent-bar"><span class="sent-pos" style="width: 22%"></span><span class="sent-neu" style="width: 31%"></span><span class="sent-neg" style="width: 47%"></span></div>
+              <div class="sent-pct"><span class="pos">22%</span><span>31%</span><span class="neg">47%</span></div>
+            </div>
+            <div class="row-actions">
+              <a href="#" class="icon-only" aria-label="View"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-eye"/></svg></a>
+              <button type="button" class="icon-only" aria-label="Re-analyze"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-refresh"/></svg></button>
+              <button type="button" class="icon-only danger" aria-label="Delete" data-action="delete"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-trash"/></svg></button>
+            </div>
+          </article>
+
+          <article class="history-row" data-id="6">
+            <div class="video-cell">
+              <span class="video-thumb" aria-hidden="true"></span>
+              <div class="video-meta">
+                <a class="video-title-link" href="#">My honest review of Final Cut Pro 11</a>
+                <span class="video-channel">Frame Forward</span>
+              </div>
+            </div>
+            <span class="cell-date">May 3, 2026</span>
+            <span class="cell-comments">6,712</span>
+            <div class="sent-stack">
+              <div class="sent-bar"><span class="sent-pos" style="width: 72%"></span><span class="sent-neu" style="width: 20%"></span><span class="sent-neg" style="width: 8%"></span></div>
+              <div class="sent-pct"><span class="pos">72%</span><span>20%</span><span class="neg">8%</span></div>
+            </div>
+            <div class="row-actions">
+              <a href="#" class="icon-only" aria-label="View"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-eye"/></svg></a>
+              <button type="button" class="icon-only" aria-label="Re-analyze"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-refresh"/></svg></button>
+              <button type="button" class="icon-only danger" aria-label="Delete" data-action="delete"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-trash"/></svg></button>
+            </div>
+          </article>
+
+          <article class="history-row" data-id="7">
+            <div class="video-cell">
+              <span class="video-thumb" aria-hidden="true"></span>
+              <div class="video-meta">
+                <a class="video-title-link" href="#">Three editing tricks every beginner skips</a>
+                <span class="video-channel">Cut Sharper</span>
+              </div>
+            </div>
+            <span class="cell-date">Apr 28, 2026</span>
+            <span class="cell-comments">932</span>
+            <div class="sent-stack">
+              <div class="sent-bar"><span class="sent-pos" style="width: 76%"></span><span class="sent-neu" style="width: 19%"></span><span class="sent-neg" style="width: 5%"></span></div>
+              <div class="sent-pct"><span class="pos">76%</span><span>19%</span><span class="neg">5%</span></div>
+            </div>
+            <div class="row-actions">
+              <a href="#" class="icon-only" aria-label="View"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-eye"/></svg></a>
+              <button type="button" class="icon-only" aria-label="Re-analyze"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-refresh"/></svg></button>
+              <button type="button" class="icon-only danger" aria-label="Delete" data-action="delete"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-trash"/></svg></button>
+            </div>
+          </article>
+
+          <article class="history-row" data-id="8">
+            <div class="video-cell">
+              <span class="video-thumb" aria-hidden="true"></span>
+              <div class="video-meta">
+                <a class="video-title-link" href="#">Sponsored: my new course launches today</a>
+                <span class="video-channel">Maker Daily</span>
+              </div>
+            </div>
+            <span class="cell-date">Apr 22, 2026</span>
+            <span class="cell-comments">218</span>
+            <div class="sent-stack">
+              <div class="sent-bar"><span class="sent-pos" style="width: 31%"></span><span class="sent-neu" style="width: 22%"></span><span class="sent-neg" style="width: 47%"></span></div>
+              <div class="sent-pct"><span class="pos">31%</span><span>22%</span><span class="neg">47%</span></div>
+            </div>
+            <div class="row-actions">
+              <a href="#" class="icon-only" aria-label="View"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-eye"/></svg></a>
+              <button type="button" class="icon-only" aria-label="Re-analyze"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-refresh"/></svg></button>
+              <button type="button" class="icon-only danger" aria-label="Delete" data-action="delete"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-trash"/></svg></button>
+            </div>
+          </article>
+        </div>
+
+        <!-- Mobile cards -->
+        <div class="history-cards">
+          <article class="history-card-row" data-id="m1">
+            <div class="hcr-head">
+              <span class="video-thumb" aria-hidden="true"></span>
+              <div class="hcr-title-block">
+                <a class="hcr-title" href="#">How I edit YouTube videos in 2026, my full workflow</a>
+                <span class="hcr-channel">Creator School</span>
+              </div>
+              <button type="button" class="overflow-btn" aria-label="More actions" aria-haspopup="menu" aria-expanded="false" data-overflow><svg aria-hidden="true"><use href="#i-dots"/></svg></button>
+              <div class="overflow-menu" role="menu">
+                <a href="#" role="menuitem"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-eye"/></svg>View</a>
+                <button type="button" role="menuitem"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-refresh"/></svg>Re-analyze</button>
+                <button type="button" role="menuitem" class="danger" data-action="delete"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-trash"/></svg>Delete</button>
+              </div>
+            </div>
+            <div class="hcr-meta">
+              <span>May 17, 2026</span>
+              <span class="dot-sep"></span>
+              <span>19,422 comments</span>
+              <span class="dot-sep"></span>
+              <span class="hcr-sent-chip pos"><span class="dot"></span>68% positive</span>
+            </div>
+          </article>
+
+          <article class="history-card-row" data-id="m2">
+            <div class="hcr-head">
+              <span class="video-thumb" aria-hidden="true"></span>
+              <div class="hcr-title-block">
+                <a class="hcr-title" href="#">iPhone 17 Pro, 2 weeks later</a>
+                <span class="hcr-channel">TechCorner</span>
+              </div>
+              <button type="button" class="overflow-btn" aria-label="More actions" data-overflow><svg aria-hidden="true"><use href="#i-dots"/></svg></button>
+              <div class="overflow-menu" role="menu">
+                <a href="#" role="menuitem"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-eye"/></svg>View</a>
+                <button type="button" role="menuitem"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-refresh"/></svg>Re-analyze</button>
+                <button type="button" role="menuitem" class="danger" data-action="delete"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-trash"/></svg>Delete</button>
+              </div>
+            </div>
+            <div class="hcr-meta">
+              <span>May 16, 2026</span>
+              <span class="dot-sep"></span>
+              <span>8,418 comments</span>
+              <span class="dot-sep"></span>
+              <span class="hcr-sent-chip pos"><span class="dot"></span>54% positive</span>
+            </div>
+          </article>
+
+          <article class="history-card-row" data-id="m3">
+            <div class="hcr-head">
+              <span class="video-thumb" aria-hidden="true"></span>
+              <div class="hcr-title-block">
+                <a class="hcr-title" href="#">Why my channel grew 10x in 6 months</a>
+                <span class="hcr-channel">Indie Maker Diary</span>
+              </div>
+              <button type="button" class="overflow-btn" aria-label="More actions" data-overflow><svg aria-hidden="true"><use href="#i-dots"/></svg></button>
+              <div class="overflow-menu" role="menu">
+                <a href="#" role="menuitem"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-eye"/></svg>View</a>
+                <button type="button" role="menuitem"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-refresh"/></svg>Re-analyze</button>
+                <button type="button" role="menuitem" class="danger" data-action="delete"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-trash"/></svg>Delete</button>
+              </div>
+            </div>
+            <div class="hcr-meta">
+              <span>May 14, 2026</span>
+              <span class="dot-sep"></span>
+              <span>4,290 comments</span>
+              <span class="dot-sep"></span>
+              <span class="hcr-sent-chip pos"><span class="dot"></span>81% positive</span>
+            </div>
+          </article>
+
+          <article class="history-card-row" data-id="m4">
+            <div class="hcr-head">
+              <span class="video-thumb" aria-hidden="true"></span>
+              <div class="hcr-title-block">
+                <a class="hcr-title" href="#">A controversial take on AI in design</a>
+                <span class="hcr-channel">Visual Studies</span>
+              </div>
+              <button type="button" class="overflow-btn" aria-label="More actions" data-overflow><svg aria-hidden="true"><use href="#i-dots"/></svg></button>
+              <div class="overflow-menu" role="menu">
+                <a href="#" role="menuitem"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-eye"/></svg>View</a>
+                <button type="button" role="menuitem"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-refresh"/></svg>Re-analyze</button>
+                <button type="button" role="menuitem" class="danger" data-action="delete"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-trash"/></svg>Delete</button>
+              </div>
+            </div>
+            <div class="hcr-meta">
+              <span>May 7, 2026</span>
+              <span class="dot-sep"></span>
+              <span>12,883 comments</span>
+              <span class="dot-sep"></span>
+              <span class="hcr-sent-chip neg"><span class="dot"></span>47% negative</span>
+            </div>
+          </article>
+        </div>
+
+        <!-- Pagination -->
+        <div class="pagination">
+          <span class="pagination-info">Showing 1-10 of 42</span>
+          <nav class="pagination-pages" aria-label="Pagination">
+            <a href="#" class="is-disabled" aria-label="Previous"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-chev-left"/></svg></a>
+            <a href="#" class="is-current" aria-current="page">1</a>
+            <a href="#">2</a>
+            <a href="#">3</a>
+            <a href="#">4</a>
+            <a href="#">5</a>
+            <a href="#" aria-label="Next"><svg class="icon icon-sm" aria-hidden="true"><use href="#i-chev-right"/></svg></a>
+          </nav>
+        </div>
+      </section>
+
+      <!-- ============ EMPTY STATE ============ -->
+      <section class="if-empty" aria-label="No analyses yet">
+        <div class="empty-state-card">
+          <span class="empty-illus" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><use href="#i-film"/></svg>
+          </span>
+          <h2>No analyses yet</h2>
+          <p>Paste a YouTube URL on Home to run your first one. Saved analyses will show up here.</p>
+          <a href="TubeMine Dashboard.html" class="btn btn--primary">Go to Home</a>
+        </div>
+      </section>
+
+      <!-- ============ LOADING STATE ============ -->
+      <section class="history-card if-loading" aria-busy="true" aria-label="Loading history">
+        <div class="skeleton-row">
+          <div class="skel-thumb"></div>
+          <div class="skel-lines">
+            <div class="skel-line"></div>
+            <div class="skel-line tiny"></div>
+          </div>
+          <div class="skel-line short"></div>
+        </div>
+        <div class="skeleton-row">
+          <div class="skel-thumb"></div>
+          <div class="skel-lines">
+            <div class="skel-line"></div>
+            <div class="skel-line tiny"></div>
+          </div>
+          <div class="skel-line short"></div>
+        </div>
+        <div class="skeleton-row">
+          <div class="skel-thumb"></div>
+          <div class="skel-lines">
+            <div class="skel-line"></div>
+            <div class="skel-line tiny"></div>
+          </div>
+          <div class="skel-line short"></div>
+        </div>
+        <div class="skeleton-row">
+          <div class="skel-thumb"></div>
+          <div class="skel-lines">
+            <div class="skel-line"></div>
+            <div class="skel-line tiny"></div>
+          </div>
+          <div class="skel-line short"></div>
+        </div>
+      </section>
+
+    <!-- Saved-analysis detail (in-page; replaces the list, keeps topbar + sidebar) -->
+    <section class="rb-detail" id="histDetail" hidden aria-label="Saved analysis detail">
+      <div class="rb-detail-head">
+        <button type="button" class="rb-detail-back" data-close>
+          <svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg> Back to history
+        </button>
+        <div class="rb-detail-headmeta">
+          <div class="rb-detail-eyebrow">Saved analysis</div>
+          <div class="rb-detail-title" id="histDetailTitle">—</div>
+        </div>
+        <span class="rb-detail-date" id="histDetailDate"></span>
+      </div>
+      <div class="result-block" id="rbHistDetail"></div>
+    </section>
+    </div>
+  </main>
+</div>
+
+<!-- ===================== Preview state panel ===================== -->
+<aside class="preview-panel" id="previewPanel" aria-label="Design preview controls">
+  <header class="preview-head" id="previewHead" role="button" tabindex="0" aria-expanded="true">
+    <strong>Design preview</strong>
+    <svg class="icon icon-sm arrow" aria-hidden="true"><use href="#i-chev-down"/></svg>
+  </header>
+  <div class="preview-body">
+    <div class="preview-row">
+      <span class="label">History</span>
+      <div class="toggle-group" role="radiogroup" aria-label="History state">
+        <button data-state="state-history" data-value="populated" class="is-active" role="radio" aria-checked="true">Populated</button>
+        <button data-state="state-history" data-value="empty" role="radio" aria-checked="false">Empty</button>
+        <button data-state="state-history" data-value="loading" role="radio" aria-checked="false">Loading</button>
+      </div>
+    </div>
+    <p style="color: var(--color-text-tertiary); margin: 0; line-height: 1.5;">Toggle between populated table (42 entries), empty state CTA, and skeleton loading.</p>
+    <a class="preview-flows-link" href="TubeMine Flows.html">
+      <span>All 7 prototype flows</span>
+      <svg class="icon icon-sm" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+    </a>
+  </div>
+</aside>
+
+<script>
+(function () {
+  // ===== Sidebar drawer (mobile)
+  var menuBtn = document.getElementById('menuBtn');
+  var sidebar = document.getElementById('sidebar');
+  var scrim = document.getElementById('sidebarScrim');
+  function openSidebar() { sidebar.classList.add('is-open'); scrim.classList.add('is-visible'); menuBtn.setAttribute('aria-expanded','true'); }
+  function closeSidebar() { sidebar.classList.remove('is-open'); scrim.classList.remove('is-visible'); menuBtn.setAttribute('aria-expanded','false'); }
+  menuBtn.addEventListener('click', function(){ if (sidebar.classList.contains('is-open')) closeSidebar(); else openSidebar(); });
+  scrim.addEventListener('click', closeSidebar);
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && sidebar.classList.contains('is-open')) closeSidebar(); });
+
+  // ===== State toggles (design preview)
+  var body = document.body;
+  document.querySelectorAll('.toggle-group button[data-state]').forEach(function(b){
+    b.addEventListener('click', function(){
+      var key = b.getAttribute('data-state');
+      var value = b.getAttribute('data-value');
+      body.setAttribute('data-' + key, value);
+      var group = b.parentElement;
+      group.querySelectorAll('button').forEach(function(sib){
+        var active = sib === b;
+        sib.classList.toggle('is-active', active);
+        sib.setAttribute('aria-checked', active ? 'true' : 'false');
+      });
+    });
+  });
+
+  // ===== Preview panel collapse
+  var panel = document.getElementById('previewPanel');
+  var head = document.getElementById('previewHead');
+  function togglePanel(){ var c = panel.classList.toggle('is-collapsed'); head.setAttribute('aria-expanded', c ? 'false' : 'true'); }
+  head.addEventListener('click', togglePanel);
+  head.addEventListener('keydown', function(e){ if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); togglePanel(); } });
+
+  // ===== LocaleSwitcher
+  document.querySelectorAll('[data-locale-switcher]').forEach(function (sw) {
+    var trigger = sw.querySelector('.locale-trigger');
+    var options = sw.querySelectorAll('.locale-menu [role="option"]');
+    var current = sw.querySelector('.locale-current');
+    function setOpen(open) { sw.classList.toggle('is-open', open); trigger.setAttribute('aria-expanded', open ? 'true' : 'false'); }
+    trigger.addEventListener('click', function(e){ e.stopPropagation(); setOpen(!sw.classList.contains('is-open')); });
+    options.forEach(function(opt){ opt.addEventListener('click', function(e){ e.stopPropagation(); var locale = opt.getAttribute('data-locale'); options.forEach(function(o){ o.setAttribute('aria-selected', o === opt ? 'true' : 'false'); }); if (current) current.textContent = locale.toUpperCase(); setOpen(false); }); });
+    document.addEventListener('click', function(e){ if (sw.classList.contains('is-open') && !sw.contains(e.target)) setOpen(false); });
+  });
+
+  // ===== TMToast (floating)
+  var toastHost = null;
+  function ensureHost(){ if (toastHost && document.body.contains(toastHost)) return toastHost; toastHost = document.createElement('div'); toastHost.className = 'tm-toast-host'; toastHost.setAttribute('aria-live','polite'); document.body.appendChild(toastHost); return toastHost; }
+  var ICONS = {
+    success: '<svg viewBox="0 0 24 24"><path d="m4 12 5 5L20 6"/></svg>',
+    warning: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg>',
+    error:   '<svg viewBox="0 0 24 24"><path d="M12 3 2 21h20Z"/><path d="M12 10v5"/><path d="M12 18h.01"/></svg>'
+  };
+  function showToast(opts){
+    opts = opts || {};
+    var h = ensureHost();
+    var t = document.createElement('div');
+    t.className = 'tm-toast tm-toast--' + (opts.variant || 'success');
+    t.setAttribute('role', opts.variant === 'error' ? 'alert' : 'status');
+    var actionsHtml = '';
+    if (opts.actions && opts.actions.length) {
+      actionsHtml = '<div class="tm-toast-actions">' + opts.actions.map(function(a){ return '<button type="button" class="btn ' + (a.variant === 'danger' ? 'btn--destructive' : 'btn--secondary') + '" data-toast-action="' + a.id + '">' + a.label + '</button>'; }).join('') + '</div>';
+    }
+    t.innerHTML =
+      '<span class="tm-toast-icon">' + (ICONS[opts.variant] || ICONS.success) + '</span>' +
+      '<div class="tm-toast-body">' +
+        (opts.title ? '<div class="tm-toast-title">' + opts.title + '</div>' : '') +
+        (opts.message ? '<div class="tm-toast-message">' + opts.message + '</div>' : '') +
+        actionsHtml +
+      '</div>' +
+      '<button type="button" class="tm-toast-dismiss" aria-label="Dismiss"><svg viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>';
+    h.appendChild(t);
+    requestAnimationFrame(function(){ t.classList.add('is-visible'); });
+    var timer = opts.duration != null ? (opts.duration > 0 ? setTimeout(dismiss, opts.duration) : null) : setTimeout(dismiss, 5000);
+    function dismiss(){ if (timer) clearTimeout(timer); t.classList.add('is-leaving'); t.classList.remove('is-visible'); setTimeout(function(){ if (t.parentNode) t.parentNode.removeChild(t); }, 240); }
+    t.querySelector('.tm-toast-dismiss').addEventListener('click', dismiss);
+    (opts.actions || []).forEach(function(a){
+      var btn = t.querySelector('[data-toast-action="' + a.id + '"]');
+      if (btn) btn.addEventListener('click', function(){ if (a.onClick) a.onClick(); dismiss(); });
+    });
+    return { dismiss: dismiss, node: t };
+  }
+  window.TMToast = { show: showToast };
+
+  // ===== Delete confirmation flow
+  function attachDelete(node) {
+    var row = node.closest('.history-row, .history-card-row');
+    if (!row) return;
+    var title = (row.querySelector('.video-title-link, .hcr-title') || {}).textContent || 'this analysis';
+    var clipped = title.length > 50 ? title.slice(0, 50) + '…' : title;
+    window.TMToast.show({
+      variant: 'warning',
+      title: 'Delete this analysis?',
+      message: '"' + clipped + '" will be permanently removed.',
+      duration: 0,
+      actions: [
+        { id: 'cancel', label: 'Cancel' },
+        { id: 'confirm', label: 'Delete', variant: 'danger', onClick: function () {
+            row.classList.add('is-removing');
+            setTimeout(function(){
+              if (row.parentNode) row.parentNode.removeChild(row);
+              window.TMToast.show({ variant: 'success', title: 'Analysis deleted', message: 'The analysis was removed from your history.' });
+            }, 240);
+        }}
+      ]
+    });
+  }
+  document.querySelectorAll('[data-action="delete"]').forEach(function(b){ b.addEventListener('click', function(e){ e.preventDefault(); attachDelete(b); }); });
+
+  // ===== Overflow menus (mobile)
+  document.querySelectorAll('[data-overflow]').forEach(function(b){
+    b.addEventListener('click', function(e){
+      e.stopPropagation();
+      var row = b.closest('.history-card-row');
+      document.querySelectorAll('.history-card-row.is-menu-open').forEach(function(r){ if (r !== row) r.classList.remove('is-menu-open'); });
+      if (row) row.classList.toggle('is-menu-open');
+    });
+  });
+  document.addEventListener('click', function(){
+    document.querySelectorAll('.history-card-row.is-menu-open').forEach(function(r){ r.classList.remove('is-menu-open'); });
+  });
+
+  // ===== Filter bar: show/hide Clear button when filters active
+  var filterBar = document.getElementById('filterBar');
+  var searchInput = document.getElementById('search');
+  var dateSel = document.getElementById('dateRange');
+  var clearBtn = document.getElementById('clearFilters');
+  function syncFilters() {
+    var hasFilters = (searchInput.value.trim().length > 0) || (dateSel.value !== 'all');
+    filterBar.classList.toggle('has-filters', hasFilters);
+  }
+  if (searchInput && dateSel && clearBtn) {
+    searchInput.addEventListener('input', syncFilters);
+    dateSel.addEventListener('change', syncFilters);
+    clearBtn.addEventListener('click', function(){ searchInput.value=''; dateSel.value='all'; syncFilters(); searchInput.focus(); });
+  }
+})();
+</script>
+
+
+<script src="result-block.js"></script>
+<script>
+(function(){
+  var RB = window.TubeMineRB; if (!RB) return;
+  var overlay = document.getElementById('histDetail');
+  var mount = document.getElementById('rbHistDetail');
+  var titleEl = document.getElementById('histDetailTitle');
+  var dateEl = document.getElementById('histDetailDate');
+
+  function labelFor(pos, neu, neg){
+    if (neg >= pos && neg >= neu) return neg >= 45 ? 'Mostly negative' : 'Leans negative';
+    if (neu >= pos && neu >= neg) return 'Mixed reaction';
+    return pos >= 60 ? 'Mostly positive' : 'Leans positive';
+  }
+  function scaleWords(words, factor){
+    return words.map(function(w){ return [w[0], Math.max(1, Math.round(w[1]*factor))]; });
+  }
+
+  function buildData(host){
+    var n = host.getAttribute('data-id').replace('m','');
+    var row = document.querySelector('.history-table .history-row[data-id="'+n+'"]') || host;
+    var title = (row.querySelector('.video-title-link') || host.querySelector('.hcr-title')).textContent.trim();
+    var channel = (row.querySelector('.video-channel') || host.querySelector('.hcr-channel')).textContent.trim();
+    var date = (row.querySelector('.cell-date') ? row.querySelector('.cell-date').textContent.trim()
+                : (host.querySelector('.hcr-meta span') ? host.querySelector('.hcr-meta span').textContent.trim() : ''));
+    var sb = row.querySelector('.sent-bar');
+    var pos = parseInt(sb.querySelector('.sent-pos').style.width) || 0;
+    var neu = parseInt(sb.querySelector('.sent-neu').style.width) || 0;
+    var neg = parseInt(sb.querySelector('.sent-neg').style.width) || 0;
+    var totalText = row.querySelector('.cell-comments').textContent.trim();
+    var total = parseInt(totalText.replace(/[^0-9]/g,'')) || 0;
+    var factor = Math.min(1, total / 19422);
+    var def = RB.DEFAULT_DATA;
+    var fmt = function(x){ return x.toLocaleString('en-US'); };
+    return {
+      _date: date,
+      video: { title: title, channel: channel, total: fmt(total) },
+      sentiment: {
+        pos: pos, neu: neu, neg: neg,
+        posN: fmt(Math.round(total*pos/100)),
+        neuN: fmt(Math.round(total*neu/100)),
+        negN: fmt(Math.round(total*neg/100)),
+        label: labelFor(pos, neu, neg),
+        coverage: 93
+      },
+      uniqueWords: fmt(Math.max(8, Math.round(1284*factor))),
+      words: scaleWords(def.words, factor),
+      uniqueEmoji: Math.max(5, Math.round(142*factor)),
+      emojiComments: fmt(Math.round(6142*factor)),
+      emoji: def.emoji,
+      comments: def.comments
+    };
+  }
+
+  function openDetail(host){
+    var data = buildData(host);
+    titleEl.textContent = data.video.title;
+    dateEl.textContent = data._date;
+    RB.renderResult(mount, 'pro', data);
+    document.body.classList.add('is-viewing-detail');
+    overlay.hidden = false;
+    window.scrollTo(0, 0);
+  }
+  function closeDetail(){
+    document.body.classList.remove('is-viewing-detail');
+    overlay.hidden = true;
+  }
+
+  document.addEventListener('click', function(e){
+    var trigger = e.target.closest('a[aria-label="View"], .overflow-menu a[role="menuitem"], .video-title-link, .hcr-title');
+    if (trigger) {
+      var host = trigger.closest('[data-id]');
+      if (host) { e.preventDefault(); openDetail(host); return; }
+    }
+    if (e.target.closest('[data-close]')) { closeDetail(); }
+  });
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape' && document.body.classList.contains('is-viewing-detail')) closeDetail();
+  });
+})();
+</script>
+</body>
+</html>

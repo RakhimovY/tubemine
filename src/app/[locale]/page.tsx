@@ -6,6 +6,7 @@ import { LandingSmoothScroll } from "@/components/landing-smooth-scroll"
 import { LandingAuthGate } from "@/components/landing-auth-gate"
 import { SiteFooter } from "@/components/site-footer"
 import { ClientLogo } from "@/components/brand/client-logo"
+import { HeroVideo } from "@/components/hero-video"
 import { REPO_URL } from "@/lib/site-links"
 
 /* Real MCP clients shown in the hero trust pill (brand logos, not dots). */
@@ -136,107 +137,7 @@ export default async function HomePage({
               {t("hero.cta_secondary")}
             </a>
 
-            {/* Animated demo: an AI assistant calling TubeMine over MCP.
-                Depicts the single tool get_youtube_comments(); the AI does
-                the analysis on the raw thread it returns. */}
-            <div className="hero-demo" id="heroDemo" aria-hidden="true">
-              <div className="hd-bar">
-                <span className="hd-dots">
-                  <span />
-                  <span />
-                  <span />
-                </span>
-                <span className="hd-title">
-                  <PlugIcon className="hd-title-icon" />
-                  {t("hero_demo.title")}
-                </span>
-                <span className="hd-badge">
-                  <span className="ld" />
-                  {t("hero_demo.badge")}
-                </span>
-              </div>
-              <div className="hd-chat hd-chat-static">
-                <div className="hd-msg user">
-                  <div className="hd-bubble">
-                    {t("hero_demo.user_msg")}{" "}
-                    <span className="hd-url">{t("hero_demo.user_url")}</span>
-                  </div>
-                </div>
-                <div className="hd-msg ai">
-                  <span className="hd-av">✳</span>
-                  <div className="hd-ai-body">
-                    <div className="hd-tool">
-                      <PlugIcon className="hd-tool-icon" />
-                      <span className="fn">{t("hero_demo.tool")}</span>
-                      <span className="hd-check">
-                        <CheckIcon />
-                      </span>
-                    </div>
-                    <p className="hd-say">
-                      {t("hero_demo.say_prefix")}{" "}
-                      <b>{t("hero_demo.say_count")}</b>{" "}
-                      {t("hero_demo.say_suffix")}
-                    </p>
-                    <div className="hd-payload">
-                      <div className="hd-pay-head">
-                        <span className="hd-pay-count">
-                          {t("hero_demo.pay_count")}{" "}
-                          <span>{t("hero_demo.pay_count_sub")}</span>
-                        </span>
-                        <span className="hd-pay-tag">
-                          ● {t("hero_demo.pay_tag")}
-                        </span>
-                      </div>
-                      <div className="hv-sbar">
-                        <span className="pos" style={{ width: "68%" }}>
-                          68%
-                        </span>
-                        <span className="neu" style={{ width: "24%" }}>
-                          24%
-                        </span>
-                        <span className="neg" style={{ width: "8%" }} />
-                      </div>
-                      <div className="hd-pay-cols">
-                        <div>
-                          <div className="hd-pay-label">
-                            {t("hero_demo.top_words")}
-                          </div>
-                          <div className="hv-words">
-                            {[
-                              { w: "tutorial", pct: 100 },
-                              { w: "workflow", pct: 74 },
-                              { w: "underrated", pct: 58 },
-                            ].map((row) => (
-                              <div key={row.w} className="hv-wrow">
-                                <span className="w">{row.w}</span>
-                                <span className="hv-track">
-                                  <span
-                                    className="hv-fill"
-                                    style={{ width: `${row.pct}%` }}
-                                  />
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="hd-pay-label">
-                            {t("hero_demo.top_emoji")}
-                          </div>
-                          <div className="hv-emoji">
-                            <span>🔥</span>
-                            <span>❤️</span>
-                            <span>👏</span>
-                            <span>💯</span>
-                            <span>😍</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <HeroVideo locale={locale} />
           </div>
         </section>
 

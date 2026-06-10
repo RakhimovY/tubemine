@@ -15,6 +15,7 @@ export async function proxy(request: NextRequest) {
   // Skip locale handling for non-localized infrastructure paths.
   const skipIntl =
     pathname.startsWith("/api") ||
+    pathname.startsWith("/videos") ||
     pathname === "/mcp" ||
     pathname.startsWith("/auth") ||
     pathname.startsWith("/_next") ||
@@ -78,6 +79,6 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     // Match all routes except static assets and the Polar webhook (raw body).
-    "/((?!_next/static|_next/image|favicon.ico|api/polar/webhook|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/polar/webhook|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|mp4|webm|mov|m4v|mp3|wav|ogg)$).*)",
   ],
 }

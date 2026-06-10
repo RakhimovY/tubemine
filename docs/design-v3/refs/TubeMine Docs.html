@@ -1,0 +1,564 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Docs · TubeMine</title>
+<meta name="description" content="Documentation for TubeMine is on the way." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --font-family-primary: "SF Pro Display", -apple-system, system-ui, "Inter", "Segoe UI", sans-serif;
+  --font-family-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --font-size-xs: 12px; --font-size-sm: 13px; --font-size-md: 14px;
+  --font-size-lg: 15px; --font-size-2xl: 17px; --font-size-3xl: 18px;
+  --font-weight-base: 400; --font-weight-medium: 500; --font-weight-semibold: 600;
+  --color-surface-base: #000000;
+  --color-surface-raised: #0f0f11;
+  --color-surface-muted: #ffffff;
+  --color-text-primary: #f5f5f7;
+  --color-text-secondary: #b9b9c0;
+  --color-text-tertiary: #7a7a82;
+  --color-text-inverse: #0a0a0c;
+  --color-border-subtle: rgba(245, 245, 247, 0.08);
+  --color-border-strong: rgba(245, 245, 247, 0.16);
+  --color-border-focus: rgba(245, 245, 247, 0.55);
+  --color-feedback-success: rgba(52, 211, 153, 0.8);
+  --space-1: 4px; --space-2: 6px; --space-3: 8px; --space-4: 10px;
+  --space-5: 12px; --space-6: 16px; --space-7: 20px; --space-8: 24px;
+  --radius-xs: 6px; --radius-sm: 8px; --radius-md: 14px; --radius-lg: 9999px;
+  --motion-duration-fast: 150ms; --motion-duration-normal: 200ms;
+  --motion-ease: cubic-bezier(0.2, 0, 0, 1);
+}
+*,*::before,*::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  background: var(--color-surface-base);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-primary);
+  font-size: var(--font-size-md);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
+  display: grid; grid-template-rows: auto 1fr auto;
+}
+::selection { background: rgba(245,245,247,0.18); }
+a { color: inherit; text-decoration: none; }
+button { font: inherit; color: inherit; cursor: pointer; }
+
+.container { width: 100%; max-width: 1200px; margin: 0 auto; padding: 0 var(--space-6); }
+@media (min-width: 768px) { .container { padding: 0 var(--space-8); } }
+.icon { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.icon-sm { width: 14px; height: 14px; }
+
+/* Buttons */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-3);
+  height: 36px; padding: 0 var(--space-6); border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border-strong); background: transparent; color: var(--color-text-primary);
+  font: inherit; font-size: var(--font-size-md); font-weight: var(--font-weight-medium);
+  user-select: none; min-height: 44px; white-space: nowrap;
+  transition: background-color var(--motion-duration-fast) var(--motion-ease), border-color var(--motion-duration-fast) var(--motion-ease), color var(--motion-duration-fast) var(--motion-ease);
+}
+@media (min-width: 720px) { .btn { min-height: 36px; } }
+.btn:hover { background: rgba(245,245,247,0.06); }
+.btn:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(245,245,247,0.18); border-color: var(--color-border-focus); }
+.btn--primary { background: var(--color-surface-muted); color: var(--color-text-inverse); border-color: var(--color-surface-muted); }
+.btn--primary:hover { background: #ececef; }
+.btn--ghost { border-color: transparent; color: var(--color-text-secondary); }
+.btn--ghost:hover { color: var(--color-text-primary); }
+.btn-sm { height: 30px; min-height: 36px; padding: 0 var(--space-5); font-size: var(--font-size-sm); }
+
+/* Nav (matches landing) */
+.nav { position: sticky; top: 0; z-index: 50; background: rgba(0,0,0,0.55); backdrop-filter: saturate(180%) blur(12px); -webkit-backdrop-filter: saturate(180%) blur(12px); border-bottom: 1px solid var(--color-border-subtle); }
+.nav-inner { display: flex; align-items: center; justify-content: space-between; gap: var(--space-5); height: 60px; }
+.nav-brand { display: inline-flex; align-items: center; gap: var(--space-3); font-size: var(--font-size-lg); letter-spacing: -0.01em; font-weight: var(--font-weight-semibold); }
+.brand-mark { width: 26px; height: 26px; border-radius: var(--radius-xs); background: linear-gradient(135deg, #18181b 0%, #2a2a2e 100%); position: relative; flex-shrink: 0; box-shadow: inset 0 0 0 1px var(--color-border-subtle); }
+.brand-mark::after { content: ""; position: absolute; inset: 0; margin: auto; width: 0; height: 0; transform: translateX(1px); border-left: 7px solid rgba(245,245,247,0.95); border-top: 5px solid transparent; border-bottom: 5px solid transparent; }
+.nav-links { display: none; align-items: center; gap: var(--space-2); }
+@media (min-width: 768px) { .nav-links { display: inline-flex; } }
+.nav-link { padding: 8px 12px; color: var(--color-text-secondary); font-size: var(--font-size-sm); border-radius: var(--radius-xs); transition: color var(--motion-duration-fast) var(--motion-ease), background var(--motion-duration-fast) var(--motion-ease); }
+.nav-link:hover { color: var(--color-text-primary); background: rgba(245,245,247,0.04); }
+.nav-link.is-active { color: var(--color-text-primary); background: rgba(245,245,247,0.06); }
+.nav-actions { display: inline-flex; align-items: center; gap: var(--space-3); }
+.nav-ghost-icon { width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--radius-xs); color: var(--color-text-secondary); transition: color var(--motion-duration-fast) var(--motion-ease), background var(--motion-duration-fast) var(--motion-ease); }
+.nav-ghost-icon:hover { color: var(--color-text-primary); background: rgba(245,245,247,0.06); }
+
+/* Stage (centered hero block) */
+.stage { display: flex; align-items: center; justify-content: center; padding: clamp(48px, 12vw, 128px) var(--space-6); }
+.stage-inner { max-width: 640px; width: 100%; text-align: center; }
+.stage-badge {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  padding: 4px 12px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-lg);
+  font-family: var(--font-family-mono); font-size: var(--font-size-xs);
+  color: var(--color-text-secondary); margin-bottom: var(--space-6); letter-spacing: 0.04em;
+}
+.stage-badge::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--color-feedback-success); animation: pulse-dot 2s ease-in-out infinite; }
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.stage-title { font-size: clamp(36px, 6.5vw, 56px); line-height: 1.05; letter-spacing: -0.03em; margin: 0 0 var(--space-6); font-weight: var(--font-weight-semibold); text-wrap: balance; }
+.stage-sub { color: var(--color-text-secondary); font-size: clamp(16px, 2.3vw, 19px); line-height: 1.55; margin: 0 0 var(--space-8); max-width: 56ch; margin-left: auto; margin-right: auto; text-wrap: pretty; }
+
+.coming-card {
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-7) var(--space-7);
+  margin: var(--space-7) auto 0;
+  max-width: 520px;
+  text-align: left;
+  display: grid;
+  gap: var(--space-5);
+}
+.coming-row {
+  display: grid; grid-template-columns: 20px 1fr; gap: var(--space-5);
+  align-items: start;
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+.coming-row .check {
+  width: 20px; height: 20px; border-radius: 50%;
+  background: rgba(245,245,247,0.06);
+  border: 1px solid var(--color-border-subtle);
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--color-text-tertiary);
+  margin-top: 1px;
+}
+.coming-row .check svg { width: 10px; height: 10px; }
+.coming-row strong { color: var(--color-text-primary); display: block; margin-bottom: 2px; font-weight: var(--font-weight-medium); }
+
+.stage-cta { display: flex; gap: var(--space-4); justify-content: center; flex-wrap: wrap; margin-top: var(--space-8); }
+
+/* Slim footer (matches login) */
+.foot {
+  padding: var(--space-6) var(--space-6);
+  border-top: 1px solid var(--color-border-subtle);
+  display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-4);
+  color: var(--color-text-tertiary); font-size: var(--font-size-xs); font-family: var(--font-family-mono);
+}
+@media (min-width: 768px) { .foot { padding: var(--space-6) var(--space-8); } }
+.foot .links { display: flex; gap: var(--space-5); }
+.foot .links a { transition: color var(--motion-duration-fast) var(--motion-ease); }
+.foot .links a:hover { color: var(--color-text-secondary); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+/* ===== LocaleSwitcher (header) ===== */
+.locale-switcher { position: relative; display: inline-flex; }
+.locale-trigger {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  height: 30px; min-height: 36px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border-subtle);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit; font-size: var(--font-size-xs);
+  font-family: var(--font-family-mono);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color var(--motion-duration-fast) var(--motion-ease), background-color var(--motion-duration-fast) var(--motion-ease), border-color var(--motion-duration-fast) var(--motion-ease);
+}
+@media (min-width: 720px) { .locale-trigger { min-height: 30px; } }
+.locale-trigger:hover { color: var(--color-text-primary); background: rgba(245,245,247,0.06); border-color: var(--color-border-strong); }
+.locale-trigger:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-border-focus); }
+.locale-trigger .arrow { transition: transform var(--motion-duration-fast) var(--motion-ease); color: var(--color-text-tertiary); }
+.locale-switcher.is-open .locale-trigger { color: var(--color-text-primary); background: rgba(245,245,247,0.08); border-color: var(--color-border-strong); }
+.locale-switcher.is-open .locale-trigger .arrow { transform: rotate(180deg); color: var(--color-text-primary); }
+
+.locale-menu {
+  position: absolute; top: calc(100% + 6px); right: 0;
+  list-style: none; padding: 4px; margin: 0;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-1);
+  min-width: 180px;
+  display: none;
+  z-index: 60;
+}
+.locale-switcher.is-open .locale-menu { display: block; }
+.locale-menu li { margin: 0; padding: 0; list-style: none; }
+.locale-menu button {
+  display: flex; align-items: center; gap: var(--space-4);
+  width: 100%;
+  background: transparent; border: 0;
+  padding: var(--space-3) var(--space-5);
+  color: var(--color-text-secondary);
+  font: inherit; font-size: var(--font-size-sm);
+  text-align: left; cursor: pointer;
+  border-radius: var(--radius-xs);
+  min-height: 36px;
+  transition: color var(--motion-duration-fast) var(--motion-ease), background-color var(--motion-duration-fast) var(--motion-ease);
+}
+.locale-menu button:hover { color: var(--color-text-primary); background: rgba(245,245,247,0.06); }
+.locale-menu button:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--color-border-focus); }
+.locale-menu button .code { font-family: var(--font-family-mono); font-size: var(--font-size-xs); color: var(--color-text-tertiary); width: 26px; letter-spacing: 0.06em; }
+.locale-menu button[aria-selected="true"] { color: var(--color-text-primary); }
+.locale-menu button[aria-selected="true"] .code { color: var(--color-text-primary); }
+.locale-menu button .check { margin-left: auto; opacity: 0; color: var(--color-text-secondary); flex-shrink: 0; }
+.locale-menu button[aria-selected="true"] .check { opacity: 1; }
+@media (max-width: 539px) {
+  .locale-menu { right: auto; left: 0; min-width: 160px; }
+}
+
+
+/* ===========================================================
+   Mobile audit fixes (75% of traffic is mobile)
+   - Body text bumps to 16px on mobile (matches font.size.base token)
+   - Inputs at 16px on mobile to prevent iOS auto-zoom on focus
+   =========================================================== */
+@media (max-width: 1023px) {
+  body { font-size: 16px; line-height: 1.55; }
+  .input { font-size: 16px !important; }
+  textarea, select { font-size: 16px; }
+}
+
+/* ===== Hamburger + mobile drawer (<1024px) ===== */
+.mobile-menu-btn {
+  display: none;
+  width: 44px; height: 44px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  padding: 0;
+  align-items: center;
+  justify-content: center;
+  transition: color var(--motion-duration-fast) var(--motion-ease), background-color var(--motion-duration-fast) var(--motion-ease), border-color var(--motion-duration-fast) var(--motion-ease);
+}
+.mobile-menu-btn:hover { color: var(--color-text-primary); background: rgba(245,245,247,0.06); border-color: var(--color-border-strong); }
+.mobile-menu-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-border-focus); }
+.mobile-menu-btn svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+
+@media (max-width: 1023px) {
+  .mobile-menu-btn { display: inline-flex; }
+  /* Hide inline nav links + auth buttons + locale on small screens */
+  .nav-links { display: none !important; }
+  .nav-actions > .btn { display: none !important; }
+  .nav-actions > .locale-switcher { display: none !important; }
+  /* Keep GitHub ghost icon visible */
+}
+
+/* Drawer backdrop + panel */
+.mobile-drawer-backdrop {
+  position: fixed; inset: 0; z-index: 99;
+  background: rgba(0, 0, 0, 0.6);
+  opacity: 0; pointer-events: none;
+  transition: opacity var(--motion-duration-normal) var(--motion-ease);
+}
+.mobile-drawer-backdrop.is-visible { opacity: 1; pointer-events: auto; }
+
+.mobile-drawer {
+  position: fixed; top: 0; right: 0; bottom: 0;
+  width: min(360px, 92vw);
+  background: var(--color-surface-raised);
+  border-left: 1px solid var(--color-border-subtle);
+  z-index: 100;
+  transform: translateX(100%);
+  transition: transform var(--motion-duration-normal) var(--motion-ease);
+  display: flex; flex-direction: column;
+  padding: var(--space-6);
+  gap: var(--space-6);
+  box-shadow: var(--shadow-1);
+  overflow-y: auto;
+}
+.mobile-drawer.is-open { transform: translateX(0); }
+@media (min-width: 1024px) { .mobile-drawer, .mobile-drawer-backdrop { display: none !important; } }
+
+.mobile-drawer-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-4);
+  padding-bottom: var(--space-5);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.mobile-drawer-close {
+  width: 44px; height: 44px;
+  border: 0; border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: color var(--motion-duration-fast) var(--motion-ease), background-color var(--motion-duration-fast) var(--motion-ease);
+}
+.mobile-drawer-close:hover { color: var(--color-text-primary); background: rgba(245,245,247,0.06); }
+.mobile-drawer-close:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-border-focus); }
+.mobile-drawer-close svg { width: 18px; height: 18px; }
+
+.mobile-drawer-nav {
+  display: flex; flex-direction: column;
+  gap: 2px;
+}
+.mobile-drawer-nav a {
+  display: flex; align-items: center;
+  min-height: 48px; padding: 0 var(--space-5);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-xs);
+  transition: color var(--motion-duration-fast) var(--motion-ease), background-color var(--motion-duration-fast) var(--motion-ease);
+}
+.mobile-drawer-nav a:hover { color: var(--color-text-primary); background: rgba(245,245,247,0.04); }
+.mobile-drawer-nav a.is-active { color: var(--color-text-primary); background: rgba(245,245,247,0.08); }
+
+.mobile-drawer-meta {
+  padding: var(--space-5) 0;
+  border-top: 1px solid var(--color-border-subtle);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.mobile-drawer-meta .locale-switcher { width: 100%; display: flex; }
+.mobile-drawer-meta .locale-trigger { width: 100%; height: 44px; min-height: 44px; justify-content: space-between; font-size: var(--font-size-sm); padding: 0 var(--space-5); }
+.mobile-drawer-meta .locale-menu { width: 100%; right: 0; left: 0; }
+
+.mobile-drawer-actions {
+  display: flex; flex-direction: column; gap: var(--space-3);
+  margin-top: auto;
+  padding-top: var(--space-5);
+}
+.mobile-drawer-actions .btn { width: 100%; min-height: 48px; }
+
+body.no-scroll { overflow: hidden; }
+
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-github" viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.46-1.16-1.12-1.47-1.12-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.9 1.52 2.34 1.08 2.91.83.09-.65.35-1.08.63-1.33-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.02a9.6 9.6 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.38.2 2.4.1 2.65.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2Z" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m4 12 5 5L20 6"/></symbol>
+    <symbol id="i-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></symbol>
+  </defs>
+</svg>
+
+<nav class="nav">
+  <div class="container nav-inner">
+    <a href="TubeMine Landing.html" class="nav-brand" aria-label="TubeMine home">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span>TubeMine</span>
+    </a>
+    <div class="nav-links">
+      <a href="TubeMine Landing.html#features" class="nav-link">Features</a>
+      <a href="TubeMine Pricing.html" class="nav-link">Pricing</a>
+      <a href="TubeMine Docs.html" class="nav-link is-active" aria-current="page">Docs</a>
+      <a href="TubeMine Changelog.html" class="nav-link">Changelog</a>
+    </div>
+    <div class="nav-actions">
+      <a href="https://github.com/RakhimovY/tubemine" target="_blank" rel="noopener" class="nav-ghost-icon" aria-label="GitHub repository">
+        <svg class="icon" aria-hidden="true"><use href="#i-github"/></svg>
+      </a>
+      <div class="locale-switcher" data-locale-switcher>
+        <button type="button" class="locale-trigger" aria-haspopup="listbox" aria-expanded="false" aria-label="Language">
+          <span class="locale-current">EN</span>
+          <svg class="icon icon-sm arrow" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <ul class="locale-menu" role="listbox" aria-label="Language">
+          <li><button type="button" role="option" data-locale="en" aria-selected="true"><span class="code">EN</span><span class="label">English</span><svg class="icon icon-sm check" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 12 5 5L20 6"/></svg></button></li>
+          <li><button type="button" role="option" data-locale="ru" aria-selected="false"><span class="code">RU</span><span class="label">Русский</span><svg class="icon icon-sm check" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 12 5 5L20 6"/></svg></button></li>
+        </ul>
+      </div>
+      <a href="TubeMine Login.html?intent=signup" class="btn btn--primary btn-sm">Get started</a>
+
+      <button type="button" class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Open menu" aria-controls="mobileDrawer" aria-expanded="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></svg>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<!-- ===================== Mobile drawer ===================== -->
+<div class="mobile-drawer-backdrop" id="mobileDrawerBackdrop" aria-hidden="true"></div>
+<aside class="mobile-drawer" id="mobileDrawer" role="dialog" aria-modal="true" aria-label="Mobile navigation" aria-hidden="true">
+  <header class="mobile-drawer-head">
+    <a href="TubeMine Landing.html" class="nav-brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span>TubeMine</span>
+    </a>
+    <button type="button" class="mobile-drawer-close" id="mobileDrawerClose" aria-label="Close menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+    </button>
+  </header>
+  <nav class="mobile-drawer-nav" aria-label="Primary">
+      <a href="TubeMine Landing.html#features">Features</a>
+      <a href="TubeMine Pricing.html">Pricing</a>
+      <a href="TubeMine Docs.html" class="is-active" aria-current="page">Docs</a>
+      <a href="TubeMine Changelog.html">Changelog</a>
+  </nav>
+  <div class="mobile-drawer-meta">
+    <div class="locale-switcher" data-locale-switcher>
+      <button type="button" class="locale-trigger" aria-haspopup="listbox" aria-expanded="false" aria-label="Language">
+        <span><span class="locale-current">EN</span> · English</span>
+        <svg class="icon icon-sm arrow" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <ul class="locale-menu" role="listbox" aria-label="Language">
+        <li><button type="button" role="option" data-locale="en" aria-selected="true"><span class="code">EN</span><span class="label">English</span><svg class="icon icon-sm check" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 12 5 5L20 6"/></svg></button></li>
+        <li><button type="button" role="option" data-locale="ru" aria-selected="false"><span class="code">RU</span><span class="label">Русский</span><svg class="icon icon-sm check" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 12 5 5L20 6"/></svg></button></li>
+      </ul>
+    </div>
+  </div>
+  <div class="mobile-drawer-actions">
+    <a href="TubeMine Login.html?intent=signup" class="btn btn--primary btn-lg">Get started</a>
+  </div>
+</aside>
+
+
+<main class="stage">
+  <div class="stage-inner">
+    <span class="stage-badge">Coming soon</span>
+    <h1 class="stage-title">Docs.</h1>
+    <p class="stage-sub">A proper documentation site for TubeMine is on the way. Until then, the product itself is the best tutorial.</p>
+
+    <div class="coming-card">
+      <div class="coming-row">
+        <span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m4 12 5 5L20 6"/></svg></span>
+        <span><strong>Quickstart</strong>Paste any public YouTube URL on the homepage. See sentiment, top words, and emoji frequency in seconds.</span>
+      </div>
+      <div class="coming-row">
+        <span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m4 12 5 5L20 6"/></svg></span>
+        <span><strong>How quotas work</strong>Free is 5,000 comments per month, signed in. Anonymous is 1,000 (per public IP). Pro is 100,000. Both reset monthly. See the dashboard for live usage.</span>
+      </div>
+      <div class="coming-row">
+        <span class="check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m4 12 5 5L20 6"/></svg></span>
+        <span><strong>Source &amp; license</strong>TubeMine is open source under the MIT license. Read the code, file an issue, send a PR.</span>
+      </div>
+    </div>
+
+    <div class="stage-cta">
+      <a href="TubeMine Landing.html" class="btn btn--primary">
+        Try TubeMine
+        <svg class="icon icon-sm" aria-hidden="true"><use href="#i-arrow-right"/></svg>
+      </a>
+      <a href="https://github.com/RakhimovY/tubemine" target="_blank" rel="noopener" class="btn">
+        <svg class="icon icon-sm" aria-hidden="true"><use href="#i-github"/></svg>
+        View on GitHub
+      </a>
+    </div>
+  </div>
+</main>
+
+<footer class="foot">
+  <span>© 2026 TubeMine</span>
+  <div class="links">
+    <a href="TubeMine Privacy.html">Privacy</a>
+    <a href="TubeMine Terms.html">Terms</a>
+    <a href="mailto:hello@tubemine.app">Contact</a>
+  </div>
+</footer>
+
+
+<script>
+(function () {
+  document.querySelectorAll('[data-locale-switcher]').forEach(function (sw) {
+    var trigger = sw.querySelector('.locale-trigger');
+    var menu = sw.querySelector('.locale-menu');
+    var options = sw.querySelectorAll('.locale-menu [role="option"]');
+    var current = sw.querySelector('.locale-current');
+
+    function setOpen(open) {
+      sw.classList.toggle('is-open', open);
+      trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+
+    trigger.addEventListener('click', function (e) {
+      e.stopPropagation();
+      setOpen(!sw.classList.contains('is-open'));
+    });
+
+    options.forEach(function (opt) {
+      opt.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var locale = opt.getAttribute('data-locale');
+        options.forEach(function (o) {
+          o.setAttribute('aria-selected', o === opt ? 'true' : 'false');
+        });
+        if (current) current.textContent = locale.toUpperCase();
+        try { document.documentElement.setAttribute('lang', locale); } catch (e2) {}
+        setOpen(false);
+      });
+    });
+
+    document.addEventListener('click', function (e) {
+      if (sw.classList.contains('is-open') && !sw.contains(e.target)) setOpen(false);
+    });
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      document.querySelectorAll('[data-locale-switcher].is-open').forEach(function (sw) {
+        sw.classList.remove('is-open');
+        var t = sw.querySelector('.locale-trigger');
+        if (t) t.setAttribute('aria-expanded', 'false');
+      });
+    }
+  });
+})();
+</script>
+
+
+<script>
+(function () {
+  var btn = document.getElementById('mobileMenuBtn');
+  var drawer = document.getElementById('mobileDrawer');
+  var backdrop = document.getElementById('mobileDrawerBackdrop');
+  var closeBtn = document.getElementById('mobileDrawerClose');
+  if (!btn || !drawer || !backdrop) return;
+
+  function open() {
+    drawer.classList.add('is-open');
+    drawer.setAttribute('aria-hidden', 'false');
+    backdrop.classList.add('is-visible');
+    backdrop.setAttribute('aria-hidden', 'false');
+    btn.setAttribute('aria-expanded', 'true');
+    document.body.classList.add('no-scroll');
+    setTimeout(function () { if (closeBtn) closeBtn.focus(); }, 100);
+  }
+  function close() {
+    drawer.classList.remove('is-open');
+    drawer.setAttribute('aria-hidden', 'true');
+    backdrop.classList.remove('is-visible');
+    backdrop.setAttribute('aria-hidden', 'true');
+    btn.setAttribute('aria-expanded', 'false');
+    document.body.classList.remove('no-scroll');
+  }
+
+  btn.addEventListener('click', open);
+  if (closeBtn) closeBtn.addEventListener('click', close);
+  backdrop.addEventListener('click', close);
+
+  // Close on Escape
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && drawer.classList.contains('is-open')) close();
+  });
+
+  // Close on route click (any <a> inside drawer that navigates)
+  drawer.querySelectorAll('a[href]').forEach(function (a) {
+    a.addEventListener('click', function () {
+      // Let navigation happen; close drawer for visual cleanup
+      setTimeout(close, 0);
+    });
+  });
+
+  // Auto-close if viewport grows past 1023px
+  var mq = window.matchMedia('(min-width: 1024px)');
+  function handleMq(e) {
+    if (e.matches && drawer.classList.contains('is-open')) close();
+  }
+  if (mq.addEventListener) mq.addEventListener('change', handleMq);
+  else mq.addListener(handleMq);
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,166 @@
+/* ============================================================
+   TubeMine v3 design tokens
+   Drop-in for src/app/globals.css
+
+   Stack: Next.js 16 + Tailwind v4. Tokens are exposed through
+   @theme so they become first-class Tailwind utilities, plus
+   :root for legacy var() usage in custom CSS.
+   ============================================================ */
+
+@import "tailwindcss";
+
+/* ===== Tailwind v4 @theme =====================================
+   Tokens here generate utilities. e.g. bg-surface-raised, text-text-secondary,
+   gap-space-6, rounded-radius-md, etc.
+   ============================================================ */
+@theme {
+  /* Type ------------------------------------------------------ */
+  --font-family-primary: "SF Pro Display", -apple-system, system-ui, "Inter", "Segoe UI", sans-serif;
+  --font-family-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --font-size-xs: 12px;
+  --font-size-sm: 13px;
+  --font-size-md: 14px;
+  --font-size-lg: 15px;
+  --font-size-xl: 16px;
+  --font-size-2xl: 17px;
+  --font-size-3xl: 18px;
+  --font-size-4xl: 21px;
+
+  --font-weight-base: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+
+  /* Color: surfaces ------------------------------------------ */
+  --color-surface-base: #000000;
+  --color-surface-raised: #0f0f11;
+  --color-surface-sunken: #0a0a0c;
+  --color-surface-muted: #ffffff;          /* inverse pill button */
+
+  /* Color: text ---------------------------------------------- */
+  --color-text-primary: #f5f5f7;
+  --color-text-secondary: #b9b9c0;
+  --color-text-tertiary: #7a7a82;
+  --color-text-inverse: #0a0a0c;
+  --color-text-disabled: #4a4a52;
+
+  /* Color: borders (derived for dark surfaces) --------------- */
+  --color-border-subtle: rgba(245, 245, 247, 0.08);
+  --color-border-strong: rgba(245, 245, 247, 0.16);
+  --color-border-focus:  rgba(245, 245, 247, 0.55);
+
+  /* Color: feedback (semantic exceptions to monochrome) ------ */
+  --color-feedback-success:      rgba(52, 211, 153, 0.80);
+  --color-feedback-success-soft: rgba(52, 211, 153, 0.12);
+  --color-feedback-danger:       rgba(251, 113, 133, 0.80);
+  --color-feedback-danger-soft:  rgba(251, 113, 133, 0.12);
+  --color-feedback-warning:      rgba(251, 191, 36, 0.85);
+  --color-feedback-warning-soft: rgba(251, 191, 36, 0.12);
+
+  /* Color: sentiment widget only (do not reuse outside) ------ */
+  --color-accent-positive:  rgba(52, 211, 153, 0.80);
+  --color-accent-negative:  rgba(251, 113, 133, 0.80);
+  --color-sentiment-neutral: var(--color-text-secondary);
+
+  /* Spacing -------------------------------------------------- */
+  --spacing-1: 4px;
+  --spacing-2: 6px;
+  --spacing-3: 8px;
+  --spacing-4: 10px;
+  --spacing-5: 12px;
+  --spacing-6: 16px;
+  --spacing-7: 20px;
+  --spacing-8: 24px;
+
+  /* Radius --------------------------------------------------- */
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 9999px;
+
+  /* Shadow --------------------------------------------------- */
+  --shadow-1: 0 24px 80px 0 rgba(0, 0, 0, 0.18);
+  --shadow-2: 0 10px 34px 0 rgba(245, 245, 247, 0.08);
+
+  /* Motion --------------------------------------------------- */
+  --duration-instant: 140ms;
+  --duration-fast:    150ms;
+  --duration-normal:  200ms;
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Sidebar + header (app shell) ----------------------------- */
+  --layout-sidebar-w: 240px;
+  --layout-header-h: 60px;
+}
+
+/* ===== Base ================================================== */
+:root {
+  color-scheme: dark;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--color-surface-base);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-primary);
+  font-size: var(--font-size-md);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  min-height: 100vh;
+}
+
+::selection {
+  background: rgba(245, 245, 247, 0.18);
+}
+
+/* Disable browser scroll smoothness when reduced motion is set */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ===== Focus ring (shared baseline) ===========================
+   Override per-component if needed (e.g. destructive uses rose ring).
+   ============================================================ */
+:where(button, a, input, textarea, select, [tabindex]):focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(245, 245, 247, 0.18);
+}
+
+/* ===== Spinner =============================================== */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ===== Welcome pulse ring (used by <WelcomePulse>) ============ */
+@keyframes pulse-ring {
+  0%   { transform: scale(1);    opacity: 0.45; }
+  60%  {                         opacity: 0;    }
+  100% { transform: scale(1.45); opacity: 0;    }
+}
+
+/* ===== Card shimmer (loading state for <Card>) ================ */
+@keyframes shimmer {
+  to { background-position: -200% 0, 0 0; }
+}
+
+/* ===== Indeterminate progress (used by <Progress>) ============ */
+@keyframes indeterminate {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(250%); }
+}

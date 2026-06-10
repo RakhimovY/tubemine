@@ -1,0 +1,972 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>MCP Docs · TubeMine</title>
+<meta name="description" content="Set up the TubeMine MCP server in Claude Code, ChatGPT, Claude Desktop, or Gemini CLI. Tools, authentication, limits, and troubleshooting." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+/* ============================================================
+   TubeMine v3, Privacy. Shared legal-page template.
+   ============================================================ */
+:root {
+  --font-family-primary: "SF Pro Display", -apple-system, system-ui, "Inter", "Segoe UI", sans-serif;
+  --font-family-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --font-size-xs: 12px; --font-size-sm: 13px; --font-size-md: 14px;
+  --font-size-lg: 15px; --font-size-xl: 16px; --font-size-2xl: 17px;
+  --font-size-3xl: 18px; --font-size-4xl: 21px;
+  --font-weight-base: 400; --font-weight-medium: 500; --font-weight-semibold: 600;
+  --line-height-base: 24px;
+  --color-surface-base: #000000;
+  --color-surface-raised: #0f0f11;
+  --color-surface-muted: #ffffff;
+  --color-text-primary: #f5f5f7;
+  --color-text-secondary: #b9b9c0;
+  --color-text-tertiary: #7a7a82;
+  --color-text-inverse: #0a0a0c;
+  --color-border-subtle: rgba(245, 245, 247, 0.08);
+  --color-border-strong: rgba(245, 245, 247, 0.16);
+  --color-border-focus: rgba(245, 245, 247, 0.55);
+  --color-feedback-success: rgba(52, 211, 153, 0.8);
+  --space-1: 4px; --space-2: 6px; --space-3: 8px; --space-4: 10px;
+  --space-5: 12px; --space-6: 16px; --space-7: 20px; --space-8: 24px;
+  --radius-xs: 6px; --radius-sm: 8px; --radius-md: 14px; --radius-lg: 9999px;
+  --motion-duration-fast: 150ms; --motion-duration-normal: 200ms;
+  --motion-ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+*,*::before,*::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+body { background: var(--color-surface-base); color: var(--color-text-primary); font-family: var(--font-family-primary); font-size: var(--font-size-md); line-height: var(--line-height-base); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; min-height: 100vh; }
+::selection { background: rgba(245,245,247,0.18); }
+a { color: inherit; text-decoration: none; }
+
+.container { width: 100%; max-width: 1200px; margin: 0 auto; padding: 0 var(--space-6); }
+@media (min-width: 768px) { .container { padding: 0 var(--space-8); } }
+
+.icon { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.icon-sm { width: 14px; height: 14px; }
+
+/* Buttons */
+.btn {
+  --btn-bg: transparent; --btn-fg: var(--color-text-primary);
+  --btn-border: var(--color-border-strong);
+  --btn-bg-hover: rgba(245,245,247,0.06);
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-3);
+  height: 36px; padding: 0 var(--space-6); border-radius: var(--radius-lg);
+  border: 1px solid var(--btn-border); background: var(--btn-bg); color: var(--btn-fg);
+  font-size: var(--font-size-md); font-weight: var(--font-weight-medium);
+  user-select: none; white-space: nowrap; min-height: 44px;
+  transition: background-color var(--motion-duration-fast) var(--motion-ease), border-color var(--motion-duration-fast) var(--motion-ease), color var(--motion-duration-fast) var(--motion-ease);
+}
+@media (min-width: 720px) { .btn { min-height: 36px; } }
+.btn:hover { background: var(--btn-bg-hover); }
+.btn:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(245,245,247,0.18); border-color: var(--color-border-focus); }
+.btn--primary { --btn-bg: var(--color-surface-muted); --btn-fg: var(--color-text-inverse); --btn-border: var(--color-surface-muted); --btn-bg-hover: #ececef; }
+.btn--ghost { --btn-bg: transparent; --btn-fg: var(--color-text-secondary); --btn-border: transparent; }
+.btn--ghost:hover { color: var(--color-text-primary); }
+.btn-sm { height: 30px; min-height: 36px; padding: 0 var(--space-5); font-size: var(--font-size-sm); }
+
+/* Nav (shared with landing) */
+.nav { position: sticky; top: 0; z-index: 50; background: rgba(0,0,0,0.55); backdrop-filter: saturate(180%) blur(12px); -webkit-backdrop-filter: saturate(180%) blur(12px); border-bottom: 1px solid transparent; transition: border-color var(--motion-duration-normal) var(--motion-ease), background var(--motion-duration-normal) var(--motion-ease); }
+.nav.is-scrolled { border-bottom-color: var(--color-border-subtle); background: rgba(0,0,0,0.7); }
+.nav-inner { display: flex; align-items: center; justify-content: space-between; gap: var(--space-5); height: 60px; }
+.nav-brand { display: inline-flex; align-items: center; gap: var(--space-3); font-size: var(--font-size-lg); letter-spacing: -0.01em; font-weight: var(--font-weight-semibold); }
+.brand-mark { width: 26px; height: 26px; border-radius: var(--radius-xs); background: linear-gradient(135deg, #18181b 0%, #2a2a2e 100%); position: relative; flex-shrink: 0; box-shadow: inset 0 0 0 1px var(--color-border-subtle); }
+.brand-mark::after { content: ""; position: absolute; inset: 0; margin: auto; width: 0; height: 0; transform: translateX(1px); border-left: 7px solid rgba(245,245,247,0.95); border-top: 5px solid transparent; border-bottom: 5px solid transparent; }
+.nav-links { display: none; align-items: center; gap: var(--space-2); }
+@media (min-width: 768px) { .nav-links { display: inline-flex; } }
+.nav-link { padding: 8px 12px; color: var(--color-text-secondary); font-size: var(--font-size-sm); border-radius: var(--radius-xs); transition: color var(--motion-duration-fast) var(--motion-ease), background var(--motion-duration-fast) var(--motion-ease); }
+.nav-link:hover { color: var(--color-text-primary); background: rgba(245,245,247,0.04); }
+.nav-actions { display: inline-flex; align-items: center; gap: var(--space-3); }
+.nav-ghost-icon { width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--radius-xs); color: var(--color-text-secondary); transition: color var(--motion-duration-fast) var(--motion-ease), background var(--motion-duration-fast) var(--motion-ease); }
+.nav-ghost-icon:hover { color: var(--color-text-primary); background: rgba(245,245,247,0.06); }
+
+/* ===== Legal-page layout ===== */
+.legal-hero { padding: clamp(56px, 12vw, 112px) 0 clamp(32px, 6vw, 48px); border-bottom: 1px solid var(--color-border-subtle); }
+.legal-hero .container { max-width: 760px; }
+.legal-badge { display: inline-flex; align-items: center; gap: var(--space-2); padding: 4px 12px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-lg); font-family: var(--font-family-mono); font-size: var(--font-size-xs); color: var(--color-text-secondary); margin-bottom: var(--space-6); letter-spacing: 0.04em; }
+.legal-badge::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--color-text-tertiary); }
+.legal-title { font-size: clamp(36px, 6vw, 56px); line-height: 1.05; letter-spacing: -0.03em; margin: 0 0 var(--space-5); font-weight: var(--font-weight-semibold); }
+.legal-sub { color: var(--color-text-secondary); font-size: clamp(16px, 2.3vw, 19px); line-height: 1.55; margin: 0 0 var(--space-6); max-width: 56ch; }
+.legal-updated { font-family: var(--font-family-mono); font-size: var(--font-size-xs); color: var(--color-text-tertiary); display: inline-flex; align-items: center; gap: var(--space-3); }
+.legal-updated::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--color-feedback-success); }
+
+.legal-body { padding: clamp(40px, 7vw, 80px) 0 clamp(64px, 10vw, 120px); }
+.legal-grid { display: grid; grid-template-columns: 1fr; gap: clamp(32px, 5vw, 56px); max-width: 920px; margin: 0 auto; }
+@media (min-width: 900px) { .legal-grid { grid-template-columns: 200px 1fr; gap: clamp(40px, 5vw, 64px); align-items: start; } }
+
+/* TOC */
+.toc { font-size: var(--font-size-sm); }
+@media (min-width: 900px) { .toc { position: sticky; top: 80px; } }
+.toc h3 { font-family: var(--font-family-mono); font-size: 11px; color: var(--color-text-tertiary); text-transform: uppercase; letter-spacing: 0.12em; margin: 0 0 var(--space-5); font-weight: var(--font-weight-medium); }
+.toc ol { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-2); counter-reset: toc; }
+.toc li { counter-increment: toc; }
+.toc a {
+  display: grid; grid-template-columns: 18px 1fr; gap: var(--space-3);
+  padding: 6px 0;
+  color: var(--color-text-secondary);
+  transition: color var(--motion-duration-fast) var(--motion-ease);
+  line-height: 1.4;
+}
+.toc a::before { content: counter(toc, decimal-leading-zero); font-family: var(--font-family-mono); font-size: 11px; color: var(--color-text-tertiary); padding-top: 2px; }
+.toc a:hover { color: var(--color-text-primary); }
+.toc a.is-active { color: var(--color-text-primary); }
+
+/* Article */
+.legal-article { max-width: 660px; }
+.legal-article section { padding: clamp(28px, 4vw, 40px) 0; border-top: 1px solid var(--color-border-subtle); }
+.legal-article section:first-child { padding-top: 0; border-top: 0; }
+.legal-article h2 { font-size: clamp(20px, 3vw, 26px); font-weight: var(--font-weight-semibold); letter-spacing: -0.015em; margin: 0 0 var(--space-6); display: flex; align-items: baseline; gap: var(--space-4); }
+.legal-article h2 .num { font-family: var(--font-family-mono); font-size: 12px; color: var(--color-text-tertiary); font-weight: var(--font-weight-base); letter-spacing: 0.02em; }
+.legal-article p { margin: 0 0 var(--space-5); color: var(--color-text-secondary); font-size: var(--font-size-lg); line-height: 1.7; text-wrap: pretty; }
+.legal-article p:last-child { margin-bottom: 0; }
+.legal-article strong { color: var(--color-text-primary); font-weight: var(--font-weight-medium); }
+.legal-article a { color: var(--color-text-primary); text-decoration: underline; text-decoration-color: var(--color-border-strong); text-underline-offset: 3px; transition: text-decoration-color var(--motion-duration-fast) var(--motion-ease); }
+.legal-article a:hover { text-decoration-color: var(--color-text-primary); }
+.legal-article ul { padding: 0; margin: 0 0 var(--space-5); list-style: none; display: grid; gap: var(--space-4); }
+.legal-article ul li {
+  display: grid; grid-template-columns: 16px 1fr; gap: var(--space-4);
+  color: var(--color-text-secondary); font-size: var(--font-size-lg); line-height: 1.6;
+}
+.legal-article ul li::before { content: ""; width: 4px; height: 4px; border-radius: 50%; background: var(--color-text-tertiary); margin-top: 12px; margin-left: 6px; }
+.legal-article code { font-family: var(--font-family-mono); font-size: 0.85em; padding: 0.12em 0.4em; border-radius: 4px; background: rgba(245,245,247,0.06); color: var(--color-text-primary); overflow-wrap: anywhere; box-decoration-break: clone; -webkit-box-decoration-break: clone; }}
+.legal-article .callout {
+  background: rgba(245,245,247,0.03);
+  border: 1px solid var(--color-border-subtle);
+  border-left: 3px solid var(--color-feedback-success);
+  border-radius: var(--radius-sm);
+  padding: var(--space-6) var(--space-7);
+  margin: var(--space-6) 0;
+}
+.legal-article .callout p { font-size: var(--font-size-md); }
+.legal-article .callout p:last-child { margin-bottom: 0; }
+
+/* ===== MCP Docs additions ===== */
+/* Code / config block with copy button */
+.codeblock { position: relative; background: var(--color-surface-sunken); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-sm); overflow: hidden; margin: 0 0 var(--space-6); }
+.codeblock-bar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); padding: var(--space-3) var(--space-4) var(--space-3) var(--space-5); border-bottom: 1px solid var(--color-border-subtle); background: rgba(245,245,247,0.02); }
+.codeblock-label { font-family: var(--font-family-mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-text-tertiary); }
+.copy-btn { display: inline-flex; align-items: center; gap: var(--space-2); height: 28px; padding: 0 var(--space-4); border-radius: var(--radius-xs); background: rgba(245,245,247,0.05); border: 1px solid var(--color-border-strong); color: var(--color-text-secondary); font-family: var(--font-family-primary); font-size: var(--font-size-xs); font-weight: var(--font-weight-medium); cursor: pointer; transition: background-color var(--motion-duration-fast) var(--motion-ease), color var(--motion-duration-fast) var(--motion-ease), border-color var(--motion-duration-fast) var(--motion-ease); }
+.copy-btn:hover { background: rgba(245,245,247,0.1); color: var(--color-text-primary); }
+.copy-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-border-focus); }
+.copy-btn.is-copied { color: var(--color-feedback-success); border-color: rgba(52,211,153,0.4); }
+.copy-btn svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+.codeblock pre { margin: 0; padding: var(--space-5); overflow-x: auto; font-family: var(--font-family-mono); font-size: var(--font-size-sm); line-height: 1.7; color: var(--color-text-secondary); white-space: pre; }
+.codeblock pre .tok-key { color: var(--color-text-primary); }
+.codeblock pre .tok-str { color: var(--color-feedback-success); }
+.codeblock pre .tok-cmd { color: var(--color-text-primary); font-weight: var(--font-weight-medium); }
+.codeblock pre .tok-flag { color: var(--color-text-tertiary); }
+
+/* Tool spec cards */
+.spec-grid { display: grid; grid-template-columns: 1fr; gap: var(--space-5); margin: 0 0 var(--space-6); }
+.spec-card { background: rgba(245,245,247,0.03); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-md); padding: var(--space-6) var(--space-7); }
+.spec-name { font-family: var(--font-family-mono); font-size: var(--font-size-md); color: var(--color-text-primary); font-weight: var(--font-weight-medium); margin: 0 0 var(--space-4); overflow-wrap: anywhere; }
+.spec-name .fn { color: var(--color-text-primary); }
+.spec-name .arg { color: var(--color-text-secondary); }
+.spec-row { display: grid; grid-template-columns: 88px 1fr; gap: var(--space-3) var(--space-5); margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--color-border-subtle); }
+.spec-row dt { font-family: var(--font-family-mono); font-size: var(--font-size-xs); color: var(--color-text-tertiary); text-transform: uppercase; letter-spacing: 0.06em; padding-top: 2px; }
+.spec-row dd { margin: 0; color: var(--color-text-secondary); font-size: var(--font-size-md); line-height: 1.55; }
+.spec-row dd code { font-family: var(--font-family-mono); font-size: var(--font-size-sm); color: var(--color-text-primary); }
+.spec-params { display: grid; gap: var(--space-3); }
+.spec-param { display: grid; grid-template-columns: max-content 1fr; gap: var(--space-5); align-items: baseline; }
+.spec-param .pn { font-family: var(--font-family-mono); font-size: var(--font-size-sm); color: var(--color-text-primary); font-weight: var(--font-weight-medium); }
+.spec-param .pd { color: var(--color-text-secondary); font-size: var(--font-size-md); line-height: 1.5; }
+.note-inline { display: flex; align-items: center; gap: var(--space-3); font-size: var(--font-size-sm); color: var(--color-text-tertiary); margin: var(--space-4) 0 0; }
+.note-inline svg { width: 15px; height: 15px; flex-shrink: 0; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+@media (min-width: 560px) { .spec-grid.two { grid-template-columns: 1fr 1fr; } }
+
+/* Numbered step list (sequential procedures) */
+.legal-article ol.step-list { list-style: none; counter-reset: step; padding: 0; margin: 0 0 var(--space-6); display: grid; gap: var(--space-4); }
+.legal-article ol.step-list li { counter-increment: step; position: relative; display: block; padding-left: 40px; min-height: 28px; line-height: 28px; color: var(--color-text-secondary); font-size: var(--font-size-lg); }
+.legal-article ol.step-list li::before { content: counter(step); position: absolute; left: 0; top: 0; width: 28px; height: 28px; border-radius: 50%; background: rgba(245,245,247,0.05); border: 1px solid var(--color-border-subtle); font-family: var(--font-family-mono); font-size: var(--font-size-xs); color: var(--color-text-primary); display: inline-flex; align-items: center; justify-content: center; line-height: 1; }
+
+/* Definition list (labeled items: term + description as a clean row) */
+.legal-article ul.def-list { display: grid; gap: var(--space-4); padding: 0; margin: 0 0 var(--space-6); }
+.legal-article ul.def-list li { display: block; grid-template-columns: none; gap: 0; padding: var(--space-5) var(--space-6); background: rgba(245,245,247,0.03); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-sm); color: var(--color-text-secondary); font-size: var(--font-size-md); line-height: 1.6; }
+.legal-article ul.def-list li::before { content: none; }
+.legal-article ul.def-list li .term { display: block; color: var(--color-text-primary); font-weight: var(--font-weight-semibold); font-size: var(--font-size-lg); margin-bottom: var(--space-2); letter-spacing: -0.01em; }
+
+/* Setup group subheadings (One-click / API key) */
+.legal-article .group-label {
+  display: flex; align-items: center; gap: var(--space-4);
+  margin: 0; padding: clamp(28px, 4vw, 40px) 0 0;
+  border-top: 1px solid var(--color-border-subtle);
+  font-family: var(--font-family-mono); font-size: 12px; font-weight: var(--font-weight-medium);
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-text-tertiary);
+}
+.legal-article .group-label::after { content: ""; flex: 1; height: 1px; background: var(--color-border-subtle); }
+.legal-article .group-label + section { border-top: 0; padding-top: var(--space-7); }
+
+
+/* ===== Footer social icon row (8 links) ===== */
+.footer-social {
+  display: flex; flex-wrap: wrap; justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-7) 0;
+  margin-bottom: var(--space-5);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.footer-social a {
+  width: 38px; height: 38px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--color-border-subtle);
+  color: var(--color-text-tertiary);
+  transition: color var(--motion-duration-fast) var(--motion-ease), background-color var(--motion-duration-fast) var(--motion-ease), border-color var(--motion-duration-fast) var(--motion-ease);
+}
+.footer-social a:hover { color: var(--color-text-primary); background: rgba(245,245,247,0.06); border-color: var(--color-border-strong); }
+.footer-social a:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-border-focus); }
+.footer-social svg { width: 17px; height: 17px; flex-shrink: 0; }
+
+/* Footer (same as landing) */
+.footer { border-top: 1px solid var(--color-border-subtle); padding: var(--space-8) 0 var(--space-7); }
+.footer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-8); padding-bottom: var(--space-8); border-bottom: 1px solid var(--color-border-subtle); }
+@media (min-width: 720px) { .footer-grid { grid-template-columns: 1.4fr repeat(3, 1fr); gap: var(--space-7); } }
+.footer-brand { grid-column: span 2; }
+@media (min-width: 720px) { .footer-brand { grid-column: span 1; } }
+.footer-brand .nav-brand { margin-bottom: var(--space-5); display: flex; }
+.footer-brand p { color: var(--color-text-tertiary); font-size: var(--font-size-sm); line-height: 1.55; margin: 0; max-width: 28ch; }
+.footer-col h4 { font-size: var(--font-size-xs); color: var(--color-text-tertiary); margin: 0 0 var(--space-5); text-transform: uppercase; letter-spacing: 0.14em; font-family: var(--font-family-mono); font-weight: var(--font-weight-medium); }
+.footer-col ul { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--space-4); }
+.footer-col a { color: var(--color-text-secondary); font-size: var(--font-size-sm); transition: color var(--motion-duration-fast) var(--motion-ease); }
+.footer-col a:hover { color: var(--color-text-primary); }
+.footer-bar { padding-top: var(--space-6); display: flex; flex-wrap: wrap; gap: var(--space-5); justify-content: space-between; color: var(--color-text-tertiary); font-size: var(--font-size-xs); font-family: var(--font-family-mono); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  html { scroll-behavior: auto; }
+}
+
+/* ===== LocaleSwitcher (header) ===== */
+.locale-switcher { position: relative; display: inline-flex; }
+.locale-trigger {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  height: 30px; min-height: 36px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border-subtle);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit; font-size: var(--font-size-xs);
+  font-family: var(--font-family-mono);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color var(--motion-duration-fast) var(--motion-ease), background-color var(--motion-duration-fast) var(--motion-ease), border-color var(--motion-duration-fast) var(--motion-ease);
+}
+@media (min-width: 720px) { .locale-trigger { min-height: 30px; } }
+.locale-trigger:hover { color: var(--color-text-primary); background: rgba(245,245,247,0.06); border-color: var(--color-border-strong); }
+.locale-trigger:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-border-focus); }
+.locale-trigger .arrow { transition: transform var(--motion-duration-fast) var(--motion-ease); color: var(--color-text-tertiary); }
+.locale-switcher.is-open .locale-trigger { color: var(--color-text-primary); background: rgba(245,245,247,0.08); border-color: var(--color-border-strong); }
+.locale-switcher.is-open .locale-trigger .arrow { transform: rotate(180deg); color: var(--color-text-primary); }
+
+.locale-menu {
+  position: absolute; top: calc(100% + 6px); right: 0;
+  list-style: none; padding: 4px; margin: 0;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-1);
+  min-width: 180px;
+  display: none;
+  z-index: 60;
+}
+.locale-switcher.is-open .locale-menu { display: block; }
+.locale-menu li { margin: 0; padding: 0; list-style: none; }
+.locale-menu button {
+  display: flex; align-items: center; gap: var(--space-4);
+  width: 100%;
+  background: transparent; border: 0;
+  padding: var(--space-3) var(--space-5);
+  color: var(--color-text-secondary);
+  font: inherit; font-size: var(--font-size-sm);
+  text-align: left; cursor: pointer;
+  border-radius: var(--radius-xs);
+  min-height: 36px;
+  transition: color var(--motion-duration-fast) var(--motion-ease), background-color var(--motion-duration-fast) var(--motion-ease);
+}
+.locale-menu button:hover { color: var(--color-text-primary); background: rgba(245,245,247,0.06); }
+.locale-menu button:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--color-border-focus); }
+.locale-menu button .code { font-family: var(--font-family-mono); font-size: var(--font-size-xs); color: var(--color-text-tertiary); width: 26px; letter-spacing: 0.06em; }
+.locale-menu button[aria-selected="true"] { color: var(--color-text-primary); }
+.locale-menu button[aria-selected="true"] .code { color: var(--color-text-primary); }
+.locale-menu button .check { margin-left: auto; opacity: 0; color: var(--color-text-secondary); flex-shrink: 0; }
+.locale-menu button[aria-selected="true"] .check { opacity: 1; }
+@media (max-width: 539px) {
+  .locale-menu { right: auto; left: 0; min-width: 160px; }
+}
+
+
+/* ===========================================================
+   Mobile audit fixes (75% of traffic is mobile)
+   - Body text bumps to 16px on mobile (matches font.size.base token)
+   - Inputs at 16px on mobile to prevent iOS auto-zoom on focus
+   =========================================================== */
+@media (max-width: 1023px) {
+  body { font-size: 16px; line-height: 1.55; }
+  .input { font-size: 16px !important; }
+  textarea, select { font-size: 16px; }
+}
+
+/* ===== Hamburger + mobile drawer (<1024px) ===== */
+.mobile-menu-btn {
+  display: none;
+  width: 44px; height: 44px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  padding: 0;
+  align-items: center;
+  justify-content: center;
+  transition: color var(--motion-duration-fast) var(--motion-ease), background-color var(--motion-duration-fast) var(--motion-ease), border-color var(--motion-duration-fast) var(--motion-ease);
+}
+.mobile-menu-btn:hover { color: var(--color-text-primary); background: rgba(245,245,247,0.06); border-color: var(--color-border-strong); }
+.mobile-menu-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-border-focus); }
+.mobile-menu-btn svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+
+@media (max-width: 1023px) {
+  .mobile-menu-btn { display: inline-flex; }
+  /* Hide inline nav links + auth buttons + locale on small screens */
+  .nav-links { display: none !important; }
+  .nav-actions > .btn { display: none !important; }
+  .nav-actions > .locale-switcher { display: none !important; }
+  /* Keep GitHub ghost icon visible */
+}
+
+/* Drawer backdrop + panel */
+.mobile-drawer-backdrop {
+  position: fixed; inset: 0; z-index: 99;
+  background: rgba(0, 0, 0, 0.6);
+  opacity: 0; pointer-events: none;
+  transition: opacity var(--motion-duration-normal) var(--motion-ease);
+}
+.mobile-drawer-backdrop.is-visible { opacity: 1; pointer-events: auto; }
+
+.mobile-drawer {
+  position: fixed; top: 0; right: 0; bottom: 0;
+  width: min(360px, 92vw);
+  background: var(--color-surface-raised);
+  border-left: 1px solid var(--color-border-subtle);
+  z-index: 100;
+  transform: translateX(100%);
+  transition: transform var(--motion-duration-normal) var(--motion-ease);
+  display: flex; flex-direction: column;
+  padding: var(--space-6);
+  gap: var(--space-6);
+  box-shadow: var(--shadow-1);
+  overflow-y: auto;
+}
+.mobile-drawer.is-open { transform: translateX(0); }
+@media (min-width: 1024px) { .mobile-drawer, .mobile-drawer-backdrop { display: none !important; } }
+
+.mobile-drawer-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--space-4);
+  padding-bottom: var(--space-5);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.mobile-drawer-close {
+  width: 44px; height: 44px;
+  border: 0; border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: color var(--motion-duration-fast) var(--motion-ease), background-color var(--motion-duration-fast) var(--motion-ease);
+}
+.mobile-drawer-close:hover { color: var(--color-text-primary); background: rgba(245,245,247,0.06); }
+.mobile-drawer-close:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-border-focus); }
+.mobile-drawer-close svg { width: 18px; height: 18px; }
+
+.mobile-drawer-nav {
+  display: flex; flex-direction: column;
+  gap: 2px;
+}
+.mobile-drawer-nav a {
+  display: flex; align-items: center;
+  min-height: 48px; padding: 0 var(--space-5);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-xs);
+  transition: color var(--motion-duration-fast) var(--motion-ease), background-color var(--motion-duration-fast) var(--motion-ease);
+}
+.mobile-drawer-nav a:hover { color: var(--color-text-primary); background: rgba(245,245,247,0.04); }
+.mobile-drawer-nav a.is-active { color: var(--color-text-primary); background: rgba(245,245,247,0.08); }
+
+.mobile-drawer-meta {
+  padding: var(--space-5) 0;
+  border-top: 1px solid var(--color-border-subtle);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.mobile-drawer-meta .locale-switcher { width: 100%; display: flex; }
+.mobile-drawer-meta .locale-trigger { width: 100%; height: 44px; min-height: 44px; justify-content: space-between; font-size: var(--font-size-sm); padding: 0 var(--space-5); }
+.mobile-drawer-meta .locale-menu { width: 100%; right: 0; left: 0; }
+
+.mobile-drawer-actions {
+  display: flex; flex-direction: column; gap: var(--space-3);
+  margin-top: auto;
+  padding-top: var(--space-5);
+}
+.mobile-drawer-actions .btn { width: 100%; min-height: 48px; }
+
+body.no-scroll { overflow: hidden; }
+
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-github" viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.46-1.16-1.12-1.47-1.12-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.9 1.52 2.34 1.08 2.91.83.09-.65.35-1.08.63-1.33-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.02a9.6 9.6 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.38.2 2.4.1 2.65.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></symbol>
+  </defs>
+</svg>
+
+<!-- ===================== NAV ===================== -->
+<nav class="nav" id="nav">
+  <div class="container nav-inner">
+    <a href="TubeMine Landing.html" class="nav-brand" aria-label="TubeMine home">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span>TubeMine</span>
+    </a>
+    <div class="nav-links">
+      <a href="TubeMine Landing.html#features" class="nav-link">Features</a>
+      <a href="TubeMine Pricing.html" class="nav-link">Pricing</a>
+      <a href="TubeMine Docs.html" class="nav-link">Docs</a>
+      <a href="TubeMine Changelog.html" class="nav-link">Changelog</a>
+    </div>
+    <div class="nav-actions">
+      <a href="https://github.com/RakhimovY/tubemine" target="_blank" rel="noopener" class="nav-ghost-icon" aria-label="GitHub repository">
+        <svg class="icon" aria-hidden="true"><use href="#i-github"/></svg>
+      </a>
+      <div class="locale-switcher" data-locale-switcher>
+        <button type="button" class="locale-trigger" aria-haspopup="listbox" aria-expanded="false" aria-label="Language">
+          <span class="locale-current">EN</span>
+          <svg class="icon icon-sm arrow" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <ul class="locale-menu" role="listbox" aria-label="Language">
+          <li><button type="button" role="option" data-locale="en" aria-selected="true"><span class="code">EN</span><span class="label">English</span><svg class="icon icon-sm check" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 12 5 5L20 6"/></svg></button></li>
+          <li><button type="button" role="option" data-locale="ru" aria-selected="false"><span class="code">RU</span><span class="label">Русский</span><svg class="icon icon-sm check" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 12 5 5L20 6"/></svg></button></li>
+        </ul>
+      </div>
+      <a href="TubeMine Login.html?intent=signup" class="btn btn--primary btn-sm">Get started</a>
+
+      <button type="button" class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Open menu" aria-controls="mobileDrawer" aria-expanded="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></svg>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<!-- ===================== Mobile drawer ===================== -->
+<div class="mobile-drawer-backdrop" id="mobileDrawerBackdrop" aria-hidden="true"></div>
+<aside class="mobile-drawer" id="mobileDrawer" role="dialog" aria-modal="true" aria-label="Mobile navigation" aria-hidden="true">
+  <header class="mobile-drawer-head">
+    <a href="TubeMine Landing.html" class="nav-brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span>TubeMine</span>
+    </a>
+    <button type="button" class="mobile-drawer-close" id="mobileDrawerClose" aria-label="Close menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+    </button>
+  </header>
+  <nav class="mobile-drawer-nav" aria-label="Primary">
+      <a href="TubeMine Landing.html#features">Features</a>
+      <a href="TubeMine Pricing.html">Pricing</a>
+      <a href="TubeMine Docs.html">Docs</a>
+      <a href="TubeMine Changelog.html">Changelog</a>
+  </nav>
+  <div class="mobile-drawer-meta">
+    <div class="locale-switcher" data-locale-switcher>
+      <button type="button" class="locale-trigger" aria-haspopup="listbox" aria-expanded="false" aria-label="Language">
+        <span><span class="locale-current">EN</span> · English</span>
+        <svg class="icon icon-sm arrow" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <ul class="locale-menu" role="listbox" aria-label="Language">
+        <li><button type="button" role="option" data-locale="en" aria-selected="true"><span class="code">EN</span><span class="label">English</span><svg class="icon icon-sm check" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 12 5 5L20 6"/></svg></button></li>
+        <li><button type="button" role="option" data-locale="ru" aria-selected="false"><span class="code">RU</span><span class="label">Русский</span><svg class="icon icon-sm check" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 12 5 5L20 6"/></svg></button></li>
+      </ul>
+    </div>
+  </div>
+  <div class="mobile-drawer-actions">
+    <a href="TubeMine Login.html?intent=signup" class="btn btn--primary btn-lg">Get started</a>
+  </div>
+</aside>
+
+
+<main>
+  <!-- ===================== HERO ===================== -->
+  <section class="legal-hero">
+    <div class="container">
+      <span class="legal-badge">Docs</span>
+      <h1 class="legal-title">MCP setup.</h1>
+      <p class="legal-sub">Connect TubeMine to your AI assistant once, then analyze any YouTube video from your chat. Pick your client below.</p>
+      <p class="legal-updated">Server: tubemine.tech/api/mcp</p>
+    </div>
+  </section>
+
+  <!-- ===================== BODY ===================== -->
+  <section class="legal-body">
+    <div class="container legal-grid">
+
+      <aside class="toc" aria-label="Sections">
+        <h3>On this page</h3>
+        <ol>
+          <li><a href="#what">What is TubeMine MCP</a></li>
+          <li><a href="#auth">Authentication</a></li>
+          <li><a href="#claude-code">Setup: Claude Code</a></li>
+          <li><a href="#chatgpt">Setup: ChatGPT</a></li>
+          <li><a href="#cursor">Setup: Cursor</a></li>
+          <li><a href="#codex">Setup: Codex</a></li>
+          <li><a href="#gemini">Setup: Gemini CLI</a></li>
+          <li><a href="#claude-desktop">Setup: Claude Desktop</a></li>
+          <li><a href="#hermes">Setup: Hermes</a></li>
+          <li><a href="#openclaw">Setup: OpenClaw</a></li>
+          <li><a href="#limits">Usage and limits</a></li>
+          <li><a href="#trouble">Troubleshooting</a></li>
+        </ol>
+      </aside>
+
+      <article class="legal-article">
+
+        <section id="what">
+          <h2><span class="num">01</span> What is TubeMine MCP</h2>
+          <p>TubeMine MCP is a remote Model Context Protocol server that lets your AI assistant pull and analyze YouTube comments directly inside the chat. Base models cannot fetch YouTube comments on their own, so TubeMine fills that gap and hands the data back to your model to reason over.</p>
+          <p>The server exposes two tools:</p>
+          <div class="spec-grid two">
+            <div class="spec-card">
+              <p class="spec-name"><span class="fn">get_youtube_comments</span>(<span class="arg">video_url, sort, max</span>)</p>
+              <div class="spec-params" data-comment-anchor="d8d1c9e187-div">
+                <div class="spec-param"><span class="pn">video_url</span><span class="pd">a public YouTube URL or ID</span></div>
+                <div class="spec-param"><span class="pn">sort</span><span class="pd">relevance or time</span></div>
+                <div class="spec-param"><span class="pn">max</span><span class="pd">how many comments to fetch</span></div>
+              </div>
+              <dl class="spec-row">
+                <dt>Returns</dt>
+                <dd>The raw comment thread: author, text, likes, replies, and timestamps.</dd>
+              </dl>
+            </div>
+            <div class="spec-card" data-comment-anchor="bc9808d33b-div">
+              <p class="spec-name"><span class="fn">analyze_youtube_comments</span>(<span class="arg">video_url</span>)</p>
+              <div class="spec-params">
+                <div class="spec-param"><span class="pn">video_url</span><span class="pd">a public YouTube URL or ID</span></div>
+              </div>
+              <dl class="spec-row">
+                <dt>Returns</dt>
+                <dd>A structured summary: <code>sentiment</code> breakdown, <code>top words</code>, and <code>emojis</code>, ready for the model to explain.</dd>
+              </dl>
+            </div>
+          </div>
+        </section>
+
+        <section id="auth">
+          <h2><span class="num">02</span> Authentication</h2>
+          <p>There are two ways to authenticate, depending on what your client supports.</p>
+          <ul class="def-list">
+            <li data-comment-anchor="23ae91b108-li"><span class="term">OAuth, one click</span>Clients that support it (Claude Code, ChatGPT, and Cursor) redirect you to TubeMine, you approve, and you are connected. Nothing to copy or paste.</li>
+            <li data-comment-anchor="7fea4afdd3-li"><span class="term">API key</span>For the rest (Codex, Gemini, Claude Desktop, Hermes, and OpenClaw), send your key in an <code>Authorization: Bearer YOUR_KEY</code> header in the client config.</li>
+          </ul>
+          <p>Get your key from the <a href="TubeMine MCP.html">AI Assistant access</a> page (the MCP tab in your dashboard, at <code>/mcp</code>). From there you can also <strong>rotate</strong> the key, which generates a new one and immediately revokes the old key on every connected client, and <strong>revoke</strong> any individual client without affecting the others.</p>
+          <div class="callout">
+            <p>Treat your key like a password. It grants access to your TubeMine quota. Never commit it to a public repository.</p>
+          </div>
+        </section>
+
+        <div class="group-label">One-click (OAuth)</div>
+
+        <section id="claude-code">
+          <h2><span class="num">03</span> Setup: Claude Code</h2>
+          <p>The fastest path is OAuth. Open the <a href="TubeMine MCP.html">AI Assistant access</a> page and click <strong>Authorize</strong> next to Claude Code. You will be redirected back once access is granted, no key to paste.</p>
+          <p>Prefer the terminal? Run this once in your project. Replace <code>YOUR_KEY</code> with your API key.</p>
+          <div class="codeblock">
+            <div class="codeblock-bar">
+              <span class="codeblock-label">terminal</span>
+              <button type="button" class="copy-btn" data-copy="claude mcp add --transport http TubeMine https://tubemine.tech/api/mcp --header 'Authorization: Bearer YOUR_KEY'"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><span class="copy-text">Copy</span></button>
+            </div>
+            <pre><span class="tok-cmd">claude</span> mcp add <span class="tok-flag">--transport</span> http TubeMine https://tubemine.tech/api/mcp <span class="tok-flag">--header</span> <span class="tok-str">'Authorization: Bearer YOUR_KEY'</span></pre>
+          </div>
+        </section>
+
+        <section id="chatgpt">
+          <h2><span class="num">04</span> Setup: ChatGPT Developer Mode</h2>
+          <p>ChatGPT connects through Developer Mode connectors.</p>
+          <ol class="step-list" data-comment-anchor="c8e9610e41-ul">
+            <li>Open <strong>Settings</strong></li>
+            <li>Go to <strong>Apps</strong></li>
+            <li>Open <strong>Advanced</strong></li>
+            <li>Turn on <strong>Developer mode</strong></li>
+          </ol>
+          <p>Add a new connector with this server URL, then choose <strong>OAuth</strong> when prompted for authentication.</p>
+          <div class="codeblock">
+            <div class="codeblock-bar">
+              <span class="codeblock-label">server url</span>
+              <button type="button" class="copy-btn" data-copy="https://tubemine.tech/api/mcp"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><span class="copy-text">Copy</span></button>
+            </div>
+            <pre><span class="tok-str">https://tubemine.tech/api/mcp</span></pre>
+          </div>
+        </section>
+
+        <section id="cursor">
+          <h2><span class="num">05</span> Setup: Cursor</h2>
+          <p>In Cursor, open <strong>Settings</strong>, go to <strong>MCP</strong>, and add a new server. Paste the server URL below and choose <strong>OAuth</strong> when prompted, no key needed.</p>
+          <div class="codeblock">
+            <div class="codeblock-bar">
+              <span class="codeblock-label">server url</span>
+              <button type="button" class="copy-btn" data-copy="https://tubemine.tech/api/mcp"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><span class="copy-text">Copy</span></button>
+            </div>
+            <pre><span class="tok-str">https://tubemine.tech/api/mcp</span></pre>
+          </div>
+        </section>
+
+        <div class="group-label">API key</div>
+
+        <section id="codex">
+          <h2><span class="num">06</span> Setup: Codex</h2>
+          <p>Add TubeMine to Codex's MCP config. Use the server URL below with an <code>Authorization: Bearer</code> header. Replace <code>YOUR_KEY</code> with your API key, then restart Codex.</p>
+          <div class="codeblock">
+            <div class="codeblock-bar">
+              <span class="codeblock-label">~/.codex/config.toml</span>
+              <button type="button" class="copy-btn" data-copy="[mcp_servers.TubeMine]
+url = &quot;https://tubemine.tech/api/mcp&quot;
+headers = { Authorization = &quot;Bearer YOUR_KEY&quot; }"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><span class="copy-text">Copy</span></button>
+            </div>
+            <pre>[<span class="tok-key">mcp_servers.TubeMine</span>]
+<span class="tok-key">url</span> = <span class="tok-str">"https://tubemine.tech/api/mcp"</span>
+<span class="tok-key">headers</span> = { <span class="tok-key">Authorization</span> = <span class="tok-str">"Bearer YOUR_KEY"</span> }</pre>
+          </div>
+          <p class="note-inline"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 8.3-8.3"/><path d="m16 5 3 3"/><path d="m13 8 3 3"/></svg>Codex has known auth quirks with some MCP servers. If OAuth gives you trouble, prefer the API key shown above.</p>
+        </section>
+
+        <section id="gemini">
+          <h2><span class="num">07</span> Setup: Gemini CLI</h2>
+          <p>Gemini CLI reads servers from <code>settings.json</code>. Add a <code>TubeMine</code> entry under <code>mcpServers</code> using <code>httpUrl</code> and an <code>Authorization</code> header, then restart the CLI.</p>
+          <div class="codeblock">
+            <div class="codeblock-bar">
+              <span class="codeblock-label">~/.gemini/settings.json</span>
+              <button type="button" class="copy-btn" data-copy="{
+  &quot;mcpServers&quot;: {
+    &quot;TubeMine&quot;: {
+      &quot;httpUrl&quot;: &quot;https://tubemine.tech/api/mcp&quot;,
+      &quot;headers&quot;: {
+        &quot;Authorization&quot;: &quot;Bearer YOUR_KEY&quot;
+      }
+    }
+  }
+}"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><span class="copy-text">Copy</span></button>
+            </div>
+            <pre>{
+  <span class="tok-key">"mcpServers"</span>: {
+    <span class="tok-key">"TubeMine"</span>: {
+      <span class="tok-key">"httpUrl"</span>: <span class="tok-str">"https://tubemine.tech/api/mcp"</span>,
+      <span class="tok-key">"headers"</span>: {
+        <span class="tok-key">"Authorization"</span>: <span class="tok-str">"Bearer YOUR_KEY"</span>
+      }
+    }
+  }
+}</pre>
+          </div>
+        </section>
+
+        <section id="claude-desktop">
+          <h2><span class="num">08</span> Setup: Claude Desktop</h2>
+          <p>Claude Desktop reads MCP servers from its config file. Open <code>claude_desktop_config.json</code> and add a <code>TubeMine</code> entry under <code>mcpServers</code>. Replace <code>YOUR_KEY</code> with your API key, then restart the app.</p>
+          <div class="codeblock">
+            <div class="codeblock-bar">
+              <span class="codeblock-label">claude_desktop_config.json</span>
+              <button type="button" class="copy-btn" data-copy="{
+  &quot;mcpServers&quot;: {
+    &quot;TubeMine&quot;: {
+      &quot;url&quot;: &quot;https://tubemine.tech/api/mcp&quot;,
+      &quot;headers&quot;: {
+        &quot;Authorization&quot;: &quot;Bearer YOUR_KEY&quot;
+      }
+    }
+  }
+}"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><span class="copy-text">Copy</span></button>
+            </div>
+            <pre>{
+  <span class="tok-key">"mcpServers"</span>: {
+    <span class="tok-key">"TubeMine"</span>: {
+      <span class="tok-key">"url"</span>: <span class="tok-str">"https://tubemine.tech/api/mcp"</span>,
+      <span class="tok-key">"headers"</span>: {
+        <span class="tok-key">"Authorization"</span>: <span class="tok-str">"Bearer YOUR_KEY"</span>
+      }
+    }
+  }
+}</pre>
+          </div>
+          <p class="note-inline"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.7 12.3 8.3-8.3"/><path d="m16 5 3 3"/><path d="m13 8 3 3"/></svg>Claude Desktop is key-based. It does not support OAuth.</p>
+        </section>
+
+        <section id="hermes">
+          <h2><span class="num">09</span> Setup: Hermes</h2>
+          <p>In Hermes, add an HTTP MCP server in your config. Point it at the server URL below with an <code>Authorization: Bearer</code> header, then restart Hermes.</p>
+          <div class="codeblock">
+            <div class="codeblock-bar">
+              <span class="codeblock-label">hermes config</span>
+              <button type="button" class="copy-btn" data-copy="{
+  &quot;mcpServers&quot;: {
+    &quot;TubeMine&quot;: {
+      &quot;url&quot;: &quot;https://tubemine.tech/api/mcp&quot;,
+      &quot;headers&quot;: {
+        &quot;Authorization&quot;: &quot;Bearer YOUR_KEY&quot;
+      }
+    }
+  }
+}"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><span class="copy-text">Copy</span></button>
+            </div>
+            <pre>{
+  <span class="tok-key">"mcpServers"</span>: {
+    <span class="tok-key">"TubeMine"</span>: {
+      <span class="tok-key">"url"</span>: <span class="tok-str">"https://tubemine.tech/api/mcp"</span>,
+      <span class="tok-key">"headers"</span>: {
+        <span class="tok-key">"Authorization"</span>: <span class="tok-str">"Bearer YOUR_KEY"</span>
+      }
+    }
+  }
+}</pre>
+          </div>
+        </section>
+
+        <section id="openclaw">
+          <h2><span class="num">10</span> Setup: OpenClaw</h2>
+          <p>Add the MCP server with the OpenClaw CLI, or during onboarding when prompted. Use the server URL below with an <code>Authorization: Bearer</code> header. Replace <code>YOUR_KEY</code> with your API key.</p>
+          <div class="codeblock">
+            <div class="codeblock-bar">
+              <span class="codeblock-label">terminal</span>
+              <button type="button" class="copy-btn" data-copy="openclaw mcp add TubeMine --url https://tubemine.tech/api/mcp --header 'Authorization: Bearer YOUR_KEY'"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><span class="copy-text">Copy</span></button>
+            </div>
+            <pre><span class="tok-cmd">openclaw</span> mcp add TubeMine <span class="tok-flag">--url</span> https://tubemine.tech/api/mcp <span class="tok-flag">--header</span> <span class="tok-str">'Authorization: Bearer YOUR_KEY'</span></pre>
+          </div>
+        </section>
+
+        <section id="limits">
+          <h2><span class="num">11</span> Usage and limits</h2>
+          <p>MCP calls count toward the same monthly usage as the web app. A single <code>analyze_youtube_comments</code> call counts the comments it fetches, the same way an analysis in the dashboard does.</p>
+          <ul class="def-list">
+            <li data-comment-anchor="2288e9a100-li"><span class="term">Free</span>5,000 comments per month, generous for trying the tools and light use.</li>
+            <li data-comment-anchor="33deea770e-li"><span class="term">Pro</span>100,000 comments per month for heavier, regular workflows.</li>
+          </ul>
+          <p><strong>There is no hard cap today.</strong> If you go over, we will not cut you off mid-task. We ask only that usage stays within fair-use bounds so the service stays fast for everyone. If your needs are unusual, reach out and we will sort out a plan that fits.</p>
+        </section>
+
+        <section id="trouble">
+          <h2><span class="num">12</span> Troubleshooting</h2>
+          <p>Most issues fall into one of these.</p>
+          <ul class="def-list">
+            <li data-comment-anchor="719f83ff22-li"><span class="term">Key invalid</span>Make sure you copied the full key and that it is sent as <code>Authorization: Bearer YOUR_KEY</code>. If you rotated recently, the old key is dead, paste the new one.</li>
+            <li data-comment-anchor="9189c8aa38-li"><span class="term">Client does not see the tools</span>Confirm the server URL is exactly <code>https://tubemine.tech/api/mcp</code> and that the entry sits under <code>mcpServers</code>.</li>
+            <li><span class="term">Still nothing? Restart the client</span>Claude Desktop and Gemini CLI load MCP config at startup. Fully quit and reopen after editing the config.</li>
+            <li><span class="term">Missing GET, POST, or DELETE handlers</span>This means the client reached an endpoint that is not the MCP route. Point it at <code>/api/mcp</code> exactly, with no trailing path, and use the HTTP transport.</li>
+          </ul>
+          <p>Stuck after all that? Email <a href="mailto:hello@tubemine.app">hello@tubemine.app</a> with your client and the error and we will help.</p>
+        </section>
+
+      </article>
+    </div>
+  </section>
+
+</main>
+
+<!-- ===================== FOOTER ===================== -->
+<footer class="footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <a href="TubeMine Landing.html" class="nav-brand"><span class="brand-mark"></span><span>TubeMine</span></a>
+        <p>Understand any YouTube video's audience. Built with the official YouTube Data API v3. Open source, MIT.</p>
+      </div>
+      <div class="footer-col"><h4>Product</h4><ul><li><a href="TubeMine Landing.html#features">Features</a></li><li><a href="TubeMine Pricing.html">Pricing</a></li><li><a href="TubeMine Dashboard.html">Dashboard</a></li><li><a href="TubeMine Changelog.html">Changelog</a></li></ul></div>
+      <div class="footer-col"><h4>Resources</h4><ul><li><a href="TubeMine Docs.html">Docs</a></li><li><a href="https://github.com/RakhimovY/tubemine" target="_blank" rel="noopener">GitHub</a></li></ul></div>
+      <div class="footer-col"><h4>Legal</h4><ul><li><a href="TubeMine Privacy.html">Privacy</a></li><li><a href="TubeMine Terms.html">Terms</a></li><li><a href="https://github.com/RakhimovY/tubemine/blob/main/LICENSE" target="_blank" rel="noopener">License, MIT</a></li></ul></div>
+      
+    </div>
+    <nav class="footer-social" aria-label="Social links">
+      <a href="https://github.com/RakhimovY/tubemine" target="_blank" rel="noopener" aria-label="GitHub"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg></a>
+      <a href="https://x.com/yerkeRakhimov" target="_blank" rel="noopener" aria-label="X"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231 5.45-6.231Zm-1.161 17.52h1.833L7.084 4.126H5.117L17.083 19.77Z"/></svg></a>
+      <a href="https://www.linkedin.com/in/rakhimov-yerkebulan/" target="_blank" rel="noopener" aria-label="LinkedIn"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.063 2.063 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg></a>
+      <a href="https://dev.to/yerkerakhimov" target="_blank" rel="noopener" aria-label="dev.to"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7.42 10.05c-.18-.16-.46-.23-.84-.23H6v4.46h.66c.42 0 .77-.08.94-.24.21-.21.22-.39.22-2.05 0-1.68-.04-1.78-.4-2zM0 4.94v14.12h24V4.94H0zM8.56 15.3c-.44.58-1.06.77-2.53.77H4.71V8.53h1.4c1.67 0 2.16.18 2.6.9.27.43.29.6.32 2.57.05 2.23-.02 2.73-.47 3.3zm5.09-5.47h-2.47v1.77h1.52v1.28l-.72.04-.75.03v1.77l1.22.03 1.2.04v1.28h-1.6c-1.53 0-1.6-.01-1.87-.3l-.3-.28v-3.16c0-3.02.01-3.18.25-3.48.23-.31.25-.31 1.88-.31h1.64v1.3zm4.68 5.45c-.17.43-.64.79-1 .79-.18 0-.45-.15-.67-.39-.32-.32-.45-.63-.82-2.08l-.9-3.39-.45-1.67h.76c.4 0 .75.02.75.05 0 .06 1.16 4.54 1.26 4.83.04.15.32-.7.73-2.3l.66-2.52.74-.04c.4-.02.73 0 .73.04 0 .14-1.67 6.38-1.8 6.68z"/></svg></a>
+      <a href="https://www.threads.com/@ai.yerke_" target="_blank" rel="noopener" aria-label="Threads"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.186 24h-.007c-3.581-.024-6.334-1.205-8.184-3.509C2.35 18.444 1.5 15.59 1.472 12.01v-.022C1.5 8.41 2.35 5.557 3.995 3.508 5.844 1.205 8.6.024 12.18 0h.014c2.746.02 5.043.725 6.826 2.098 1.677 1.29 2.858 3.13 3.509 5.467l-2.04.569c-1.104-3.96-3.898-5.985-8.304-6.015-2.91.022-5.11.937-6.54 2.717C4.307 6.504 3.616 8.914 3.589 12c.027 3.086.718 5.496 2.057 7.164 1.43 1.78 3.631 2.696 6.54 2.717 2.623-.02 4.358-.631 5.8-2.045 1.647-1.613 1.618-3.593 1.09-4.798-.31-.71-.873-1.3-1.634-1.75-.192 1.352-.622 2.446-1.284 3.272-.886 1.103-2.14 1.704-3.73 1.79-1.202.065-2.36-.218-3.259-.801-1.063-.689-1.685-1.74-1.752-2.964-.065-1.19.408-2.285 1.33-3.082.88-.76 2.119-1.207 3.583-1.291a13.853 13.853 0 0 1 3.02.142c-.126-.742-.375-1.332-.74-1.755-.513-.586-1.302-.883-2.346-.89h-.034c-.835 0-1.96.227-2.676 1.298L7.354 7.795c.957-1.435 2.512-2.225 4.378-2.225h.05c3.108.02 4.963 1.93 5.247 5.27.165.07.328.142.488.217 2.234 1.05 3.874 2.64 4.713 4.526 1.18 2.625 1.298 6.926-2.215 10.342-2.683 2.61-5.964 3.71-9.62 3.736zm.952-13.965q-.448 0-.928.026c-1.789.101-2.904.929-2.84 2.107.052.825.952 1.484 2.107 1.42 1.062-.061 2.453-.475 2.69-3.396a8.55 8.55 0 0 0-1.03-.157z"/></svg></a>
+      <a href="https://www.instagram.com/ai.yerke_/" target="_blank" rel="noopener" aria-label="Instagram"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.163c3.204 0 3.584.012 4.849.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.849.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/></svg></a>
+      <a href="https://t.me/ai_yerke" target="_blank" rel="noopener" aria-label="Telegram"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg></a>
+      <a href="https://www.reddit.com/user/ErkeshaA/" target="_blank" rel="noopener" aria-label="Reddit"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0zm5.01 4.744c.688 0 1.25.561 1.25 1.249a1.25 1.25 0 0 1-2.498.056l-2.597-.547-.8 3.747c1.824.07 3.48.632 4.674 1.488.308-.309.73-.491 1.207-.491.968 0 1.754.786 1.754 1.754 0 .716-.435 1.333-1.04 1.605a3.32 3.32 0 0 1 .046.568c0 2.892-3.36 5.244-7.494 5.244-4.135 0-7.493-2.352-7.493-5.244 0-.193.015-.383.043-.57-.602-.273-1.034-.89-1.034-1.604 0-.967.785-1.752 1.752-1.752.478 0 .91.18 1.217.487 1.205-.86 2.878-1.424 4.715-1.486l.911-4.298a.32.32 0 0 1 .382-.252l2.987.63a1.249 1.249 0 0 1 1.107-.679zM9.794 10.872c-.875 0-1.557.737-1.557 1.604s.683 1.604 1.558 1.604 1.557-.737 1.557-1.604-.683-1.604-1.557-1.604zm4.392 0c-.875 0-1.557.737-1.557 1.604s.683 1.604 1.557 1.604 1.558-.737 1.558-1.604-.683-1.604-1.557-1.604zm-4.286 2.952a.51.51 0 0 0-.518.518c0 .284.231.515.518.515.282 0 .515-.231.515-.515 0-.287-.232-.518-.515-.518zm4.182 0a.51.51 0 0 0-.518.518c0 .284.231.515.518.515.282 0 .515-.231.515-.515 0-.287-.232-.518-.515-.518zm-4.495 2.27c.36 1.116 1.405 1.929 2.61 1.929 1.207 0 2.25-.813 2.61-1.929.058-.18-.082-.296-.18-.198-.567.567-1.451.755-2.43.755-.978 0-1.86-.188-2.43-.755-.097-.098-.237.018-.18.198z"/></svg></a>
+    </nav>
+    <div class="footer-bar">
+      <span>© 2026 TubeMine. Not affiliated with YouTube or Google.</span>
+      <span>v3.0 · tubemine.vercel.app</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var nav = document.getElementById('nav');
+  function onScroll() { if (window.scrollY > 8) nav.classList.add('is-scrolled'); else nav.classList.remove('is-scrolled'); }
+  window.addEventListener('scroll', onScroll, { passive: true }); onScroll();
+
+  // TOC active state via IntersectionObserver
+  var tocLinks = document.querySelectorAll('.toc a[href^="#"]');
+  var sections = document.querySelectorAll('.legal-article section[id]');
+  if ('IntersectionObserver' in window && sections.length) {
+    var byId = {}; tocLinks.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = a; });
+    var visible = new Set();
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) { if (e.isIntersecting) visible.add(e.target.id); else visible.delete(e.target.id); });
+      // Mark the topmost-visible section
+      var topId = null; var minTop = Infinity;
+      sections.forEach(function (s) {
+        if (!visible.has(s.id)) return;
+        var t = s.getBoundingClientRect().top;
+        if (t < minTop) { minTop = t; topId = s.id; }
+      });
+      tocLinks.forEach(function (a) { a.classList.remove('is-active'); });
+      if (topId && byId[topId]) byId[topId].classList.add('is-active');
+    }, { rootMargin: '-100px 0px -60% 0px', threshold: 0 });
+    sections.forEach(function (s) { io.observe(s); });
+  }
+
+  // Smooth scroll w/ offset
+  document.querySelectorAll('a[href^="#"]').forEach(function (a) {
+    a.addEventListener('click', function (e) {
+      var id = a.getAttribute('href').slice(1); if (!id) return;
+      var t = document.getElementById(id); if (!t) return;
+      e.preventDefault();
+      var top = t.getBoundingClientRect().top + window.scrollY - 80;
+      window.scrollTo({ top: top, behavior: 'smooth' });
+      history.replaceState(null, '', '#' + id);
+    });
+  });
+
+  // Copy buttons on code/config blocks
+  function doCopy(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text);
+    var ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch (e) {} document.body.removeChild(ta);
+    return Promise.resolve();
+  }
+  document.querySelectorAll('.copy-btn[data-copy]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      doCopy(btn.getAttribute('data-copy'));
+      var label = btn.querySelector('.copy-text');
+      var prev = label ? label.textContent : null;
+      btn.classList.add('is-copied');
+      if (label) label.textContent = 'Copied';
+      setTimeout(function () { btn.classList.remove('is-copied'); if (label && prev !== null) label.textContent = prev; }, 1400);
+    });
+  });
+})();
+</script>
+
+<script>
+(function () {
+  document.querySelectorAll('[data-locale-switcher]').forEach(function (sw) {
+    var trigger = sw.querySelector('.locale-trigger');
+    var menu = sw.querySelector('.locale-menu');
+    var options = sw.querySelectorAll('.locale-menu [role="option"]');
+    var current = sw.querySelector('.locale-current');
+
+    function setOpen(open) {
+      sw.classList.toggle('is-open', open);
+      trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+
+    trigger.addEventListener('click', function (e) {
+      e.stopPropagation();
+      setOpen(!sw.classList.contains('is-open'));
+    });
+
+    options.forEach(function (opt) {
+      opt.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var locale = opt.getAttribute('data-locale');
+        options.forEach(function (o) {
+          o.setAttribute('aria-selected', o === opt ? 'true' : 'false');
+        });
+        if (current) current.textContent = locale.toUpperCase();
+        try { document.documentElement.setAttribute('lang', locale); } catch (e2) {}
+        setOpen(false);
+      });
+    });
+
+    document.addEventListener('click', function (e) {
+      if (sw.classList.contains('is-open') && !sw.contains(e.target)) setOpen(false);
+    });
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      document.querySelectorAll('[data-locale-switcher].is-open').forEach(function (sw) {
+        sw.classList.remove('is-open');
+        var t = sw.querySelector('.locale-trigger');
+        if (t) t.setAttribute('aria-expanded', 'false');
+      });
+    }
+  });
+})();
+</script>
+
+
+<script>
+(function () {
+  var btn = document.getElementById('mobileMenuBtn');
+  var drawer = document.getElementById('mobileDrawer');
+  var backdrop = document.getElementById('mobileDrawerBackdrop');
+  var closeBtn = document.getElementById('mobileDrawerClose');
+  if (!btn || !drawer || !backdrop) return;
+
+  function open() {
+    drawer.classList.add('is-open');
+    drawer.setAttribute('aria-hidden', 'false');
+    backdrop.classList.add('is-visible');
+    backdrop.setAttribute('aria-hidden', 'false');
+    btn.setAttribute('aria-expanded', 'true');
+    document.body.classList.add('no-scroll');
+    setTimeout(function () { if (closeBtn) closeBtn.focus(); }, 100);
+  }
+  function close() {
+    drawer.classList.remove('is-open');
+    drawer.setAttribute('aria-hidden', 'true');
+    backdrop.classList.remove('is-visible');
+    backdrop.setAttribute('aria-hidden', 'true');
+    btn.setAttribute('aria-expanded', 'false');
+    document.body.classList.remove('no-scroll');
+  }
+
+  btn.addEventListener('click', open);
+  if (closeBtn) closeBtn.addEventListener('click', close);
+  backdrop.addEventListener('click', close);
+
+  // Close on Escape
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && drawer.classList.contains('is-open')) close();
+  });
+
+  // Close on route click (any <a> inside drawer that navigates)
+  drawer.querySelectorAll('a[href]').forEach(function (a) {
+    a.addEventListener('click', function () {
+      // Let navigation happen; close drawer for visual cleanup
+      setTimeout(close, 0);
+    });
+  });
+
+  // Auto-close if viewport grows past 1023px
+  var mq = window.matchMedia('(min-width: 1024px)');
+  function handleMq(e) {
+    if (e.matches && drawer.classList.contains('is-open')) close();
+  }
+  if (mq.addEventListener) mq.addEventListener('change', handleMq);
+  else mq.addListener(handleMq);
+})();
+</script>
+
+</body>
+</html>
