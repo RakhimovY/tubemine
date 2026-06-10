@@ -1,5 +1,4 @@
 import { getTranslations, setRequestLocale } from "next-intl/server"
-import { Link as IntlLink } from "@/i18n/navigation"
 import { LegalToc } from "@/components/legal-toc"
 import { SiteFooter } from "@/components/site-footer"
 import { breadcrumbSchema, seoAlternates } from "@/lib/seo-alternates"
@@ -71,7 +70,7 @@ export default async function ChangelogPage({
               migrated to <code>tubemine.tech</code> (TUB-12).
             </li>
             <li>
-              Header swaps the "Features" link for "Dashboard" when you are
+              Header swaps the &quot;Features&quot; link for &quot;Dashboard&quot; when you are
               signed in.
             </li>
           </ul>
@@ -91,9 +90,9 @@ export default async function ChangelogPage({
               Recent Analyses and History rows now persist real video title,
               channel name, and thumbnail instead of placeholders (TUB-20).
             </li>
-            <li>Russian profile no longer doubles the word "использовано" (TUB-22).</li>
+            <li>Russian profile no longer doubles the word &quot;использовано&quot; (TUB-22).</li>
             <li>
-              Extract and "Try another URL" buttons match the design system
+              Extract and &quot;Try another URL&quot; buttons match the design system
               instead of low-contrast shadcn primitives (TUB-25).
             </li>
             <li>
@@ -238,7 +237,7 @@ export default async function ChangelogPage({
   const breadcrumb = breadcrumbSchema(locale, "/changelog")
 
   return (
-    <div className="legal-page">
+    <div className="legal-page changelog-page">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}

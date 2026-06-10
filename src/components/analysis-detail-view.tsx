@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { track } from "@vercel/analytics"
 import { useTranslations } from "next-intl"
 import { toast } from "sonner"
-import { useRouter } from "@/i18n/navigation"
+import { useRouter, Link } from "@/i18n/navigation"
 import { ResultBlock } from "@/components/result-block"
 import type { SentimentAggregateProp } from "@/components/sentiment"
 import type { AnalysisDetailRow } from "@/lib/analyses"
@@ -111,23 +111,49 @@ export function AnalysisDetailView({ tier, row }: AnalysisDetailViewProps) {
     sentiment: c.sentiment ?? undefined,
   }))
 
+  const processedDate = new Date(row.processed_at).toLocaleDateString(
+    undefined,
+    { month: "short", day: "numeric", year: "numeric" },
+  )
+
   return (
-    <div className="dashboard-page">
-      <div className="detail-toolbar">
-        <p className="detail-meta">
-          {t("processed_at_label")}:{" "}
-          {new Date(row.processed_at).toLocaleString()}
-          {" · "}
-          {t("expires_at_label")}:{" "}
-          {new Date(row.expires_at).toLocaleDateString()}
-        </p>
+    <div className="dashboard-page history-page">
+      <div className="rb-detail-head">
+        <Link href="/history" className="rb-detail-back">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m15 18-6-6 6-6" />
+          </svg>
+          {t("back_to_history")}
+        </Link>
+        <div className="rb-detail-headmeta">
+          <div className="rb-detail-eyebrow">{t("saved_analysis")}</div>
+          <div className="rb-detail-title">
+            {row.video_title ?? row.video_id}
+          </div>
+        </div>
+        <span className="rb-detail-date">{processedDate}</span>
         <button
           type="button"
-          className="btn btn--outline"
+          className="icon-only danger rb-detail-delete"
+          aria-label={t("delete")}
           onClick={onDelete}
           disabled={deleting}
+          title={t("delete")}
         >
-          {t("delete")}
+          <svg
+            className="icon icon-sm"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.75}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M3 6h18" />
+            <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+            <path d="M19 6 18 20a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+          </svg>
         </button>
       </div>
 

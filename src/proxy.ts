@@ -15,6 +15,7 @@ export async function proxy(request: NextRequest) {
   // Skip locale handling for non-localized infrastructure paths.
   const skipIntl =
     pathname.startsWith("/api") ||
+    pathname === "/mcp" ||
     pathname.startsWith("/auth") ||
     pathname.startsWith("/_next") ||
     pathname === "/logout" ||

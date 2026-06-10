@@ -97,7 +97,7 @@ export function PricingTierAware() {
           <span className="unit">{t("free.unit")}</span>
         </div>
         <ul className="price-list">
-          {[t("free.b1"), t("free.b2"), t("free.b3"), t("free.b4"), t("free.b5")].map((b, i) => (
+          {[t("free.b1"), t("free.b2"), t("free.b3"), t("free.b4"), t("free.b5"), t("free.b6")].map((b, i) => (
             <li key={i}>
               <span className="price-check"><CheckIcon /></span>
               <span>{b}</span>
@@ -124,7 +124,7 @@ export function PricingTierAware() {
           <span className="unit">{t("pro.unit")}</span>
         </div>
         <ul className="price-list">
-          {[t("pro.b1"), t("pro.b2"), t("pro.b3"), t("pro.b4"), t("pro.b5")].map((b, i) => (
+          {[t("pro.b1"), t("pro.b2"), t("pro.b3"), t("pro.b4"), t("pro.b5"), t("pro.b6")].map((b, i) => (
             <li key={i}>
               <span className="price-check"><CheckIcon /></span>
               <span>{b}</span>

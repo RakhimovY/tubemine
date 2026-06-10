@@ -5,23 +5,47 @@ import { LandingFaq } from "@/components/landing-faq"
 import { LandingSmoothScroll } from "@/components/landing-smooth-scroll"
 import { LandingAuthGate } from "@/components/landing-auth-gate"
 import { SiteFooter } from "@/components/site-footer"
+import { ClientLogo } from "@/components/brand/client-logo"
 import { REPO_URL } from "@/lib/site-links"
+
+/* Real MCP clients shown in the hero trust pill (brand logos, not dots). */
+const HERO_CLIENTS = [
+  "claude-code",
+  "codex",
+  "cursor",
+  "chatgpt",
+  "gemini-cli",
+  "hermes",
+  "openclaw",
+] as const
+
+const HERO_CLIENT_LABELS: Record<string, string> = {
+  "claude-code": "Claude",
+  codex: "Codex",
+  cursor: "Cursor",
+  chatgpt: "ChatGPT",
+  "gemini-cli": "Gemini",
+  hermes: "Hermes",
+  openclaw: "OpenClaw",
+}
 
 const SUPPORT_EMAIL = "hello@tubemine.app"
 
 /*
-  TUB-1 Visual Port (Landing, Page 1 of 9).
-  This file is the verbatim semantic port of:
-    /tmp/tubemine-handoff-2026-05-20/tubemine-v3-ux/project/TubeMine Landing.html
+  Landing, v3 MCP-forward port of docs/design-v3/refs/TubeMine Landing.html.
+  Leads with the MCP story (pull YouTube comments straight into your AI
+  assistant) and keeps the web app as a clearly secondary path.
   Inline <style> CSS lives in src/app/globals.css scoped under .tm-design.
   Inline <script> behavior lives in small client islands:
     - LandingSmoothScroll: in-page anchor scroll with header offset
     - LandingFaq: accordion (one open, first by default)
     - SiteHeaderClient: sticky-nav scroll state, mobile drawer, locale dropdown
-  The "Design preview" panel from the prototype is intentionally NOT shipped
-  (README: do not ship the design preview panel to production).
-  Live demo block mounts the real <TubeMine /> extractor; the design's
-  sample/promo result is shown above it as a static educational preview.
+  Hero trust pill uses real brand logos via <ClientLogo />. The hero + how-it
+  -works demos depict the single tool get_youtube_comments(); the MCP returns
+  RAW comments and the user's AI does the analysis (no server-side analyze).
+  The #demo section leads with the web-app strip (secondary path) and mounts
+  the real <TubeMine /> extractor below it. Feature blocks reuse the shared
+  result-block widget styling; sample/promo result is a static preview.
 */
 export default async function HomePage({
   params,
@@ -83,31 +107,133 @@ export default async function HomePage({
         {/* ===================== HERO ===================== */}
         <section className="hero">
           <div className="container">
+            <div className="hero-pill" aria-label={t("hero.pill_aria")}>
+              <span className="hp-dot" aria-hidden="true" />
+              <span className="hp-prefix">{t("hero.pill_prefix")}</span>
+              {HERO_CLIENTS.map((id) => (
+                <span key={id} className="hp-client">
+                  <ClientLogo client={id} className="hp-logo" />
+                  <span>{HERO_CLIENT_LABELS[id]}</span>
+                </span>
+              ))}
+            </div>
+
             <h1 className="hero-title">
               {t("hero.title_lead")}{" "}
               <span className="accent">{t("hero.title_accent")}</span>
             </h1>
             <p className="hero-sub">{t("hero.sub")}</p>
+
             <div className="hero-cta">
-              <a href="#demo" className="btn btn--primary btn-lg">
+              <IntlLink href="/mcp-docs" className="btn btn--primary btn-lg hero-glow">
                 {t("hero.cta_primary")}
-                <svg
-                  className="icon icon-sm"
-                  aria-hidden="true"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={1.75}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M12 5v14" />
-                  <path d="m6 13 6 6 6-6" />
-                </svg>
-              </a>
-              <a href="#pricing" className="btn btn--ghost btn-lg">
-                {t("hero.cta_secondary")}
-              </a>
+                <ArrowRightIcon />
+              </IntlLink>
+            </div>
+            <a href="#demo" className="hero-weblink">
+              {t("hero.cta_secondary")}
+            </a>
+
+            {/* Animated demo: an AI assistant calling TubeMine over MCP.
+                Depicts the single tool get_youtube_comments(); the AI does
+                the analysis on the raw thread it returns. */}
+            <div className="hero-demo" id="heroDemo" aria-hidden="true">
+              <div className="hd-bar">
+                <span className="hd-dots">
+                  <span />
+                  <span />
+                  <span />
+                </span>
+                <span className="hd-title">
+                  <PlugIcon className="hd-title-icon" />
+                  {t("hero_demo.title")}
+                </span>
+                <span className="hd-badge">
+                  <span className="ld" />
+                  {t("hero_demo.badge")}
+                </span>
+              </div>
+              <div className="hd-chat hd-chat-static">
+                <div className="hd-msg user">
+                  <div className="hd-bubble">
+                    {t("hero_demo.user_msg")}{" "}
+                    <span className="hd-url">{t("hero_demo.user_url")}</span>
+                  </div>
+                </div>
+                <div className="hd-msg ai">
+                  <span className="hd-av">✳</span>
+                  <div className="hd-ai-body">
+                    <div className="hd-tool">
+                      <PlugIcon className="hd-tool-icon" />
+                      <span className="fn">{t("hero_demo.tool")}</span>
+                      <span className="hd-check">
+                        <CheckIcon />
+                      </span>
+                    </div>
+                    <p className="hd-say">
+                      {t("hero_demo.say_prefix")}{" "}
+                      <b>{t("hero_demo.say_count")}</b>{" "}
+                      {t("hero_demo.say_suffix")}
+                    </p>
+                    <div className="hd-payload">
+                      <div className="hd-pay-head">
+                        <span className="hd-pay-count">
+                          {t("hero_demo.pay_count")}{" "}
+                          <span>{t("hero_demo.pay_count_sub")}</span>
+                        </span>
+                        <span className="hd-pay-tag">
+                          ● {t("hero_demo.pay_tag")}
+                        </span>
+                      </div>
+                      <div className="hv-sbar">
+                        <span className="pos" style={{ width: "68%" }}>
+                          68%
+                        </span>
+                        <span className="neu" style={{ width: "24%" }}>
+                          24%
+                        </span>
+                        <span className="neg" style={{ width: "8%" }} />
+                      </div>
+                      <div className="hd-pay-cols">
+                        <div>
+                          <div className="hd-pay-label">
+                            {t("hero_demo.top_words")}
+                          </div>
+                          <div className="hv-words">
+                            {[
+                              { w: "tutorial", pct: 100 },
+                              { w: "workflow", pct: 74 },
+                              { w: "underrated", pct: 58 },
+                            ].map((row) => (
+                              <div key={row.w} className="hv-wrow">
+                                <span className="w">{row.w}</span>
+                                <span className="hv-track">
+                                  <span
+                                    className="hv-fill"
+                                    style={{ width: `${row.pct}%` }}
+                                  />
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="hd-pay-label">
+                            {t("hero_demo.top_emoji")}
+                          </div>
+                          <div className="hv-emoji">
+                            <span>🔥</span>
+                            <span>❤️</span>
+                            <span>👏</span>
+                            <span>💯</span>
+                            <span>😍</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -135,14 +261,141 @@ export default async function HomePage({
           </div>
         </section>
 
-        {/* ===================== LIVE DEMO ===================== */}
-        <section className="section" id="demo">
+        {/* ===================== HOW IT WORKS ===================== */}
+        <section
+          className="section hiw"
+          id="how-it-works"
+          aria-label={t("how.title")}
+        >
           <div className="container">
             <header className="section-head-center">
-              <h2 className="section-title">{t("demo.title")}</h2>
+              <h2 className="section-title">{t("how.title")}</h2>
+              <p className="section-sub">{t("how.sub")}</p>
             </header>
 
-            <div className="demo-wrap">
+            <div className="hiw-flow">
+              {/* Step 1, API-key setup (OAuth coming soon) */}
+              <article className="hiw-step">
+                <div className="hiw-copy">
+                  <h3 className="hiw-title">{t("how.s1_title")}</h3>
+                  <p className="hiw-body">{t("how.s1_body")}</p>
+                </div>
+                <div className="hiw-media" aria-hidden="true">
+                  <div className="tm-bar">
+                    <span className="tl" />
+                    <span className="tl" />
+                    <span className="tl" />
+                    <span className="tm-name">{t("how.s1_term_name")}</span>
+                  </div>
+                  <div className="tm-body">
+                    <div className="tm-line">
+                      <span className="pr">$</span>{" "}
+                      <span className="cmd">{t("how.s1_term_cmd")}</span>
+                    </div>
+                    <div className="tm-line mut">
+                      {t("how.s1_term_connecting")}
+                    </div>
+                    <div className="tm-line ok">
+                      <CheckIcon /> {t("how.s1_term_authed")}
+                    </div>
+                    <div className="tm-line ok">
+                      <CheckIcon /> {t("how.s1_term_tools")}
+                    </div>
+                    <div className="tm-line">
+                      <span className="pr">$</span> <span className="tm-caret" />
+                    </div>
+                  </div>
+                </div>
+              </article>
+
+              {/* Step 2, drop a URL in chat */}
+              <article className="hiw-step">
+                <div className="hiw-copy">
+                  <h3 className="hiw-title">{t("how.s2_title")}</h3>
+                  <p className="hiw-body">{t("how.s2_body")}</p>
+                </div>
+                <div className="hiw-media" aria-hidden="true">
+                  <div className="ch-body">
+                    <div className="ch-bubble user">
+                      {t("how.s2_user")}{" "}
+                      <span className="ch-url">{t("how.s2_url")}</span>
+                      <span className="ch-caret" />
+                    </div>
+                    <div className="ch-tool">
+                      <PlugIcon className="ch-tool-icon" /> {t("how.s2_tool")}
+                    </div>
+                    <div className="ch-bubble ai">{t("how.s2_ai")}</div>
+                  </div>
+                </div>
+              </article>
+
+              {/* Step 3, AI returns the breakdown of the raw thread */}
+              <article className="hiw-step">
+                <div className="hiw-copy">
+                  <h3 className="hiw-title">{t("how.s3_title")}</h3>
+                  <p className="hiw-body">{t("how.s3_body")}</p>
+                </div>
+                <div className="hiw-media" aria-hidden="true">
+                  <div className="mr-body">
+                    <div className="mr-head">
+                      <span className="mr-count">
+                        {t("how.s3_count")}{" "}
+                        <span className="u">{t("how.s3_count_unit")}</span>
+                      </span>
+                      <span className="mr-tag">● {t("how.s3_tag")}</span>
+                    </div>
+                    <div className="mr-sbar">
+                      <span className="pos" style={{ width: "68%" }} />
+                      <span className="neu" style={{ width: "24%" }} />
+                      <span className="neg" style={{ width: "8%" }} />
+                    </div>
+                    <div className="mr-words">
+                      {[
+                        { w: "tutorial", pct: 100 },
+                        { w: "love", pct: 78 },
+                        { w: "workflow", pct: 64 },
+                      ].map((row) => (
+                        <div key={row.w} className="mr-word">
+                          <span className="w">{row.w}</span>
+                          <span className="track">
+                            <span
+                              className="fill"
+                              style={{ width: `${row.pct}%` }}
+                            />
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mr-emoji">
+                      <span>🔥</span>
+                      <span>❤️</span>
+                      <span>👏</span>
+                      <span>💯</span>
+                      <span>😍</span>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        {/* ===================== WEB APP (secondary path) + LIVE DEMO ===================== */}
+        <section className="section" id="demo">
+          <div className="container">
+            <div className="webapp-strip">
+              <div className="ws-text">
+                <span className="ws-eyebrow">{t("webapp.eyebrow")}</span>
+                <h2 className="ws-title">{t("webapp.title")}</h2>
+                <p className="ws-sub">{t("webapp.sub")}</p>
+              </div>
+              <IntlLink href="/dashboard" className="ws-link">
+                {t("webapp.link")}
+                <ArrowRightIcon />
+              </IntlLink>
+            </div>
+
+            <div className="demo-wrap" style={{ marginTop: "var(--space-8)" }}>
               <TubeMine tier="anonymous" />
             </div>
           </div>
@@ -711,6 +964,44 @@ function CheckIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="m4 12 5 5L20 6" />
+    </svg>
+  )
+}
+
+function ArrowRightIcon() {
+  return (
+    <svg
+      className="icon icon-sm"
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.75}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M5 12h14" />
+      <path d="m13 6 6 6-6 6" />
+    </svg>
+  )
+}
+
+function PlugIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M9 2v6" />
+      <path d="M15 2v6" />
+      <path d="M7 8h10v3a5 5 0 0 1-10 0z" />
+      <path d="M12 16v6" />
     </svg>
   )
 }

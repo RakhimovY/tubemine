@@ -58,6 +58,7 @@ export default async function AppGroupLayout({
         navHome: tShell("nav_home"),
         navHistory: tShell("nav_history"),
         navProfile: tShell("nav_profile"),
+        navAiAccess: tShell("nav_ai_access"),
         navGithub: tShell("nav_github"),
         navDocs: tShell("nav_docs"),
         navSignOut: tShell("nav_sign_out"),

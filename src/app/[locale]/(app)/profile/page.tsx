@@ -23,9 +23,11 @@ export async function generateMetadata({
 export const dynamic = "force-dynamic"
 
 /*
-  TUB-1 Visual Port (Profile, Page 4 of 9).
-  Verbatim semantic port of:
-    /tmp/tubemine-handoff-2026-05-20/tubemine-v3-ux/project/TubeMine Profile.html
+  v3 reskin (TUB-1 Visual Port, Profile). Matches:
+    docs/design-v3/refs/TubeMine Profile.html
+  Layout: two-column settings grid on desktop (220px label + 1fr body),
+  single column on mobile (< 1024px). Sections: Account, Plan (Free/Pro),
+  YouTube connection, Billing (Pro only), Danger zone.
   The page wrapper carries BOTH `dashboard-page` (so the shared shell CSS
   applies for free) and `profile-page` (for profile-specific .settings-section,
   .field-row, .plan-card, .billing-body, .danger-row, .copy-btn etc.). The
@@ -33,9 +35,8 @@ export const dynamic = "force-dynamic"
     - <AccountIdCopy /> for the click-to-copy account ID button
     - <CanceledToast /> for the ?canceled=true one-shot toast that strips
       the URL param via router.replace
-  The public <SiteHeader /> is suppressed for /profile by <SiteHeaderGate />.
   The "Design preview" panel from the prototype is intentionally NOT
-  shipped (README: do not ship the design preview panel to production).
+  shipped (production only shows real data-driven state).
 */
 export default async function ProfilePage({
   params,

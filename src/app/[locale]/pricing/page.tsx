@@ -310,8 +310,30 @@ export default async function PricingPage({
                       </span>
                     </td>
                   </tr>
+                  <tr>
+                    <th scope="row">{t("compare.row_mcp")}</th>
+                    <td>
+                      <span className="compare-val is-neg">
+                        <span className="dotmark" />
+                        {t("compare.row_mcp_anon")}
+                      </span>
+                    </td>
+                    <td>
+                      <span className="compare-val is-pos">
+                        <span className="dotmark" />
+                        {t("compare.row_mcp_free")}
+                      </span>
+                    </td>
+                    <td className="col-pro">
+                      <span className="compare-val is-pos">
+                        <span className="dotmark" />
+                        {t("compare.row_mcp_pro")}
+                      </span>
+                    </td>
+                  </tr>
                 </tbody>
               </table>
+              <p className="compare-footnote">{t("compare.mcp_quota_note")}</p>
 
               {/* Mobile: stacked cards */}
               <div className="compare-cards" aria-hidden="false">
@@ -350,6 +372,11 @@ export default async function PricingPage({
                       label={t("compare.row_saved")}
                       value={t("compare.row_saved_anon")}
                     />
+                    <CompareRow
+                      label={t("compare.row_mcp")}
+                      value={t("compare.row_mcp_anon")}
+                      negative
+                    />
                   </dl>
                 </article>
                 <article className="compare-card">
@@ -387,6 +414,11 @@ export default async function PricingPage({
                       label={t("compare.row_saved")}
                       value={t("compare.row_saved_free")}
                     />
+                    <CompareRow
+                      label={t("compare.row_mcp")}
+                      value={t("compare.row_mcp_free")}
+                      positiveDot
+                    />
                   </dl>
                 </article>
                 <article className="compare-card is-pro">
@@ -423,6 +455,11 @@ export default async function PricingPage({
                     <CompareRow
                       label={t("compare.row_saved")}
                       value={t("compare.row_saved_pro")}
+                    />
+                    <CompareRow
+                      label={t("compare.row_mcp")}
+                      value={t("compare.row_mcp_pro")}
+                      positiveDot
                     />
                   </dl>
                 </article>
