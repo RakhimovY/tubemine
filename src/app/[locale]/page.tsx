@@ -98,6 +98,8 @@ export default async function HomePage({
         </>
       ),
     },
+    { q: t("faq.q8"), a: t("faq.a8") },
+    { q: t("faq.q9"), a: t("faq.a9") },
   ]
 
   return (

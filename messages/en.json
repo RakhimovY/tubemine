@@ -276,7 +276,11 @@
       "q7": "Do you store the comments?",
       "a7_prefix": "We store the analysis results (sentiment percentages, word counts, emoji counts) so you can revisit them. Raw comment text is cached for 30 days then automatically purged. We never sell or share data with third parties. See",
       "a7_link_privacy": "privacy",
-      "a7_suffix": "."
+      "a7_suffix": ".",
+      "q8": "Does TubeMine work with Claude, Cursor, or ChatGPT?",
+      "a8": "Yes. TubeMine has an MCP server. Create an API key, connect it to your AI assistant (Claude Code, ChatGPT, Cursor, Codex, Gemini CLI, Claude Desktop, Hermes, or OpenClaw), and it can pull any YouTube video's comments with the get_youtube_comments tool. Your AI does the analysis.",
+      "q9": "What is the MCP server and do I need it?",
+      "a9": "MCP (Model Context Protocol) lets your AI assistant call TubeMine directly inside your chat. You do not need it for the web app, it is the AI path: pull raw comments into your own model over MCP, or use the dashboard for ready-made analytics."
     },
     "final_cta": {
       "title": "Try TubeMine now.",
@@ -534,7 +538,11 @@
       "q7": "Do you store the comments?",
       "a7_prefix": "We store the analysis results (sentiment percentages, word counts, emoji counts) so you can revisit them. Raw comment text is cached for 30 days then automatically purged. We never sell or share data with third parties. See",
       "a7_link_privacy": "privacy",
-      "a7_suffix": "."
+      "a7_suffix": ".",
+      "q8": "Does TubeMine work with Claude, Cursor, or ChatGPT?",
+      "a8": "Yes. TubeMine has an MCP server. Create an API key, connect it to your AI assistant (Claude Code, ChatGPT, Cursor, Codex, Gemini CLI, Claude Desktop, Hermes, or OpenClaw), and it can pull any YouTube video's comments with the get_youtube_comments tool. Your AI does the analysis.",
+      "q9": "What is the MCP server and do I need it?",
+      "a9": "MCP (Model Context Protocol) lets your AI assistant call TubeMine directly inside your chat. You do not need it for the web app, it is the AI path: pull raw comments into your own model over MCP, or use the dashboard for ready-made analytics."
     },
     "final_cta": {
       "title": "Ready to analyze your first video?",
@@ -618,8 +626,8 @@
   },
   "docs": {
     "meta": {
-      "title": "TubeMine Docs, Extract YouTube Comments to CSV or JSON",
-      "description": "How to use TubeMine: paste a video URL, pick a plan (Anonymous, Free 5K/mo, Pro 100K/mo), get sentiment + top words + emojis, export to CSV or JSON, handle common errors."
+      "title": "TubeMine Docs, MCP server + YouTube comment extraction",
+      "description": "How to use TubeMine: connect the MCP server to your AI assistant (Claude, Cursor, ChatGPT) to pull comments, or use the web app, paste a URL for sentiment, top words, emojis, and CSV or JSON export. Plans and error help included."
     },
     "hero": {
       "badge": "Docs",

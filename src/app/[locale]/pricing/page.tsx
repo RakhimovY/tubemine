@@ -90,6 +90,8 @@ export default async function PricingPage({
         </>
       ),
     },
+    { q: t("faq.q8"), a: t("faq.a8") },
+    { q: t("faq.q9"), a: t("faq.a9") },
   ]
 
   const faqSchema = {
@@ -109,6 +111,8 @@ export default async function PricingPage({
         q: t("faq.q7"),
         a: `${t("faq.a7_prefix")} ${t("faq.a7_link_privacy")}${t("faq.a7_suffix")}`,
       },
+      { q: t("faq.q8"), a: t("faq.a8") },
+      { q: t("faq.q9"), a: t("faq.a9") },
     ].map(({ q, a }) => ({
       "@type": "Question",
       name: q,
