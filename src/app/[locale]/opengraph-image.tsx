@@ -1,8 +1,7 @@
 import { ImageResponse } from "next/og"
-import { getTranslations } from "next-intl/server"
 import { routing } from "@/i18n/routing"
 
-export const alt = "TubeMine, YouTube Audience Analytics"
+export const alt = "TubeMine, YouTube comments inside your AI assistant"
 export const size = { width: 1200, height: 630 }
 export const contentType = "image/png"
 
@@ -28,16 +27,13 @@ export default async function OpenGraphImage({
 }: {
   params: { locale: string }
 }) {
-  const t = await getTranslations({
-    locale: params.locale,
-    namespace: "landing",
-  })
-  const heroA = t("hero_title_a")
-  const heroB = t("hero_title_b")
-  const tagline = params.locale === "ru" ? "Бесплатно. Без настройки." : "Free. No setup."
-  const subtitle = params.locale === "ru"
-    ? "Тональность, ключевые слова и эмодзи аудитории, за секунды."
-    : "Sentiment, top words, and emoji insights in seconds."
+  const isRu = params.locale === "ru"
+  const heroA = isRu ? "Комментарии YouTube" : "YouTube comments,"
+  const heroB = isRu ? "в вашем AI-ассистенте." : "inside your AI assistant."
+  const tagline = isRu ? "Бесплатно. Работает по MCP." : "Free. Works over MCP."
+  const subtitle = isRu
+    ? "Тяните ветку любого видео в Claude, ChatGPT или Cursor."
+    : "Pull any video's thread into Claude, ChatGPT or Cursor."
 
   const [bold, regular] = await Promise.all([
     loadFont(
