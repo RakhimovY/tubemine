@@ -32,7 +32,7 @@ export function CodeBlock({
     <div
       data-slot="codeblock"
       className={cn(
-        "relative rounded-lg border border-border bg-muted text-sm",
+        "relative overflow-hidden rounded-md border border-border bg-muted text-sm",
         className
       )}
     >
@@ -50,8 +50,7 @@ export function CodeBlock({
         onClick={handleCopy}
         aria-label={copied ? "Copied" : "Copy code"}
         className={cn(
-          "absolute right-2 top-2 flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-          label && "top-10"
+          "absolute right-2 top-2 z-10 flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
         )}
       >
         {copied ? (

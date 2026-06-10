@@ -4747,6 +4747,11 @@ body.no-scroll { overflow: hidden; }
 .tm-design .mcp-page .new-key-warning { margin: 0; font-size: var(--font-size-sm); color: var(--color-text-secondary); line-height: 1.5; }
 .tm-design .mcp-page .new-key .key-field { background: var(--color-surface-base); }
 .tm-design .mcp-page .new-key-actions { display: flex; gap: var(--space-3); flex-wrap: wrap; }
+/* Just-created key: highlighted row inside the unified list. Full value shown
+   once (horizontal scroll, not clipped) with a save-now warning on its own line. */
+.tm-design .mcp-page .key-row.is-new .key-field { border-color: rgba(52,211,153,0.45); background: var(--color-feedback-success-soft); }
+.tm-design .mcp-page .key-row.is-new .key-field code { overflow-x: auto; text-overflow: clip; }
+.tm-design .mcp-page .key-row-warning { flex-basis: 100%; order: 9; margin: 0; font-size: var(--font-size-xs); color: var(--color-text-secondary); line-height: 1.5; }
 
 /* 4) Connected clients table */
 .tm-design .mcp-page .mcp-table-wrap { overflow-x: auto; margin: 0 calc(var(--space-7) * -1) calc(var(--space-7) * -1); }

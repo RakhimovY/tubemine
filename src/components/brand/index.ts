@@ -1,7 +1,1 @@
-export { default as ClaudeLogo } from "./claude-logo"
-export { default as OpenAILogo } from "./openai-logo"
-export { default as CursorLogo } from "./cursor-logo"
-export { default as GeminiLogo } from "./gemini-logo"
-export { default as NousLogo } from "./nous-logo"
-export { default as OpenClawLogo } from "./openclaw-logo"
 export { ClientLogo } from "./client-logo"
