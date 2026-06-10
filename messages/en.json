@@ -1028,6 +1028,7 @@
     "key_last_used_label": "Last used",
     "key_last_used_never": "never",
     "key_copy": "Copy key",
+    "key_connect_label": "Copy a ready setup command:",
     "key_rotate": "Rotate",
     "key_revoke": "Revoke",
     "new_key_title": "Save your new key now",

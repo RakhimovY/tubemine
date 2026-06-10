@@ -1028,6 +1028,7 @@
     "key_last_used_label": "Использован",
     "key_last_used_never": "никогда",
     "key_copy": "Скопировать ключ",
+    "key_connect_label": "Скопировать готовую команду:",
     "key_rotate": "Обновить",
     "key_revoke": "Отозвать",
     "new_key_title": "Сохраните новый ключ сейчас",
