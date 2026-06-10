@@ -14,36 +14,33 @@ import {
 import { maskApiKey, type ApiKeyRow } from "@/lib/mcp/mask"
 import {
   createKeyAction,
-  rotateKeyAction,
   revokeKeyAction,
 } from "@/app/[locale]/(app)/ai-access/actions"
 import { ConnectedClients } from "./connected-clients"
 
 /*
-  P2.2: Client island for /ai-access. Owns the live ApiKeyRow[] state so the
+  P2.2 (revised): Client island for /ai-access. Owns the live ApiKeyRow[] so the
   "Your API keys" panel and the "Connected clients" table stay in sync after
-  create / rotate / revoke without a full page reload. The server page seeds
-  the initial rows; every mutation calls a server action (which is the source
-  of truth) and then patches local state from its return value.
+  create / revoke without a reload.
 
-  The raw tm_sk_... value is returned by create/rotate exactly once and is
-  shown in a copyable reveal with a "save it now" warning; it is dropped from
-  state as soon as the user dismisses it (it is never re-fetchable). Rotate
-  and revoke route through a confirm dialog that explains the client must
-  reconnect. Feedback is delivered via sonner toasts.
+  Single unified list (no separate "save your new key" box): the just-created
+  key appears as the first row showing its full raw value + a copy button + a
+  "save it now" note, highlighted; every other key shows the mask (the raw is
+  never re-fetchable). `revealed` is tied to a key id, so revoking that key
+  clears the reveal too (fixes the old "deleted but the top one stays" bug).
+
+  Rotate was removed: it confused users and is just revoke + create. Only
+  Delete (revoke) remains, behind a confirm dialog.
 */
-type ConfirmState =
-  | { kind: "rotate"; id: string }
-  | { kind: "revoke"; id: string }
-  | null
-
 export function KeysPanel({ initialKeys }: { initialKeys: ApiKeyRow[] }) {
   const t = useTranslations("mcp")
   const locale = useLocale()
   const [keys, setKeys] = useState<ApiKeyRow[]>(initialKeys)
-  const [newKey, setNewKey] = useState<string | null>(null)
+  const [revealed, setRevealed] = useState<{ id: string; raw: string } | null>(
+    null,
+  )
   const [copiedId, setCopiedId] = useState<string | null>(null)
-  const [confirm, setConfirm] = useState<ConfirmState>(null)
+  const [confirmId, setConfirmId] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
   const dateFmt = new Intl.DateTimeFormat(
@@ -69,8 +66,8 @@ export function KeysPanel({ initialKeys }: { initialKeys: ApiKeyRow[] }) {
     startTransition(async () => {
       try {
         const { row, raw } = await createKeyAction()
-        setKeys((prev) => [row, ...prev])
-        setNewKey(raw)
+        setKeys((prev) => [row, ...prev.filter((k) => k.id !== row.id)])
+        setRevealed({ id: row.id, raw })
         toast.success(t("toast_created"))
       } catch {
         toast.error(t("toast_error"))
@@ -78,26 +75,15 @@ export function KeysPanel({ initialKeys }: { initialKeys: ApiKeyRow[] }) {
     })
   }
 
-  function handleRotate(id: string) {
-    setConfirm(null)
-    startTransition(async () => {
-      try {
-        const { row, raw } = await rotateKeyAction(id)
-        setKeys((prev) => [row, ...prev.filter((k) => k.id !== id)])
-        setNewKey(raw)
-        toast.success(t("toast_rotated"))
-      } catch {
-        toast.error(t("toast_error"))
-      }
-    })
-  }
-
   function handleRevoke(id: string) {
-    setConfirm(null)
+    setConfirmId(null)
     startTransition(async () => {
       try {
         await revokeKeyAction(id)
         setKeys((prev) => prev.filter((k) => k.id !== id))
+        // Clear the reveal if it belonged to the key we just removed, so the
+        // raw value can never linger after the key is gone.
+        setRevealed((r) => (r?.id === id ? null : r))
         toast.success(t("toast_revoked"))
       } catch {
         toast.error(t("toast_error"))
@@ -107,72 +93,48 @@ export function KeysPanel({ initialKeys }: { initialKeys: ApiKeyRow[] }) {
 
   return (
     <>
-      {/* ===== Your API keys ===== */}
+      {/* ===== Your API keys (single unified list) ===== */}
       <section className="card" aria-labelledby="mcp-keys-h">
         <div className="card-head">
           <h2 id="mcp-keys-h">{t("keys_heading")}</h2>
           <span className="meta">{t("keys_sub")}</span>
         </div>
 
-        {newKey ? (
-          <div className="new-key" role="status">
-            <span className="new-key-title">{t("new_key_title")}</span>
-            <p className="new-key-warning">{t("new_key_warning")}</p>
-            <div className="key-field">
-              <code>{newKey}</code>
-              <button
-                type="button"
-                className={
-                  copiedId === "__new__" ? "icon-btn is-copied" : "icon-btn"
-                }
-                aria-label={t("key_copy")}
-                onClick={() => copy(newKey, "__new__")}
-              >
-                <CopyIcon />
-              </button>
-            </div>
-            <div className="new-key-actions">
-              <button
-                type="button"
-                className="btn btn--primary btn-sm"
-                onClick={() => setNewKey(null)}
-              >
-                {t("new_key_dismiss")}
-              </button>
-            </div>
-          </div>
-        ) : null}
-
         {keys.length === 0 ? (
           <p className="keys-empty">{t("keys_empty")}</p>
         ) : (
           <div className="keys-list">
             {keys.map((k) => {
+              const isNew = revealed?.id === k.id
+              const shown = isNew ? revealed!.raw : maskApiKey()
               return (
-                <div className="key-row" key={k.id}>
+                <div
+                  className={isNew ? "key-row is-new" : "key-row"}
+                  key={k.id}
+                >
                   <div className="key-field">
                     {k.name ? (
                       <span className="key-name">{k.name}</span>
                     ) : null}
-                    {/* The raw key is never stored, so existing keys can only
-                        ever show the mask. Reveal/copy is offered once, at
-                        creation time, in the new-key panel above. */}
-                    <code>{maskApiKey()}</code>
+                    <code>{shown}</code>
+                    {isNew ? (
+                      <button
+                        type="button"
+                        className={
+                          copiedId === k.id ? "icon-btn is-copied" : "icon-btn"
+                        }
+                        aria-label={t("key_copy")}
+                        onClick={() => copy(revealed!.raw, k.id)}
+                      >
+                        <CopyIcon />
+                      </button>
+                    ) : null}
                   </div>
-                  <button
-                    type="button"
-                    className="btn btn--secondary btn-sm"
-                    disabled={isPending}
-                    onClick={() => setConfirm({ kind: "rotate", id: k.id })}
-                  >
-                    <RotateIcon />
-                    {t("key_rotate")}
-                  </button>
                   <button
                     type="button"
                     className="btn btn--ghost btn-sm revoke-btn"
                     disabled={isPending}
-                    onClick={() => setConfirm({ kind: "revoke", id: k.id })}
+                    onClick={() => setConfirmId(k.id)}
                   >
                     {t("key_revoke")}
                   </button>
@@ -185,6 +147,9 @@ export function KeysPanel({ initialKeys }: { initialKeys: ApiKeyRow[] }) {
                       <b>{fmtLastUsed(k.last_used_at)}</b>
                     </span>
                   </div>
+                  {isNew ? (
+                    <p className="key-row-warning">{t("new_key_warning")}</p>
+                  ) : null}
                 </div>
               )
             })}
@@ -210,7 +175,7 @@ export function KeysPanel({ initialKeys }: { initialKeys: ApiKeyRow[] }) {
         isPending={isPending}
         fmtDate={fmtDate}
         fmtLastUsed={fmtLastUsed}
-        onRevoke={(id) => setConfirm({ kind: "revoke", id })}
+        onRevoke={(id) => setConfirmId(id)}
         labels={{
           heading: t("clients_heading"),
           meta: t("clients_meta"),
@@ -227,51 +192,33 @@ export function KeysPanel({ initialKeys }: { initialKeys: ApiKeyRow[] }) {
         }}
       />
 
-      {/* ===== Confirm dialog (rotate / revoke) ===== */}
+      {/* ===== Confirm revoke dialog ===== */}
       <Dialog
-        open={confirm !== null}
+        open={confirmId !== null}
         onOpenChange={(open) => {
-          if (!open) setConfirm(null)
+          if (!open) setConfirmId(null)
         }}
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              {confirm?.kind === "rotate"
-                ? t("rotate_confirm_title")
-                : t("revoke_confirm_title")}
-            </DialogTitle>
-            <DialogDescription>
-              {confirm?.kind === "rotate"
-                ? t("rotate_confirm_body")
-                : t("revoke_confirm_body")}
-            </DialogDescription>
+            <DialogTitle>{t("revoke_confirm_title")}</DialogTitle>
+            <DialogDescription>{t("revoke_confirm_body")}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <button
               type="button"
               className="btn btn--ghost"
-              onClick={() => setConfirm(null)}
+              onClick={() => setConfirmId(null)}
             >
               {t("confirm_cancel")}
             </button>
-            {confirm?.kind === "rotate" ? (
-              <button
-                type="button"
-                className="btn btn--primary"
-                onClick={() => handleRotate(confirm.id)}
-              >
-                {t("confirm_rotate")}
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="btn btn--destructive"
-                onClick={() => confirm && handleRevoke(confirm.id)}
-              >
-                {t("confirm_revoke")}
-              </button>
-            )}
+            <button
+              type="button"
+              className="btn btn--destructive"
+              onClick={() => confirmId && handleRevoke(confirmId)}
+            >
+              {t("confirm_revoke")}
+            </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -279,7 +226,7 @@ export function KeysPanel({ initialKeys }: { initialKeys: ApiKeyRow[] }) {
   )
 }
 
-/* ===== Inline icons (match the design's <symbol id="i-*">) ===== */
+/* ===== Inline icons ===== */
 function CopyIcon() {
   return (
     <svg
@@ -293,23 +240,6 @@ function CopyIcon() {
     >
       <rect x={9} y={9} width={11} height={11} rx={2} />
       <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-    </svg>
-  )
-}
-function RotateIcon() {
-  return (
-    <svg
-      className="icon icon-sm"
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.75}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M21 12a9 9 0 1 1-3-6.7L21 8" />
-      <path d="M21 3v5h-5" />
     </svg>
   )
 }
