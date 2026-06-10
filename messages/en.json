@@ -32,9 +32,9 @@
   },
   "landing": {
     "meta": {
-      "title": "TubeMine, YouTube Comments Analytics + CSV Export. Free.",
-      "description": "Paste a YouTube URL, get sentiment, top words, and emoji insights from public comments in seconds. Export to CSV or JSON. Free up to 5,000 comments per month.",
-      "og_description": "Paste a URL, get instant comment analytics: sentiment, top words, emojis. Export to CSV."
+      "title": "TubeMine, YouTube comments in your AI assistant (MCP)",
+      "description": "Pull any YouTube video's comments into Claude, ChatGPT, Cursor or Gemini over MCP. Your AI does the analysis, or use the web app for instant sentiment, top words and emoji. Free up to 5,000 comments per month.",
+      "og_description": "YouTube comments, right inside your AI assistant. Pull any video's full thread into Claude, ChatGPT or Cursor over MCP. Free."
     },
     "hero_title_a": "Understand any",
     "hero_title_b": "YouTube video's audience.",
@@ -1028,6 +1028,7 @@
     "key_last_used_label": "Last used",
     "key_last_used_never": "never",
     "key_copy": "Copy key",
+    "key_connect_label": "Copy a ready setup command:",
     "key_rotate": "Rotate",
     "key_revoke": "Revoke",
     "new_key_title": "Save your new key now",

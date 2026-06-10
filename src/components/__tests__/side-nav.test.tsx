@@ -23,6 +23,7 @@ const baseLabels = {
   navHome: "Home",
   navHistory: "History",
   navProfile: "Profile",
+  navAiAccess: "AI Access",
   navGithub: "GitHub",
   navDocs: "Docs",
   navSignOut: "Sign out",

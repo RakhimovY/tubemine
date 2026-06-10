@@ -17,6 +17,19 @@ import {
   revokeKeyAction,
 } from "@/app/[locale]/(app)/ai-access/actions"
 import { ConnectedClients } from "./connected-clients"
+import { MCP_CLIENTS, type McpClient } from "@/lib/mcp/clients"
+import { ClientLogo } from "@/components/brand/client-logo"
+
+// Build the exact connect command/snippet for a client with the raw key
+// substituted in, so the just-created key offers one-click "copy ready setup".
+function buildConnectText(client: McpClient, raw: string): string {
+  const sub = (s: string) => s.split("YOUR_KEY").join(raw)
+  const { command, configSnippet, uiSteps } = client.connect
+  if (command) return sub(command)
+  if (configSnippet) return sub(configSnippet)
+  if (uiSteps) return uiSteps.map(sub).join("\n")
+  return raw
+}
 
 /*
   P2.2 (revised): Client island for /ai-access. Owns the live ApiKeyRow[] so the
@@ -148,7 +161,39 @@ export function KeysPanel({ initialKeys }: { initialKeys: ApiKeyRow[] }) {
                     </span>
                   </div>
                   {isNew ? (
-                    <p className="key-row-warning">{t("new_key_warning")}</p>
+                    <>
+                      <p className="key-row-warning">{t("new_key_warning")}</p>
+                      <div className="key-connect">
+                        <span className="key-connect-label">
+                          {t("key_connect_label")}
+                        </span>
+                        <div className="key-connect-btns">
+                          {MCP_CLIENTS.map((c) => (
+                            <button
+                              type="button"
+                              key={c.id}
+                              className={
+                                copiedId === `cmd-${c.id}`
+                                  ? "key-connect-btn is-copied"
+                                  : "key-connect-btn"
+                              }
+                              onClick={() =>
+                                copy(
+                                  buildConnectText(c, revealed!.raw),
+                                  `cmd-${c.id}`,
+                                )
+                              }
+                            >
+                              <ClientLogo
+                                client={c.id}
+                                className="key-connect-logo"
+                              />
+                              {c.name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </>
                   ) : null}
                 </div>
               )

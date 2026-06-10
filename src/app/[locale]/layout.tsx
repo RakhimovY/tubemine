@@ -93,7 +93,7 @@ export default async function LocaleLayout({
               "@type": "WebApplication",
               name: "TubeMine",
               description:
-                "YouTube audience analytics: sentiment, top words, and emoji insights from public comment data via the YouTube Data API. Free up to 5,000 comments per month with a free account.",
+                "Pull any YouTube video's comments into your AI assistant (Claude, ChatGPT, Cursor, Gemini) over MCP, your AI does the analysis. Or use the web app for sentiment, top words and emoji insights from public comment data. Free up to 5,000 comments per month.",
               url: "https://tubemine.tech",
               applicationCategory: "DeveloperApplication",
               operatingSystem: "Web",

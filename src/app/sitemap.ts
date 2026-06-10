@@ -7,6 +7,7 @@ const routes = [
   "/pricing",
   "/login",
   "/docs",
+  "/mcp-docs",
   "/changelog",
   "/privacy",
   "/terms",
