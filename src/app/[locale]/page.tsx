@@ -5,8 +5,8 @@ import { LandingFaq } from "@/components/landing-faq"
 import { LandingSmoothScroll } from "@/components/landing-smooth-scroll"
 import { LandingAuthGate } from "@/components/landing-auth-gate"
 import { SiteFooter } from "@/components/site-footer"
-import { HeroVideo } from "@/components/hero-video"
 import { ClientLogo } from "@/components/brand/client-logo"
+import { HeroVideo } from "@/components/hero-video"
 import { REPO_URL } from "@/lib/site-links"
 
 /* Real MCP clients shown in the hero trust pill (brand logos, not dots). */
@@ -137,7 +137,7 @@ export default async function HomePage({
               {t("hero.cta_secondary")}
             </a>
 
-            <HeroVideo />
+            <HeroVideo locale={locale} />
           </div>
         </section>
 

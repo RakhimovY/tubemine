@@ -60,9 +60,9 @@
       "eyebrow": "v3 · public beta",
       "pill_aria": "Compatible AI assistants",
       "pill_prefix": "Works in",
-      "title_lead": "Pull and analyze any YouTube video comments, right",
+      "title_lead": "Pull any YouTube video comments, right",
       "title_accent": "inside your AI assistant",
-      "sub": "Paste a link, your AI returns sentiment, top words, emojis and the full thread.",
+      "sub": "Paste a link: TubeMine returns the raw thread, and your AI does the analysis",
       "cta_primary": "Connect your AI",
       "cta_secondary": "Or use the web app"
     },
@@ -74,7 +74,7 @@
       "tool": "get_youtube_comments()",
       "say_prefix": "Pulled",
       "say_count": "19,422",
-      "say_suffix": "comments. Here is the breakdown.",
+      "say_suffix": "raw comments. Now I can analyze them",
       "pay_count": "19,422",
       "pay_count_sub": "comments analyzed · 92% coverage",
       "pay_tag": "mostly positive",
@@ -83,22 +83,22 @@
     },
     "how": {
       "title": "From install to analysis in three steps",
-      "sub": "No new dashboard to learn. TubeMine plugs into the AI assistant you already use.",
+      "sub": "No new dashboard to learn. TubeMine plugs into the AI assistant you already use",
       "s1_title": "Add TubeMine to your AI client",
-      "s1_body": "Drop in an API key from your TubeMine account and you are connected in about a minute. One-click OAuth is coming soon.",
+      "s1_body": "Drop in an API key from your TubeMine account and you are connected in about a minute. One-click OAuth is coming soon",
       "s1_term_name": "claude · mcp",
       "s1_term_cmd": "claude mcp add TubeMine",
       "s1_term_connecting": "→ connecting to tubemine.tech",
       "s1_term_authed": "authorized with API key",
       "s1_term_tools": "1 tool registered",
       "s2_title": "Drop any YouTube URL in your chat",
-      "s2_body": "No copy-pasting comments, no exports, no tab-switching. Just ask, and your assistant calls TubeMine for you.",
+      "s2_body": "No copy-pasting comments, no exports, no tab-switching. Just ask, and your assistant calls TubeMine for you",
       "s2_user": "Analyze the comments on",
       "s2_url": "youtube.com/watch?v=k8Lq2",
       "s2_tool": "get_youtube_comments()",
-      "s2_ai": "Pulled 19,422 comments. Here is the breakdown.",
-      "s3_title": "Sentiment, top words, emojis, in seconds",
-      "s3_body": "TubeMine returns the raw comment thread. Your AI reasons over it and gives you the breakdown, using the model you already pay for.",
+      "s2_ai": "Pulled the raw comment thread. Now I can reason over it",
+      "s3_title": "Raw comments in. Your model reasons",
+      "s3_body": "TubeMine returns author, text, likes, replies, and timestamps. Your AI uses that raw thread to find sentiment, themes, requests, and follow-up angles",
       "s3_count": "19,422",
       "s3_count_unit": "comments",
       "s3_tag": "mostly positive"
@@ -106,7 +106,7 @@
     "webapp": {
       "eyebrow": "No AI assistant?",
       "title": "Prefer a dashboard? There is also a web app",
-      "sub": "Paste a link in your browser and get the same sentiment, top words and emoji breakdown, no MCP setup required.",
+      "sub": "Paste a link in your browser and get the same sentiment, top words and emoji breakdown, no MCP setup required",
       "link": "Open the web app"
     },
     "trust": {
@@ -118,7 +118,7 @@
     "demo": {
       "eyebrow": "02 · Live demo",
       "title": "Paste a URL. See your audience.",
-      "sub": "Try it with the example below, or paste your own video. No account needed up to 1,000 comments.",
+      "sub": "Try it with the example below, or paste your own video. No account needed up to 1,000 comments",
       "cta_exhausted_anon": "Sign in for 5,000 comments",
       "cta_exhausted_free": "Upgrade to Pro on dashboard",
       "sample_label_strong": "Sample.",
@@ -159,7 +159,7 @@
     "dashboard": {
       "eyebrow": "03 · Sign in",
       "title": "Sign in and TubeMine remembers your quota, history, and saves.",
-      "lede": "Every analysis you've ever run, one click away. Track usage against your monthly limit. Pin channels to revisit weekly. CSV ready when you need it.",
+      "lede": "Every analysis you've ever run, one click away. Track usage against your monthly limit. Pin channels to revisit weekly. CSV ready when you need it",
       "b1": "Quota meter that resets monthly",
       "b2": "Searchable history across every video you've analyzed",
       "b3": "CSV results, ready for your sheets and reports",
@@ -196,7 +196,7 @@
       "sentiment": {
         "eyebrow": "01 · Sentiment",
         "title": "See audience tone in seconds.",
-        "body": "Three numbers tell you what hours of scrolling never will: how much of the room loved it, how much shrugged, and how much pushed back. Russian is in experimental beta. English ships at 96% confidence.",
+        "body": "Three numbers tell you what hours of scrolling never will: how much of the room loved it, how much shrugged, and how much pushed back. Russian is in experimental beta. English ships at 96% confidence",
         "widget_title": "Sentiment",
         "widget_tag": "Russian · experimental",
         "analyzed_count": "19,422 comments analyzed",
@@ -205,19 +205,19 @@
         "legend_pos": "positive",
         "legend_neu": "neutral",
         "legend_neg": "negative",
-        "foot": "Free shows direction. Pro shows exact percentages, hour-of-day trends, and a heatmap."
+        "foot": "Free shows direction. Pro shows exact percentages, hour-of-day trends, and a heatmap"
       },
       "words": {
         "eyebrow": "02 · Top words",
         "title": "Find the words people actually use.",
-        "body": "Skip the guessing. TubeMine surfaces the exact vocabulary your audience reaches for: the praise, the questions, the friction. All ranked by frequency so the signal is obvious at a glance.",
+        "body": "Skip the guessing. TubeMine surfaces the exact vocabulary your audience reaches for: the praise, the questions, the friction. All ranked by frequency so the signal is obvious at a glance",
         "widget_title": "Top words",
         "widget_sub": "top 8 of 1,247"
       },
       "emoji": {
         "eyebrow": "03 · Emoji frequency",
         "title": "Spot the emoji of the moment.",
-        "body": "Emoji are punctuation now. The mix tells you whether your audience is hyped, moved, laughing, or quietly nodding. Top ten with percent share. Nothing fancy, exactly what you need.",
+        "body": "Emoji are punctuation now. The mix tells you whether your audience is hyped, moved, laughing, or quietly nodding. Top ten with percent share. Nothing fancy, exactly what you need",
         "widget_title": "Emoji frequency",
         "widget_sub": "top 10"
       }
@@ -225,13 +225,13 @@
     "pricing": {
       "eyebrow": "04 · Pricing",
       "title": "Simple. Free until you need more.",
-      "sub": "No tiers, no add-ons, no surprises. Free does 5,000 comments a month. Pro does 20× that.",
+      "sub": "No tiers, no add-ons, no surprises. Free does 5,000 comments a month. Pro does 20x that",
       "free": {
         "name": "Free",
         "badge": "forever",
         "price": "$0",
         "unit": "/ month",
-        "tagline": "For trying it out, sharing a one-off, or running personal analyses.",
+        "tagline": "For trying it out, sharing a one-off, or running personal analyses",
         "b1": "5,000 comments per month",
         "b2": "Sentiment direction (qualitative)",
         "b3": "Top 15 words + top 15 emoji",
@@ -244,14 +244,14 @@
         "badge": "Most popular",
         "price": "$19",
         "unit": "/ month",
-        "tagline": "For researchers, creators, and teams analyzing more than a handful of videos a month.",
+        "tagline": "For researchers, creators, and teams analyzing more than a handful of videos a month",
         "b1": "100,000 comments per month",
         "b2": "Exact sentiment % + trends",
         "b3": "All words and emoji ranked + heatmap",
         "b4": "CSV, JSON, Excel export (API coming soon)",
         "b5": "Last 100 analyses saved",
         "cta": "Start 3-day free trial",
-        "foot": "Cancel anytime via customer portal."
+        "foot": "Cancel anytime via customer portal"
       },
       "see_full": "See full pricing & comparison →"
     },
@@ -284,7 +284,7 @@
     },
     "final_cta": {
       "title": "Try TubeMine now.",
-      "sub": "Paste any public YouTube URL. Get sentiment, top words, and emoji frequency in seconds. Free up to 5,000 comments per month.",
+      "sub": "Paste any public YouTube URL. Get sentiment, top words, and emoji frequency in seconds. Free up to 5,000 comments per month",
       "cta": "Analyze a video"
     },
     "footer": {
