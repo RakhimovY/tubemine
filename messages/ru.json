@@ -53,7 +53,8 @@
       "open_menu": "Открыть меню",
       "close_menu": "Закрыть меню",
       "language_label": "Язык",
-      "github_label": "Репозиторий GitHub"
+      "github_label": "Репозиторий GitHub",
+      "nav_mcp": "MCP"
     },
     "hero": {
       "eyebrow": "v3 · публичная бета",
@@ -727,6 +728,10 @@
         "p1_link_github": "GitHub",
         "p1_tail": ".",
         "p2": "Контрибьюции приветствуются: форкните репозиторий, создайте feature-ветку, откройте pull request в main с понятным описанием. Локальная настройка описана в разделе Contributing в README."
+      },
+      "mcp": {
+        "toc_label": "MCP / AI-доступ",
+        "title": "Комментарии в ваш AI-ассистент (MCP)"
       }
     }
   },
@@ -1112,7 +1117,8 @@
       "trouble_handlers_term": "Отсутствуют обработчики GET, POST или DELETE",
       "trouble_handlers_text": "Это значит, что клиент обратился не к тому адресу. Убедитесь, что URL сервера ровно https://tubemine.tech/mcp, без хвостового пути, и используется HTTP-транспорт.",
       "trouble_contact_prefix": "Не помогло? Напишите на",
-      "trouble_contact_tail": "с указанием клиента и ошибки, и мы поможем."
+      "trouble_contact_tail": "с указанием клиента и ошибки, и мы поможем.",
+      "summary_full_link": "Полный гайд по подключению клиентов"
     }
   },
   "history_detail": {

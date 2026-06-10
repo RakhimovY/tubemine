@@ -16,6 +16,7 @@ type Labels = {
   features: string
   pricing: string
   docs: string
+  mcp: string
   changelog: string
   getStarted: string
   dashboard: string
@@ -192,6 +193,13 @@ export function SiteHeaderClient({
               {labels.docs}
             </Link>
             <Link
+              href="/mcp-docs"
+              className={linkClass("/mcp-docs")}
+              aria-current={linkAria("/mcp-docs")}
+            >
+              {labels.mcp}
+            </Link>
+            <Link
               href="/changelog"
               className={linkClass("/changelog")}
               aria-current={linkAria("/changelog")}
@@ -342,6 +350,14 @@ export function SiteHeaderClient({
             onClick={closeDrawer}
           >
             {labels.docs}
+          </Link>
+          <Link
+            href="/mcp-docs"
+            className={drawerLinkClass("/mcp-docs")}
+            aria-current={linkAria("/mcp-docs")}
+            onClick={closeDrawer}
+          >
+            {labels.mcp}
           </Link>
           <Link
             href="/changelog"

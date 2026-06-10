@@ -2,6 +2,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server"
 import { Link as IntlLink } from "@/i18n/navigation"
 import { LegalToc } from "@/components/legal-toc"
 import { SiteFooter } from "@/components/site-footer"
+import { McpSetupSummary } from "@/components/mcp/mcp-setup-summary"
 import { REPO_URL } from "@/lib/site-links"
 import { breadcrumbSchema, seoAlternates } from "@/lib/seo-alternates"
 
@@ -54,8 +55,15 @@ export default async function DocsPage({
       ),
     },
     {
-      id: "quickstart",
+      id: "mcp",
       num: "02",
+      tocLabel: t("sections.mcp.toc_label"),
+      title: t("sections.mcp.title"),
+      body: <McpSetupSummary locale={locale} />,
+    },
+    {
+      id: "quickstart",
+      num: "03",
       tocLabel: t("sections.quickstart.toc_label"),
       title: t("sections.quickstart.title"),
       body: (
@@ -87,7 +95,7 @@ export default async function DocsPage({
     },
     {
       id: "signin",
-      num: "03",
+      num: "04",
       tocLabel: t("sections.signin.toc_label"),
       title: t("sections.signin.title"),
       body: (
@@ -117,7 +125,7 @@ export default async function DocsPage({
     },
     {
       id: "pro",
-      num: "04",
+      num: "05",
       tocLabel: t("sections.pro.toc_label"),
       title: t("sections.pro.title"),
       body: (
@@ -154,7 +162,7 @@ export default async function DocsPage({
     },
     {
       id: "formats",
-      num: "05",
+      num: "06",
       tocLabel: t("sections.formats.toc_label"),
       title: t("sections.formats.title"),
       body: (
@@ -181,7 +189,7 @@ export default async function DocsPage({
     },
     {
       id: "limits",
-      num: "06",
+      num: "07",
       tocLabel: t("sections.limits.toc_label"),
       title: t("sections.limits.title"),
       body: (
@@ -207,7 +215,7 @@ export default async function DocsPage({
     },
     {
       id: "troubleshoot",
-      num: "07",
+      num: "08",
       tocLabel: t("sections.troubleshoot.toc_label"),
       title: t("sections.troubleshoot.title"),
       body: (
@@ -248,7 +256,7 @@ export default async function DocsPage({
     },
     {
       id: "opensource",
-      num: "08",
+      num: "09",
       tocLabel: t("sections.opensource.toc_label"),
       title: t("sections.opensource.title"),
       body: (
