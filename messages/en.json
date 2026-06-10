@@ -53,7 +53,8 @@
       "open_menu": "Open menu",
       "close_menu": "Close menu",
       "language_label": "Language",
-      "github_label": "GitHub repository"
+      "github_label": "GitHub repository",
+      "nav_mcp": "MCP"
     },
     "hero": {
       "eyebrow": "v3 · public beta",
@@ -727,6 +728,10 @@
         "p1_link_github": "GitHub",
         "p1_tail": ".",
         "p2": "Contributions are welcome: fork the repo, create a feature branch, open a pull request against main with a clear description. See the README Contributing section for the local dev setup."
+      },
+      "mcp": {
+        "toc_label": "MCP / AI access",
+        "title": "Pull comments into your AI assistant (MCP)"
       }
     }
   },
@@ -1112,7 +1117,8 @@
       "trouble_handlers_term": "Missing GET, POST, or DELETE handlers",
       "trouble_handlers_text": "This means the client reached the wrong endpoint. Confirm the server URL is exactly https://tubemine.tech/mcp, with no trailing path, and use the HTTP transport.",
       "trouble_contact_prefix": "Stuck after all that? Email",
-      "trouble_contact_tail": "with your client and the error and we will help."
+      "trouble_contact_tail": "with your client and the error and we will help.",
+      "summary_full_link": "See the full per-client setup guide"
     }
   },
   "history_detail": {

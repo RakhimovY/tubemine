@@ -45,6 +45,9 @@ export async function SiteFooter() {
                 <IntlLink href="/docs">{t("header.nav_docs")}</IntlLink>
               </li>
               <li>
+                <IntlLink href="/mcp-docs">{t("header.nav_mcp")}</IntlLink>
+              </li>
+              <li>
                 <a href={REPO_URL} target="_blank" rel="noopener noreferrer">
                   GitHub
                 </a>

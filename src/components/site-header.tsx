@@ -22,6 +22,7 @@ export async function SiteHeader() {
         features: t("header.nav_features"),
         pricing: t("header.nav_pricing"),
         docs: t("header.nav_docs"),
+        mcp: t("header.nav_mcp"),
         changelog: t("header.nav_changelog"),
         getStarted: t("header.cta_get_started"),
         dashboard: t("header.cta_dashboard"),
