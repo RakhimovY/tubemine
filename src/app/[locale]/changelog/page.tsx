@@ -3,7 +3,7 @@ import { LegalToc } from "@/components/legal-toc"
 import { SiteFooter } from "@/components/site-footer"
 import { breadcrumbSchema, seoAlternates } from "@/lib/seo-alternates"
 
-const LAST_UPDATED = "May 21, 2026"
+const LAST_UPDATED = "June 10, 2026"
 
 export const dynamic = "force-static"
 
@@ -42,8 +42,44 @@ export default async function ChangelogPage({
 
   const releases = [
     {
-      id: "r-2026-05-21",
+      id: "r-2026-06-10",
       num: "01",
+      date: "2026-06-10",
+      body: (
+        <>
+          {/* SRC: TUB-50 MCP server + v3 design port. PR #7, #8. */}
+          <h3>Added</h3>
+          <ul>
+            <li>
+              TubeMine MCP server. Connect your AI assistant (Claude Code,
+              ChatGPT, Cursor, Codex, Gemini CLI, Claude Desktop, Hermes, or
+              OpenClaw) and pull any YouTube video&apos;s comments straight into
+              your chat with one tool, <code>get_youtube_comments</code>. Your AI
+              does the analysis on the raw thread it returns (TUB-50).
+            </li>
+            <li>
+              New <code>/ai-access</code> page to create, copy, and revoke API
+              keys, with one-click ready setup commands for each client.
+            </li>
+            <li>
+              MCP setup docs at <code>/mcp-docs</code> with per-client connection
+              guides.
+            </li>
+          </ul>
+          <h3>Changed</h3>
+          <ul>
+            <li>
+              Landing, pricing, and metadata repositioned around the MCP
+              integration. The web analytics app stays as the no-setup option.
+            </li>
+            <li>Full v3 design refresh applied across the remaining pages.</li>
+          </ul>
+        </>
+      ),
+    },
+    {
+      id: "r-2026-05-21",
+      num: "02",
       date: "2026-05-21",
       body: (
         <>
@@ -118,7 +154,7 @@ export default async function ChangelogPage({
     },
     {
       id: "r-2026-05-20",
-      num: "02",
+      num: "03",
       date: "2026-05-20",
       body: (
         <>
@@ -157,7 +193,7 @@ export default async function ChangelogPage({
     },
     {
       id: "r-2026-05-19",
-      num: "03",
+      num: "04",
       date: "2026-05-19",
       body: (
         <>
@@ -189,7 +225,7 @@ export default async function ChangelogPage({
     },
     {
       id: "r-2026-05-17",
-      num: "04",
+      num: "05",
       date: "2026-05-17",
       body: (
         <>
@@ -210,7 +246,7 @@ export default async function ChangelogPage({
     },
     {
       id: "r-2026-05-15",
-      num: "05",
+      num: "06",
       date: "2026-05-15",
       body: (
         <>
