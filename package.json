@@ -10,6 +10,9 @@
     "start": "next start",
     "lint": "eslint",
     "i18n:check": "node scripts/check-message-parity.mjs",
+    "video:voiceover": "node scripts/generate-hero-voiceover.mjs",
+    "video:render:hero": "remotion render src/remotion/index.tsx tubemine-hero public/videos/tubemine-hero-demo.mp4 --codec=h264 --crf=20",
+    "video:poster:hero": "remotion still src/remotion/index.tsx tubemine-hero public/videos/tubemine-hero-poster.png --frame=780",
     "test": "NODE_ENV=test vitest run",
     "test:watch": "NODE_ENV=test vitest",
     "test:ui": "NODE_ENV=test vitest --ui",
@@ -49,6 +52,8 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@remotion/cli": "^4.0.474",
+    "@remotion/media": "^4.0.474",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
@@ -62,6 +67,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "jsdom": "^29.1.1",
+    "remotion": "^4.0.474",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.6"

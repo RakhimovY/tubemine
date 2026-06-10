@@ -606,6 +606,53 @@ html {
 .tm-design .hv-emoji { display: flex; gap: var(--space-4); font-size: 19px; }
 .tm-design .hv-emoji span { opacity: 0.92; }
 
+/* ===== Hero product video ===== */
+.tm-design .hero-video-frame {
+  position: relative;
+  z-index: 1;
+  margin: clamp(40px, 5vw, 64px) auto 0;
+  width: min(100%, 1040px);
+  aspect-ratio: 16 / 9;
+  border-radius: 18px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #131316, var(--color-surface-raised));
+  border: 1px solid var(--color-border-strong);
+  box-shadow: 0 50px 130px -45px rgba(0,0,0,0.95), 0 0 0 1px rgba(255,255,255,0.02) inset;
+}
+.tm-design .hero-video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: var(--color-surface-raised);
+}
+.tm-design .hero-video-sound {
+  position: absolute;
+  right: var(--space-5);
+  bottom: var(--space-5);
+  width: 42px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background: rgba(10,10,12,0.76);
+  color: var(--color-text-secondary);
+  backdrop-filter: blur(14px);
+  transition: color var(--motion-duration-fast) var(--motion-ease), background var(--motion-duration-fast) var(--motion-ease), border-color var(--motion-duration-fast) var(--motion-ease);
+}
+.tm-design .hero-video-sound:hover {
+  color: var(--color-text-primary);
+  background: rgba(15,15,17,0.92);
+  border-color: var(--color-border-focus);
+}
+.tm-design .hero-video-sound:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(245,245,247,0.18);
+}
+.tm-design .hero-video-sound svg { width: 18px; height: 18px; }
+
 /* ===== Trust row ===== */
 .tm-design .trust { padding: var(--space-7) 0 var(--space-8); border-top: 1px solid var(--color-border-subtle); border-bottom: 1px solid var(--color-border-subtle); }
 .tm-design .trust-row { display: flex; flex-wrap: wrap; gap: var(--space-6); justify-content: center; align-items: center; color: var(--color-text-tertiary); font-size: var(--font-size-xs); font-family: var(--font-family-mono); }

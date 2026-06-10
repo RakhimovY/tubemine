@@ -1,0 +1,517 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Prototype flows · TubeMine v3</title>
+<meta name="description" content="Walk through the 7 user flows from the TubeMine v3 PRD." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --font-family-primary: "SF Pro Display", -apple-system, system-ui, "Inter", "Segoe UI", sans-serif;
+  --font-family-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --font-size-xs: 12px; --font-size-sm: 13px; --font-size-md: 14px;
+  --font-size-lg: 15px; --font-size-2xl: 17px; --font-size-3xl: 18px;
+  --font-weight-base: 400; --font-weight-medium: 500; --font-weight-semibold: 600;
+  --color-surface-base: #000000;
+  --color-surface-raised: #0f0f11;
+  --color-surface-muted: #ffffff;
+  --color-text-primary: #f5f5f7;
+  --color-text-secondary: #b9b9c0;
+  --color-text-tertiary: #7a7a82;
+  --color-text-inverse: #0a0a0c;
+  --color-border-subtle: rgba(245, 245, 247, 0.08);
+  --color-border-strong: rgba(245, 245, 247, 0.16);
+  --color-border-focus: rgba(245, 245, 247, 0.55);
+  --color-feedback-success: rgba(52, 211, 153, 0.8);
+  --color-feedback-danger: rgba(251, 113, 133, 0.8);
+  --space-1: 4px; --space-2: 6px; --space-3: 8px; --space-4: 10px;
+  --space-5: 12px; --space-6: 16px; --space-7: 20px; --space-8: 24px;
+  --radius-xs: 6px; --radius-sm: 8px; --radius-md: 14px; --radius-lg: 9999px;
+  --motion-duration-fast: 150ms; --motion-duration-normal: 200ms;
+  --motion-ease: cubic-bezier(0.2, 0, 0, 1);
+}
+*,*::before,*::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  background: var(--color-surface-base);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-primary);
+  font-size: var(--font-size-md);
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
+}
+a { color: inherit; text-decoration: none; }
+::selection { background: rgba(245,245,247,0.18); }
+
+.container { width: 100%; max-width: 980px; margin: 0 auto; padding: 0 var(--space-6); }
+@media (min-width: 768px) { .container { padding: 0 var(--space-8); } }
+
+.icon { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.icon-sm { width: 14px; height: 14px; }
+
+/* Topbar */
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--space-6) 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+.brand { display: inline-flex; align-items: center; gap: var(--space-3); font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); letter-spacing: -0.01em; }
+.brand-mark {
+  width: 24px; height: 24px; border-radius: var(--radius-xs);
+  background: linear-gradient(135deg, #18181b 0%, #2a2a2e 100%);
+  position: relative; box-shadow: inset 0 0 0 1px var(--color-border-subtle);
+}
+.brand-mark::after {
+  content: ""; position: absolute; inset: 0; margin: auto;
+  width: 0; height: 0; transform: translateX(1px);
+  border-left: 7px solid rgba(245,245,247,0.95);
+  border-top: 5px solid transparent; border-bottom: 5px solid transparent;
+}
+.crumb { color: var(--color-text-tertiary); font-size: var(--font-size-sm); font-weight: var(--font-weight-base); margin-left: var(--space-3); }
+.topbar-meta { color: var(--color-text-tertiary); font-size: var(--font-size-xs); font-family: var(--font-family-mono); display: inline-flex; align-items: center; gap: var(--space-3); }
+.topbar-meta::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--color-feedback-success); display: inline-block; }
+
+/* Hero */
+.hero { padding: clamp(48px, 9vw, 88px) 0 var(--space-8); }
+.hero h1 { font-size: clamp(32px, 5vw, 44px); letter-spacing: -0.03em; font-weight: var(--font-weight-semibold); margin: 0 0 var(--space-5); text-wrap: balance; line-height: 1.1; }
+.hero p { color: var(--color-text-secondary); font-size: var(--font-size-2xl); max-width: 60ch; margin: 0; line-height: 1.55; }
+.hero-meta { display: flex; flex-wrap: wrap; gap: var(--space-6); margin-top: var(--space-7); color: var(--color-text-tertiary); font-size: var(--font-size-xs); font-family: var(--font-family-mono); }
+
+/* Page nav strip */
+.page-nav {
+  display: flex; flex-wrap: wrap; gap: var(--space-3);
+  padding: var(--space-6) 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+  font-family: var(--font-family-mono); font-size: 11px;
+}
+.page-nav .label { color: var(--color-text-tertiary); margin-right: var(--space-3); align-self: center; }
+.page-nav a {
+  padding: 4px 10px; border-radius: var(--radius-xs);
+  border: 1px solid var(--color-border-subtle);
+  color: var(--color-text-secondary);
+  transition: color var(--motion-duration-fast) var(--motion-ease), background var(--motion-duration-fast) var(--motion-ease), border-color var(--motion-duration-fast) var(--motion-ease);
+}
+.page-nav a:hover { color: var(--color-text-primary); background: rgba(245,245,247,0.04); border-color: var(--color-border-strong); }
+
+/* Flows */
+.flows { padding: clamp(40px, 6vw, 64px) 0 calc(var(--space-8) * 4); display: grid; gap: var(--space-7); }
+.flow {
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  padding: clamp(24px, 4vw, 32px);
+  display: grid; gap: var(--space-6);
+}
+.flow-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-5); flex-wrap: wrap; }
+.flow-num {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+  letter-spacing: 0.08em;
+}
+.flow-title {
+  font-size: clamp(20px, 3vw, 24px);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -0.015em;
+  margin: 6px 0 0;
+}
+.flow-tag {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  font-family: var(--font-family-mono); font-size: 11px;
+  color: var(--color-text-secondary);
+}
+.flow-tag .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--color-text-tertiary); display: inline-block; }
+.flow-tag.anon { color: var(--color-text-secondary); }
+.flow-tag.free { color: var(--color-text-primary); }
+.flow-tag.free .dot { background: var(--color-text-primary); }
+.flow-tag.pro { color: var(--color-feedback-success); }
+.flow-tag.pro .dot { background: var(--color-feedback-success); }
+.flow-tag.danger { color: var(--color-feedback-danger); }
+.flow-tag.danger .dot { background: var(--color-feedback-danger); }
+
+.flow-steps {
+  list-style: none; padding: 0; margin: 0;
+  display: grid; gap: var(--space-3);
+  counter-reset: flowstep;
+}
+.flow-steps li {
+  counter-increment: flowstep;
+  display: grid; grid-template-columns: 24px 1fr;
+  gap: var(--space-4);
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+}
+.flow-steps li::before {
+  content: counter(flowstep);
+  font-family: var(--font-family-mono);
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  background: rgba(245,245,247,0.04);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-xs);
+  width: 22px; height: 22px;
+  display: inline-flex; align-items: center; justify-content: center;
+  margin-top: 1px;
+}
+.flow-steps strong { color: var(--color-text-primary); font-weight: var(--font-weight-medium); }
+.flow-steps a { color: var(--color-text-primary); text-decoration: underline; text-decoration-color: var(--color-border-strong); text-underline-offset: 2px; }
+.flow-steps a:hover { text-decoration-color: var(--color-text-primary); }
+.flow-steps code { font-family: var(--font-family-mono); font-size: 12px; padding: 2px 6px; border-radius: 4px; background: rgba(245,245,247,0.06); color: var(--color-text-primary); }
+
+.flow-cta { display: flex; gap: var(--space-4); flex-wrap: wrap; align-items: center; }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--space-3);
+  height: 36px; padding: 0 var(--space-6); border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border-strong);
+  background: transparent; color: var(--color-text-primary);
+  font: inherit; font-size: var(--font-size-md); font-weight: var(--font-weight-medium); letter-spacing: -0.005em;
+  cursor: pointer; user-select: none; min-height: 44px; white-space: nowrap;
+  transition: background-color var(--motion-duration-fast) var(--motion-ease), border-color var(--motion-duration-fast) var(--motion-ease), color var(--motion-duration-fast) var(--motion-ease), box-shadow var(--motion-duration-fast) var(--motion-ease);
+}
+@media (min-width: 720px) { .btn { min-height: 36px; } }
+.btn:hover { background: rgba(245,245,247,0.06); }
+.btn:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(245,245,247,0.18); border-color: var(--color-border-focus); }
+.btn--primary { background: var(--color-surface-muted); color: var(--color-text-inverse); border-color: var(--color-surface-muted); }
+.btn--primary:hover { background: #ececef; }
+.btn--ghost { border-color: transparent; color: var(--color-text-secondary); }
+.btn--ghost:hover { color: var(--color-text-primary); }
+
+.footnote {
+  margin-top: var(--space-8);
+  padding-top: var(--space-7);
+  border-top: 1px solid var(--color-border-subtle);
+  display: flex; flex-wrap: wrap; gap: var(--space-5); justify-content: space-between;
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-xs);
+  font-family: var(--font-family-mono);
+}
+.footnote a:hover { color: var(--color-text-secondary); }
+
+/* ===== LocaleSwitcher (header) ===== */
+.locale-switcher { position: relative; display: inline-flex; }
+.locale-trigger {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  height: 30px; min-height: 36px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border-subtle);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit; font-size: var(--font-size-xs);
+  font-family: var(--font-family-mono);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color var(--motion-duration-fast) var(--motion-ease), background-color var(--motion-duration-fast) var(--motion-ease), border-color var(--motion-duration-fast) var(--motion-ease);
+}
+@media (min-width: 720px) { .locale-trigger { min-height: 30px; } }
+.locale-trigger:hover { color: var(--color-text-primary); background: rgba(245,245,247,0.06); border-color: var(--color-border-strong); }
+.locale-trigger:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-border-focus); }
+.locale-trigger .arrow { transition: transform var(--motion-duration-fast) var(--motion-ease); color: var(--color-text-tertiary); }
+.locale-switcher.is-open .locale-trigger { color: var(--color-text-primary); background: rgba(245,245,247,0.08); border-color: var(--color-border-strong); }
+.locale-switcher.is-open .locale-trigger .arrow { transform: rotate(180deg); color: var(--color-text-primary); }
+
+.locale-menu {
+  position: absolute; top: calc(100% + 6px); right: 0;
+  list-style: none; padding: 4px; margin: 0;
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-1);
+  min-width: 180px;
+  display: none;
+  z-index: 60;
+}
+.locale-switcher.is-open .locale-menu { display: block; }
+.locale-menu li { margin: 0; padding: 0; list-style: none; }
+.locale-menu button {
+  display: flex; align-items: center; gap: var(--space-4);
+  width: 100%;
+  background: transparent; border: 0;
+  padding: var(--space-3) var(--space-5);
+  color: var(--color-text-secondary);
+  font: inherit; font-size: var(--font-size-sm);
+  text-align: left; cursor: pointer;
+  border-radius: var(--radius-xs);
+  min-height: 36px;
+  transition: color var(--motion-duration-fast) var(--motion-ease), background-color var(--motion-duration-fast) var(--motion-ease);
+}
+.locale-menu button:hover { color: var(--color-text-primary); background: rgba(245,245,247,0.06); }
+.locale-menu button:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--color-border-focus); }
+.locale-menu button .code { font-family: var(--font-family-mono); font-size: var(--font-size-xs); color: var(--color-text-tertiary); width: 26px; letter-spacing: 0.06em; }
+.locale-menu button[aria-selected="true"] { color: var(--color-text-primary); }
+.locale-menu button[aria-selected="true"] .code { color: var(--color-text-primary); }
+.locale-menu button .check { margin-left: auto; opacity: 0; color: var(--color-text-secondary); flex-shrink: 0; }
+.locale-menu button[aria-selected="true"] .check { opacity: 1; }
+@media (max-width: 539px) {
+  .locale-menu { right: auto; left: 0; min-width: 160px; }
+}
+
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></symbol>
+  </defs>
+</svg>
+
+<div class="container">
+
+  <header class="topbar">
+    <a href="TubeMine Landing.html" class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <span>TubeMine</span>
+      <span class="crumb">/ prototype flows</span>
+    </a>
+    <div class="locale-switcher" data-locale-switcher>
+  <button type="button" class="locale-trigger" aria-haspopup="listbox" aria-expanded="false" aria-label="Language">
+    <span class="locale-current">EN</span>
+    <svg class="icon icon-sm arrow" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+  </button>
+  <ul class="locale-menu" role="listbox" aria-label="Language">
+    <li><button type="button" role="option" data-locale="en" aria-selected="true"><span class="code">EN</span><span class="label">English</span><svg class="icon icon-sm check" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 12 5 5L20 6"/></svg></button></li>
+    <li><button type="button" role="option" data-locale="ru" aria-selected="false"><span class="code">RU</span><span class="label">Русский</span><svg class="icon icon-sm check" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m4 12 5 5L20 6"/></svg></button></li>
+  </ul>
+</div>
+    <span class="topbar-meta">v3.0 · 7 flows</span>
+  </header>
+
+  <section class="hero">
+    <h1>7 user flows. Click any flow to walk through it.</h1>
+    <p>Every "simulate" step (Google sign-in, Polar checkout, Polar customer portal) is wired as a direct navigation with the right URL params, so the next page lands in the correct state without real auth.</p>
+    <div class="hero-meta">
+      <span>tubemine.vercel.app</span>
+      <span>·</span>
+      <span>dark theme only</span>
+      <span>·</span>
+      <span>mobile-first</span>
+    </div>
+  </section>
+
+  <nav class="page-nav" aria-label="Pages in the prototype">
+    <span class="label">Open a page directly:</span>
+    <a href="TubeMine Landing.html">Landing</a>
+    <a href="TubeMine Dashboard.html">Dashboard</a>
+    <a href="TubeMine Profile.html">Profile</a>
+    <a href="TubeMine Pricing.html">Pricing</a>
+    <a href="TubeMine Privacy.html">Privacy</a>
+    <a href="TubeMine Terms.html">Terms</a>
+    <a href="TubeMine Login.html">Login</a>
+    <a href="TubeMine Design System.html">Design system</a>
+  </nav>
+
+  <main class="flows">
+
+    <!-- Flow 1 -->
+    <article class="flow" id="flow-1">
+      <header class="flow-head">
+        <div>
+          <span class="flow-num">Flow 01</span>
+          <h2 class="flow-title">Anonymous first analysis</h2>
+        </div>
+        <span class="flow-tag anon"><span class="dot"></span>anon</span>
+      </header>
+      <ol class="flow-steps">
+        <li>Land on <code>/</code>.</li>
+        <li>Click <strong>Analyze a video</strong> in the hero. Page smooth-scrolls to the live demo.</li>
+        <li>The demo URL is pre-filled. Click <strong>Analyze comments</strong>.</li>
+        <li>Sentiment, top words, emoji, and comments table render with the example video's data.</li>
+        <li>The "Sign in to save this analysis" link at the bottom of the comments table routes to <code>/login</code>.</li>
+      </ol>
+      <div class="flow-cta">
+        <a href="TubeMine Landing.html" class="btn btn--primary">Start flow<svg class="icon icon-sm"><use href="#i-arrow-right"/></svg></a>
+        <a href="TubeMine Landing.html#demo" class="btn btn--ghost">Jump to demo</a>
+      </div>
+    </article>
+
+    <!-- Flow 2 -->
+    <article class="flow" id="flow-2">
+      <header class="flow-head">
+        <div>
+          <span class="flow-num">Flow 02</span>
+          <h2 class="flow-title">Anonymous to signed in</h2>
+        </div>
+        <span class="flow-tag anon"><span class="dot"></span>anon</span>
+      </header>
+      <ol class="flow-steps">
+        <li>From any page click <strong>Sign in</strong> in the top nav.</li>
+        <li>Land on <code>/login</code>. The Google button is the only action.</li>
+        <li>Click <strong>Sign in with Google</strong>. Spinner shows briefly to indicate the OAuth redirect.</li>
+        <li>Land on <code>/dashboard?welcome=true</code>. The welcome pulse appears for ~5s then dismisses automatically.</li>
+      </ol>
+      <div class="flow-cta">
+        <a href="TubeMine Login.html" class="btn btn--primary">Start flow<svg class="icon icon-sm"><use href="#i-arrow-right"/></svg></a>
+        <a href="TubeMine Dashboard.html?welcome=true" class="btn btn--ghost">Skip to landing state</a>
+      </div>
+    </article>
+
+    <!-- Flow 3 -->
+    <article class="flow" id="flow-3">
+      <header class="flow-head">
+        <div>
+          <span class="flow-num">Flow 03</span>
+          <h2 class="flow-title">Free to upgrade</h2>
+        </div>
+        <span class="flow-tag free"><span class="dot"></span>free</span>
+      </header>
+      <ol class="flow-steps">
+        <li>Land on <code>/dashboard</code> as a Free user, or open <code>/pricing</code>.</li>
+        <li>Click <strong>Upgrade to Pro</strong>. In production this would redirect to Polar checkout.</li>
+        <li>Return to <code>/dashboard?welcome=true&amp;tier=pro</code>. Welcome pulse confirms the upgrade.</li>
+        <li>Pro state is reflected everywhere: tier badge, monthly cap, manage subscription card on profile.</li>
+      </ol>
+      <div class="flow-cta">
+        <a href="TubeMine Dashboard.html" class="btn btn--primary">Start from dashboard<svg class="icon icon-sm"><use href="#i-arrow-right"/></svg></a>
+        <a href="TubeMine Pricing.html" class="btn btn--ghost">Start from pricing</a>
+      </div>
+    </article>
+
+    <!-- Flow 4 -->
+    <article class="flow" id="flow-4">
+      <header class="flow-head">
+        <div>
+          <span class="flow-num">Flow 04</span>
+          <h2 class="flow-title">Free quota hit on the dashboard</h2>
+        </div>
+        <span class="flow-tag danger"><span class="dot"></span>cap-hit</span>
+      </header>
+      <ol class="flow-steps">
+        <li>Open <code>/dashboard?quota=capped</code>. The usage card flips to destructive style with an inline error.</li>
+        <li>Try to submit the Quick analyze form. The form blocks with a cap-hit error pointing to <code>/pricing</code>.</li>
+        <li>Click <strong>Upgrade to Pro</strong>. Lands on <code>/pricing</code>.</li>
+      </ol>
+      <div class="flow-cta">
+        <a href="TubeMine Dashboard.html?quota=capped" class="btn btn--primary">Start flow<svg class="icon icon-sm"><use href="#i-arrow-right"/></svg></a>
+      </div>
+    </article>
+
+    <!-- Flow 5 -->
+    <article class="flow" id="flow-5">
+      <header class="flow-head">
+        <div>
+          <span class="flow-num">Flow 05</span>
+          <h2 class="flow-title">Anonymous quota hit on the landing demo</h2>
+        </div>
+        <span class="flow-tag danger"><span class="dot"></span>cap-hit</span>
+      </header>
+      <ol class="flow-steps">
+        <li>Open <code>/?demo=capped</code>. The live demo swaps the results card for a cap-hit notice.</li>
+        <li>The notice explains the 1,000-comments-per-month anonymous cap and offers <strong>Sign up free for 5x more</strong>.</li>
+        <li>Click <strong>Sign up free</strong>. Routes to <code>/login</code>.</li>
+      </ol>
+      <div class="flow-cta">
+        <a href="TubeMine Landing.html?demo=capped#demo" class="btn btn--primary">Start flow<svg class="icon icon-sm"><use href="#i-arrow-right"/></svg></a>
+      </div>
+    </article>
+
+    <!-- Flow 6 -->
+    <article class="flow" id="flow-6">
+      <header class="flow-head">
+        <div>
+          <span class="flow-num">Flow 06</span>
+          <h2 class="flow-title">Pro cancellation</h2>
+        </div>
+        <span class="flow-tag pro"><span class="dot"></span>pro</span>
+      </header>
+      <ol class="flow-steps">
+        <li>Open <code>/profile?tier=pro</code> to land in the Pro state.</li>
+        <li>Click <strong>Manage subscription</strong> in the Billing section. In production this would open the Polar customer portal.</li>
+        <li>Return to <code>/profile?canceled=true</code>. A toast confirms the cancellation. The Plan card shows <em>subscription ends Jun 18, 2026</em>.</li>
+      </ol>
+      <div class="flow-cta">
+        <a href="TubeMine Profile.html?tier=pro" class="btn btn--primary">Start flow<svg class="icon icon-sm"><use href="#i-arrow-right"/></svg></a>
+        <a href="TubeMine Profile.html?canceled=true" class="btn btn--ghost">Skip to cancellation state</a>
+      </div>
+    </article>
+
+    <!-- Flow 7 -->
+    <article class="flow" id="flow-7">
+      <header class="flow-head">
+        <div>
+          <span class="flow-num">Flow 07</span>
+          <h2 class="flow-title">Pro revoked at period end</h2>
+        </div>
+        <span class="flow-tag pro"><span class="dot"></span>pro to free</span>
+      </header>
+      <ol class="flow-steps">
+        <li>Land on <code>/profile?canceled=true</code> after a cancellation (continuing from flow 6).</li>
+        <li>In production, when Polar fires <code>period_end</code>, tier flips Pro to Free automatically. In this prototype, use the design preview panel's <strong>Tier</strong> toggle on profile to set Tier to Free.</li>
+        <li>Open <code>/dashboard</code>. The Free badge, 5,000-comment cap, and "Upgrade to Pro" card all appear.</li>
+      </ol>
+      <div class="flow-cta">
+        <a href="TubeMine Profile.html?canceled=true" class="btn btn--primary">Start flow<svg class="icon icon-sm"><use href="#i-arrow-right"/></svg></a>
+        <a href="TubeMine Dashboard.html?tier=free" class="btn btn--ghost">Skip to Free dashboard</a>
+      </div>
+    </article>
+
+    <div class="footnote">
+      <span>Every flow can also be walked through the Design preview panel on each page.</span>
+      <a href="TubeMine Landing.html">Back to landing</a>
+    </div>
+  </main>
+
+</div>
+
+
+<script>
+(function () {
+  document.querySelectorAll('[data-locale-switcher]').forEach(function (sw) {
+    var trigger = sw.querySelector('.locale-trigger');
+    var menu = sw.querySelector('.locale-menu');
+    var options = sw.querySelectorAll('.locale-menu [role="option"]');
+    var current = sw.querySelector('.locale-current');
+
+    function setOpen(open) {
+      sw.classList.toggle('is-open', open);
+      trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+
+    trigger.addEventListener('click', function (e) {
+      e.stopPropagation();
+      setOpen(!sw.classList.contains('is-open'));
+    });
+
+    options.forEach(function (opt) {
+      opt.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var locale = opt.getAttribute('data-locale');
+        options.forEach(function (o) {
+          o.setAttribute('aria-selected', o === opt ? 'true' : 'false');
+        });
+        if (current) current.textContent = locale.toUpperCase();
+        try { document.documentElement.setAttribute('lang', locale); } catch (e2) {}
+        setOpen(false);
+      });
+    });
+
+    document.addEventListener('click', function (e) {
+      if (sw.classList.contains('is-open') && !sw.contains(e.target)) setOpen(false);
+    });
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      document.querySelectorAll('[data-locale-switcher].is-open').forEach(function (sw) {
+        sw.classList.remove('is-open');
+        var t = sw.querySelector('.locale-trigger');
+        if (t) t.setAttribute('aria-expanded', 'false');
+      });
+    }
+  });
+})();
+</script>
+
+</body>
+</html>

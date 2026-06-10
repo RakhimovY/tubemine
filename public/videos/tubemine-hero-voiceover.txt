@@ -1,0 +1,1 @@
+TubeMine brings YouTube comments into the AI tools you already use. Paste a video link into Claude, ChatGPT, Cursor, or Codex. TubeMine pulls the full comment thread through MCP. Your assistant sees sentiment, top words, emoji, and the comments behind the signal. Use the web dashboard when you need saved history, quota tracking, and clean exports.
