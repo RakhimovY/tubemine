@@ -1,4 +1,7 @@
-export const MCP_ENDPOINT = "https://tubemine.tech/mcp"
+// Canonical endpoint is /api/mcp (the mcp-handler-native path). A /mcp rewrite
+// breaks mcp-handler's internal path matching (it keeps seeing the source path
+// /mcp while configured for /api/mcp), which 404s every authenticated call.
+export const MCP_ENDPOINT = "https://tubemine.tech/api/mcp"
 
 export type McpClientGroup = "oauth" | "apikey"
 
